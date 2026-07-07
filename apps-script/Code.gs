@@ -30,8 +30,15 @@ function doGet() {
 // ── รันครั้งเดียวตอนติดตั้ง (สร้างชีต + ขออนุญาต Calendar) ────────
 function setup() {
   var sh = getSheet_();
-  CalendarApp.getCalendarById(CONFIG.CALENDAR_ID); // trigger สิทธิ์ปฏิทิน
+  getCal_(); // trigger สิทธิ์ปฏิทิน
   return 'ตั้งค่าเรียบร้อย ✅  ชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน';
+}
+
+// คืนปฏิทินที่จะลงนัด — 'primary'/ว่าง = ปฏิทินหลักของบัญชี (getDefaultCalendar ชัวร์กว่า getCalendarById('primary'))
+function getCal_() {
+  var id = CONFIG.CALENDAR_ID;
+  if (!id || id === 'primary') return CalendarApp.getDefaultCalendar();
+  return CalendarApp.getCalendarById(id) || CalendarApp.getDefaultCalendar();
 }
 
 function getSheet_() {
@@ -52,7 +59,7 @@ function saveBooking(p) {
   if (!p || !p.customer || !p.cat) throw new Error('ต้องมีชื่อลูกค้าและชื่อน้องแมว');
 
   var sh  = getSheet_();
-  var cal = CalendarApp.getCalendarById(CONFIG.CALENDAR_ID);
+  var cal = getCal_();
   var id  = 'B' + Utilities.formatDate(new Date(), 'GMT+7', 'yyyyMMdd-HHmmss');
   var guests = CONFIG.OWNER_EMAILS.join(',');
   var event, when, when2, nights = '';
