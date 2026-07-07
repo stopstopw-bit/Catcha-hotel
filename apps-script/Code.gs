@@ -24,8 +24,25 @@ var CONFIG = {
   GROOM_DURATION_MIN: 90
 };
 
-// ── หน้าเว็บ ───────────────────────────────────────────────────
-function doGet() {
+// คอลัมน์ชีต Bookings (0-based)
+var COL = {
+  ID: 0, CREATED: 1, CUSTOMER: 2, CAT: 3, CONTACT: 4, SERVICE: 5,
+  WHEN: 6, WHEN2: 7, NIGHTS: 8, CHECKIN: 9, STATUS: 10, NOTES: 11,
+  EVENT_ID: 12, LINE_USER_ID: 13, SENT_AT: 14
+};
+
+// ── หน้าเว็บ + LIFF ยืนยัน ─────────────────────────────────────
+function doGet(e) {
+  e = e || {};
+  if (e.parameter && e.parameter.page === 'confirm') {
+    var t = HtmlService.createTemplateFromFile('Confirm');
+    t.liffId = getLineLiffId_();
+    t.bookingId = e.parameter.id || '';
+    return t.evaluate()
+      .setTitle('ยืนยันนัด CatCha Hotel')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('CatCha Hotel — จองคิว')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -36,7 +53,9 @@ function doGet() {
 function setup() {
   getSheet_();
   ensureCalendarApi_();
-  return 'ตั้งค่าเรียบร้อย ✅\nชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน\n' + ensureSharedCalendar_();
+  var msg = ensureSharedCalendar_();
+  return 'ตั้งค่าเรียบร้อย ✅\nชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน\n' + msg +
+         '\n\nเฟส 3: รัน setLineConfig(token, liffId) แล้ว setupTriggers()';
 }
 
 // รันเมื่อ Chutchanok ยังไม่ได้อีเมล (Pitchapa ได้แล้ว) — ลบสิทธิ์เก่าแล้วส่งใหม่
@@ -230,12 +249,28 @@ function getSheet_() {
   var sh = ss.getSheetByName(CONFIG.SHEET_NAME);
   if (!sh) {
     sh = ss.insertSheet(CONFIG.SHEET_NAME);
-    sh.appendRow(['ID','สร้างเมื่อ','ลูกค้า','น้องแมว','ติดต่อ','บริการ',
-                  'วันที่/เช็คอิน','เวลา/เช็คเอาท์','จำนวนคืน','เวลาเช็คอิน','สถานะ','โน้ต','EventId']);
+    sh.appendRow(sheetHeaders_());
     sh.setFrozenRows(1);
-    sh.getRange('A1:M1').setFontWeight('bold');
+    sh.getRange(1, 1, 1, sheetHeaders_().length).setFontWeight('bold');
+  } else {
+    ensureSheetColumns_(sh);
   }
   return sh;
+}
+
+function sheetHeaders_() {
+  return ['ID','สร้างเมื่อ','ลูกค้า','น้องแมว','ติดต่อ','บริการ',
+          'วันที่/เช็คอิน','เวลา/เช็คเอาท์','จำนวนคืน','เวลาเช็คอิน','สถานะ','โน้ต','EventId',
+          'LineUserId','ส่งการ์ดเมื่อ'];
+}
+
+function ensureSheetColumns_(sh) {
+  var headers = sheetHeaders_();
+  var lastCol = sh.getLastColumn();
+  if (lastCol < headers.length) {
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sh.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  }
 }
 
 // ── บันทึกการจอง ─────────────────────────────────────────────
@@ -280,7 +315,8 @@ function saveBooking(p) {
   }
 
   sh.appendRow([id, new Date(), p.customer, p.cat, p.contact || '', p.service,
-                when, when2, nights, '', 'รอยืนยัน', p.notes || '', event.id]);
+                when, when2, nights, '', 'รอยืนยัน', p.notes || '', event.id,
+                extractLineUserId_(p.contact || ''), '']);
 
   return { ok: true, id: id, eventId: event.id, calendar: cal.getName() };
 }
@@ -293,12 +329,81 @@ function getUpcomingBookings() {
   var data = getSheet_().getDataRange().getValues();
   var out = [];
   for (var i = 1; i < data.length; i++) {
-    var r = data[i];
-    out.push({ id: r[0], customer: r[2], cat: r[3], service: r[5],
-               when: String(r[6]), when2: String(r[7]), nights: r[8],
-               checkin: r[9], status: r[10] });
+    out.push(rowToBooking_({ row: data[i], sheetRow: i + 1 }));
   }
   return out;
+}
+
+// ลูกค้ายืนยันผ่าน LIFF / หน้า confirm
+function confirmBooking(bookingId, checkinTime) {
+  var found = findBookingRow_(bookingId);
+  if (!found) throw new Error('ไม่พบการจอง');
+  var b = rowToBooking_(found);
+  if (b.status === 'ยืนยันแล้ว') return { ok: true, id: bookingId, already: true };
+
+  var sh = getSheet_();
+  sh.getRange(found.sheetRow, COL.STATUS + 1).setValue('ยืนยันแล้ว');
+  if (checkinTime && b.service === 'room') {
+    sh.getRange(found.sheetRow, COL.CHECKIN + 1).setValue(checkinTime);
+    b.checkin = checkinTime;
+  }
+  updateCalendarConfirmed_(b, checkinTime);
+  b.status = 'ยืนยันแล้ว';
+  notifyOwnersConfirmed_(b);
+  return { ok: true, id: bookingId };
+}
+
+function findBookingRow_(bookingId) {
+  var data = getSheet_().getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][COL.ID] === bookingId) return { row: data[i], sheetRow: i + 1 };
+  }
+  return null;
+}
+
+function rowToBooking_(found) {
+  var r = found.row;
+  var service = r[COL.SERVICE] === 'room' ? 'room' : 'groom';
+  var b = {
+    id: r[COL.ID], customer: r[COL.CUSTOMER], cat: r[COL.CAT],
+    contact: r[COL.CONTACT], service: service,
+    when: String(r[COL.WHEN] || ''), when2: String(r[COL.WHEN2] || ''),
+    nights: r[COL.NIGHTS], checkin: r[COL.CHECKIN] ? String(r[COL.CHECKIN]) : '',
+    status: r[COL.STATUS] || 'รอยืนยัน', notes: r[COL.NOTES],
+    eventId: r[COL.EVENT_ID], lineUserId: r[COL.LINE_USER_ID] || '',
+    sentAt: r[COL.SENT_AT], sheetRow: found.sheetRow
+  };
+  b.detail = buildDetail_(b);
+  b.time = service === 'room' ? 'เช็คอิน' : b.when2;
+  return b;
+}
+
+function buildDetail_(b) {
+  if (b.service === 'room') {
+    return 'ห้องพัก · ' + formatDateThai_(b.when) + '→' + formatDateThai_(b.when2) +
+           (b.nights ? ' (' + b.nights + ' คืน)' : '');
+  }
+  return 'อาบน้ำ · ' + (b.when2 ? b.when2 + ' น.' : 'รอระบุเวลา');
+}
+
+function extractLineUserId_(contact) {
+  var c = String(contact || '').trim();
+  return /^U[a-f0-9]{32}$/i.test(c) ? c : '';
+}
+
+function updateCalendarConfirmed_(b, checkinTime) {
+  if (!b.eventId) return;
+  ensureCalendarApi_();
+  var calId = getCalendarId_();
+  try {
+    var ev = Calendar.Events.get(calId, b.eventId);
+    var title = ev.summary || '';
+    if (title.indexOf('✅') < 0) ev.summary = '✅ ' + title.replace(/^✅\s*/, '');
+    ev.colorId = '10';
+    ev.description = (ev.description || '') + '\nสถานะ: ยืนยันแล้ว' +
+      (checkinTime ? '\nเวลาเช็คอิน: ' + checkinTime : '');
+    Calendar.Events.patch(ev, calId, b.eventId, { sendUpdates: 'all' });
+  } catch (e) {}
 }
 
 // ── helper ──────────────────────────────────────────────────
