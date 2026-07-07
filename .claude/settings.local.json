@@ -18,7 +18,10 @@
       "Bash(git commit -m 'Add SKILL_BRIEF for booking+reminder system, plus brand/menu assets *)",
       "Skill(artifact-design)",
       "Skill(artifact-design:*)",
-      "Bash(git commit -m 'Phase 1: booking UI mockup \\(cozy minimal\\) + shop logo *)"
+      "Bash(git commit -m 'Phase 1: booking UI mockup \\(cozy minimal\\) + shop logo *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-tree *)",
+      "Bash(git commit -m 'Phase 2: Google Calendar backend \\(Apps Script\\) + setup guide *)"
     ]
   }
 }
