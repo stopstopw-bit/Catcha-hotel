@@ -1,7 +1,7 @@
 # 🛠️ วิธีติดตั้งเฟส 2 — ต่อ Google Calendar (ทำครั้งเดียว ~15 นาที)
 
 > ทำด้วยบัญชี Google **Stopstop.w@gmail.com** (บัญชีเจ้าของหลัก)
-> นัดจะไปลงปฏิทินของบัญชีนี้ แล้วส่งอีเมลเชิญไป Chatchanok.than@gmail.com + pitchapawong.pw@gmail.com
+> นัดจะไปลงปฏิทินของบัญชีนี้ แล้วส่งอีเมลเชิญไป Chutchanok.than@gmail.com + pitchapawong.pw@gmail.com
 
 ---
 
@@ -45,7 +45,7 @@
 20. เปิด Web app URL (มือถือหรือคอมก็ได้) → กรอกจองสักคิว → กด **บันทึกการจอง**
 21. ตรวจสอบ:
     - **Google Calendar** ของ Stopstop.w → เห็นนัดโผล่
-    - **อีเมล/มือถือ** ของ Chatchanok.than@gmail.com และ pitchapawong.pw@gmail.com → ได้รับคำเชิญนัด (อาจอยู่ในโฟลเดอร์ Updates หรือ Promotions)
+    - **อีเมล/มือถือ** ของ Chutchanok.than@gmail.com และ pitchapawong.pw@gmail.com → ได้รับคำเชิญนัด (อาจอยู่ในโฟลเดอร์ Updates หรือ Promotions)
 
 ---
 

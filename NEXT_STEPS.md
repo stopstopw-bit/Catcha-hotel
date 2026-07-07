@@ -18,7 +18,7 @@
 ## 🔜 เฟส 2 — ต่อ Google Calendar จริง (โค้ดเสร็จแล้ว รอเจ้าของติดตั้ง)
 พอกดบันทึกจอง → สร้าง event ใน Google Calendar + เชิญอีเมลเจ้าของ 2 คน (ต่างคนเห็นในปฏิทินตัวเอง)
 
-**อีเมลเจ้าของที่รับเชิญเข้านัด:** Chatchanok.than@gmail.com · pitchapawong.pw@gmail.com
+**อีเมลเจ้าของที่รับเชิญเข้านัด:** Chutchanok.than@gmail.com · pitchapawong.pw@gmail.com
 (บัญชีที่รัน Apps Script/ปฏิทินหลัก = Stopstop.w@gmail.com)
 
 **โค้ดที่เขียนไว้แล้ว:**
