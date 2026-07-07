@@ -8,8 +8,10 @@
 
 var CONFIG = {
   OWNER_EMAILS: ['Chutchanok.than@gmail.com', 'pitchapawong.pw@gmail.com'],
+  // อีเมลสะกดผิดเดิม — ลบสิทธิ์ทิ้งก่อนแชร์ใหม่
+  STALE_OWNER_EMAILS: ['chatchanok.than@gmail.com', 'Chatchanok.than@gmail.com'],
 
-  // ชื่อปฏิทินร่วม — ตรงกับที่เห็นใน Google Calendar ของเจ้าของ
+  // ชื่อปฏิทินร่วม — ใช้ Catcha Hotel เป็นหลัก (CatCha Hotel — Bookings = ชื่อเก่าจากโค้ดก่อนหน้า)
   SHARED_CALENDAR_NAME: 'Catcha Hotel',
   SHARED_CALENDAR_ALIASES: ['Catcha Hotel', 'CatCha Hotel', 'CatCha Hotel — Bookings'],
   CALENDAR_ID_KEY: 'CATCHA_CALENDAR_ID',
@@ -37,14 +39,20 @@ function setup() {
   return 'ตั้งค่าเรียบร้อย ✅\nชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน\n' + ensureSharedCalendar_();
 }
 
+// รันเมื่อ Chutchanok ยังไม่ได้อีเมล (Pitchapa ได้แล้ว) — ลบสิทธิ์เก่าแล้วส่งใหม่
+function resendToChutchanok() {
+  ensureCalendarApi_();
+  return reshareOwnerAllCalendars_('Chutchanok.than@gmail.com');
+}
+
 // รันเมื่อเจ้าของยังไม่ได้อีเมลแชร์ปฏิทิน — ยิงอีเมลใหม่ไป 2 คน
 function shareWithOwners() {
   ensureCalendarApi_();
-  var cal = CalendarApp.getCalendarById(getCalendarId_());
-  shareCalendarWithOwners_(cal, true);
-  return 'ส่งคำเชิญแชร์ปฏิทิน "' + cal.getName() + '" ไปแล้ว:\n' +
-         CONFIG.OWNER_EMAILS.join('\n') +
-         '\n\nเช็ค Inbox + Spam + Promotions แล้วกด "เพิ่มปฏิทิน"';
+  var lines = [];
+  CONFIG.OWNER_EMAILS.forEach(function(email) {
+    lines.push(reshareOwnerAllCalendars_(email));
+  });
+  return lines.join('\n\n') + '\n\nเช็ค Inbox + Spam + Promotions แล้วกด "เพิ่มปฏิทิน"';
 }
 
 function ensureCalendarApi_() {
@@ -85,13 +93,21 @@ function ensureSharedCalendar_() {
 }
 
 function findWritableCalendar_() {
+  for (var n = 0; n < CONFIG.SHARED_CALENDAR_ALIASES.length; n++) {
+    var cal = findWritableCalendarByName_(CONFIG.SHARED_CALENDAR_ALIASES[n]);
+    if (cal) return cal;
+  }
+  return null;
+}
+
+function findWritableCalendarByName_(name) {
   var token;
   do {
     var page = Calendar.CalendarList.list({ maxResults: 250, pageToken: token });
     var items = page.items || [];
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
-      if (CONFIG.SHARED_CALENDAR_ALIASES.indexOf(item.summary) < 0) continue;
+      if (item.summary !== name) continue;
       if (item.accessRole === 'owner' || item.accessRole === 'writer') {
         return CalendarApp.getCalendarById(item.id);
       }
@@ -101,33 +117,73 @@ function findWritableCalendar_() {
   return null;
 }
 
+function getAllWritableCatchaCalendars_() {
+  var out = [];
+  var seen = {};
+  var token;
+  do {
+    var page = Calendar.CalendarList.list({ maxResults: 250, pageToken: token });
+    (page.items || []).forEach(function(item) {
+      if (CONFIG.SHARED_CALENDAR_ALIASES.indexOf(item.summary) < 0) return;
+      if (item.accessRole !== 'owner' && item.accessRole !== 'writer') return;
+      if (seen[item.id]) return;
+      seen[item.id] = true;
+      out.push(CalendarApp.getCalendarById(item.id));
+    });
+    token = page.nextPageToken;
+  } while (token);
+  return out;
+}
+
 function shareCalendarWithOwners_(cal, sendEmail) {
-  var calId = cal.getId();
-  var aclByEmail = getAclByEmail_(calId);
-
   CONFIG.OWNER_EMAILS.forEach(function(email) {
-    try { cal.addEditor(email); } catch (e) {}
-
-    var key = email.toLowerCase();
-    if (aclByEmail[key]) {
-      if (sendEmail) {
-        try {
-          Calendar.Acl.patch(
-            { role: 'writer', scope: { type: 'user', value: email } },
-            calId, aclByEmail[key].id, { sendNotifications: true }
-          );
-        } catch (e) {}
-      }
-      return;
-    }
-
-    try {
-      Calendar.Acl.insert({
-        role: 'writer',
-        scope: { type: 'user', value: email }
-      }, calId, { sendNotifications: !!sendEmail });
-    } catch (e) {}
+    if (sendEmail) reshareOwner_(cal.getId(), email);
+    else ensureOwnerAccess_(cal.getId(), email);
   });
+}
+
+// ลบสิทธิ์เก่า (รวมอีเมลสะกดผิด) แล้วแชร์ใหม่พร้อมส่งอีเมล
+function reshareOwner_(calId, email) {
+  removeAclForEmail_(calId, email);
+  CONFIG.STALE_OWNER_EMAILS.forEach(function(stale) { removeAclForEmail_(calId, stale); });
+
+  var cal = CalendarApp.getCalendarById(calId);
+  try { cal.addEditor(email); } catch (e) {}
+
+  Calendar.Acl.insert({
+    role: 'writer',
+    scope: { type: 'user', value: email }
+  }, calId, { sendNotifications: true });
+}
+
+function ensureOwnerAccess_(calId, email) {
+  var aclByEmail = getAclByEmail_(calId);
+  if (aclByEmail[email.toLowerCase()]) return;
+  reshareOwner_(calId, email);
+}
+
+function reshareOwnerAllCalendars_(email) {
+  var calendars = getAllWritableCatchaCalendars_();
+  if (!calendars.length) {
+    ensureSharedCalendar_();
+    calendars = getAllWritableCatchaCalendars_();
+  }
+  var lines = [];
+  calendars.forEach(function(cal) {
+    try {
+      reshareOwner_(cal.getId(), email);
+      lines.push('✅ ' + email + ' → ' + cal.getName());
+    } catch (e) {
+      lines.push('❌ ' + email + ' → ' + cal.getName() + ': ' + e.message);
+    }
+  });
+  return lines.join('\n');
+}
+
+function removeAclForEmail_(calId, email) {
+  var rule = getAclByEmail_(calId)[email.toLowerCase()];
+  if (!rule) return;
+  try { Calendar.Acl.remove(calId, rule.id); } catch (e) {}
 }
 
 function getAclByEmail_(calId) {
