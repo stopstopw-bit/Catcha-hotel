@@ -7,7 +7,7 @@
 
 var CONFIG = {
   // อีเมลเจ้าของ 2 คน — จะถูกเชิญเข้านัดในปฏิทินทุกครั้ง
-  OWNER_EMAILS: ['Stopstop.w@gmail.com', 'pitchapawong.pw@gmail.com'],
+  OWNER_EMAILS: ['Chatchanok.than@gmail.com', 'pitchapawong.pw@gmail.com'],
 
   // ปฏิทินที่จะลงนัด: 'primary' = ปฏิทินหลักของบัญชีที่รันสคริปต์นี้ (ควรเป็น Stopstop.w)
   CALENDAR_ID: 'primary',

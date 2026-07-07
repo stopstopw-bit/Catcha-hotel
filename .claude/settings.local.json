@@ -23,7 +23,8 @@
       "Bash(git ls-tree *)",
       "Bash(git commit -m 'Phase 2: Google Calendar backend \\(Apps Script\\) + setup guide *)",
       "Bash(git commit -m 'Fix: use getDefaultCalendar\\(\\) instead of getCalendarById\\('\\\\''primary'\\\\''\\) *)",
-      "Bash(git commit -m 'Fix 2nd owner email to pitchapawong.pw@gmail.com *)"
+      "Bash(git commit -m 'Fix 2nd owner email to pitchapawong.pw@gmail.com *)",
+      "Bash(git commit -m 'Correct owner emails: Chatchanok.than + pitchapawong.pw \\(guests\\) *)"
     ]
   }
 }
