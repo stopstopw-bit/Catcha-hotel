@@ -25,7 +25,14 @@
 - `webapp/index.html` — ต่อสายเรียก google.script.run.saveBooking แล้ว (ถ้าเปิดผ่านเว็บแอปจริงจะยิงหลังบ้าน; เปิดไฟล์เฉยๆ = โหมดตัวอย่าง)
 - `apps-script/SETUP.md` — **คู่มือติดตั้งทีละสเต็ป** ← เจ้าของทำตามนี้
 
-**ค้างที่:** เจ้าของยังไม่ได้ทำตาม SETUP.md (สร้าง Apps Script + deploy + ทดสอบ)
+**ติดตั้งแล้ว:** สร้าง Apps Script + Google Sheet + deploy เป็น Web app เรียบร้อย
+**Web app URL:** https://script.google.com/macros/s/AKfycbww2AwCVL8BHKAbzqhUfNOfgC38dUYMkEtyG54J7IsSdqyUnELUsfBIcqbCstuteQA9/exec
+(deploy ด้วยบัญชี Stopstop.w · Execute as: Me · Access: Anyone)
+
+**หมายเหตุแก้บั๊ก:** getCalendarById('primary') คืน null → เปลี่ยนเป็น getDefaultCalendar() แล้ว
+ถ้าแก้ Code.gs ต้อง Deploy → Manage deployments → ✏️ → Version: New version ทุกครั้ง
+
+**ค้างที่:** ทดสอบจอง → ยืนยันว่านัดเด้งเข้า Google Calendar สำเร็จ
 
 ## เฟสถัดไป (ยังไม่ทำ)
 - เฟส 3: ต่อ LINE (ส่งการ์ด Flex + ปุ่มยืนยัน LIFF) — ต้องเปิด Messaging API ที่ LINE OA @catchahotel
