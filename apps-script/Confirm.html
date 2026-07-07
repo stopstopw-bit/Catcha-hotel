@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ยืนยันนัด CatCha Hotel</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FFF8F0;color:#3D2B1F;min-height:100vh;padding:24px 16px}
+    .card{max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 32px rgba(92,64,51,.1)}
+    h1{font-size:1.25rem;color:#5C4033;margin-bottom:8px}
+    .sub{font-size:.85rem;color:#A08060;margin-bottom:20px}
+    .info{background:#FFF8F0;border-radius:12px;padding:14px;margin-bottom:16px;font-size:.9rem;line-height:1.6}
+    .q{font-weight:600;margin:16px 0 10px;font-size:.9rem}
+    .times{display:flex;flex-wrap:wrap;gap:8px}
+  .times span{padding:10px 14px;border-radius:10px;background:#F5EDE4;font-size:.85rem;cursor:pointer;border:2px solid transparent}
+  .times span.on{background:#C4956A;color:#fff;border-color:#C4956A}
+    .btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;background:#C4956A;color:#fff;font-size:1rem;font-weight:600;margin-top:20px;cursor:pointer}
+    .btn:disabled{opacity:.5}
+    .done{text-align:center;padding:40px 0}
+    .done .icon{font-size:3rem}
+    .err{color:#c0392b;font-size:.85rem;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="card" id="app">
+    <p>กำลังโหลด...</p>
+  </div>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    var BOOKING_ID = <?= JSON.stringify(bookingId) ?>;
+    var LIFF_ID = <?= JSON.stringify(liffId) ?>;
+    var service = 'groom';
+    var checkinTime = '14.00';
+    var booking = null;
+
+    function init() {
+      var chain = Promise.resolve();
+      if (LIFF_ID) {
+        chain = liff.init({ liffId: LIFF_ID }).catch(function(){});
+      }
+      chain.then(loadBooking);
+    }
+
+    function loadBooking() {
+      if (!BOOKING_ID) { showErr('ไม่พบรหัสการจอง'); return; }
+      google.script.run
+        .withSuccessHandler(function(list) {
+          booking = (list || []).filter(function(b){ return b.id === BOOKING_ID; })[0];
+          if (!booking) { showErr('ไม่พบการจองนี้'); return; }
+          if (booking.status === 'ยืนยันแล้ว') { showDone(true); return; }
+          service = booking.service;
+          render();
+        })
+        .withFailureHandler(function(e){ showErr(e.message || e); })
+        .getUpcomingBookings();
+    }
+
+    function render() {
+      var isRoom = service === 'room';
+      var html = '<h1>' + (isRoom ? '🏠 ยืนยันเช็คอิน' : '🛁 ยืนยันคิวอาบน้ำ') + '</h1>';
+      html += '<p class="sub">CatCha Hotel บางนา</p>';
+      html += '<div class="info"><strong>' + booking.cat + '</strong><br>คุณ ' + booking.customer + '<br>' + booking.detail + '</div>';
+      if (isRoom) {
+        html += '<p class="q">🕑 น้องจะมาเช็คอินกี่โมงดีคะ?</p>';
+        html += '<div class="times" id="times">';
+        ['10.00','12.00','14.00','16.00','18.00'].forEach(function(t) {
+          html += '<span class="' + (t === '14.00' ? 'on' : '') + '" data-t="' + t + '">' + t + '</span>';
+        });
+        html += '</div>';
+      } else {
+        html += '<p class="sub">กดยืนยันเพื่อแจ้งร้านว่าพรุ่งนี้มาตามนัดนะคะ 🧡</p>';
+      }
+      html += '<button class="btn" id="confirmBtn">' + (isRoom ? '🐾 ยืนยัน + แจ้งเวลาเช็คอิน' : '🐾 ยืนยันคิวเลยน้า') + '</button>';
+      html += '<p class="err" id="err"></p>';
+      document.getElementById('app').innerHTML = html;
+
+      document.querySelectorAll('#times span').forEach(function(el) {
+        el.onclick = function() {
+          document.querySelectorAll('#times span').forEach(function(x){ x.classList.remove('on'); });
+          el.classList.add('on');
+          checkinTime = el.dataset.t;
+        };
+      });
+      document.getElementById('confirmBtn').onclick = doConfirm;
+    }
+
+    function doConfirm() {
+      var btn = document.getElementById('confirmBtn');
+      btn.disabled = true;
+      google.script.run
+        .withSuccessHandler(function() {
+          showDone(false);
+          if (LIFF_ID && liff.isInClient && liff.isInClient()) {
+            setTimeout(function(){ try { liff.closeWindow(); } catch(e){} }, 2000);
+          }
+        })
+        .withFailureHandler(function(e) {
+          document.getElementById('err').textContent = e.message || e;
+          btn.disabled = false;
+        })
+        .confirmBooking(BOOKING_ID, service === 'room' ? checkinTime : '');
+    }
+
+    function showDone(already) {
+      document.getElementById('app').innerHTML =
+        '<div class="done"><div class="icon">🧡</div><h1>' +
+        (already ? 'ยืนยันแล้วค่ะ' : 'ขอบคุณที่ยืนยันน้า') +
+        '</h1><p class="sub">แล้วเจอกันที่ CatCha Hotel นะคะ 🐱</p></div>';
+    }
+
+    function showErr(msg) {
+      document.getElementById('app').innerHTML = '<h1>⚠️ เกิดข้อผิดพลาด</h1><p class="err">' + msg + '</p>';
+    }
+
+    init();
+  </script>
+</body>
+</html>

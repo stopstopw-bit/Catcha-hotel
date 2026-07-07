@@ -20,7 +20,7 @@
 **ทีม / บัญชี**
 - เจ้าของ 2 คน ใช้ระบบร่วมกัน
 - `Stopstop.w@gmail.com` — บัญชีธุรกิจหลัก (รัน Apps Script + ปฏิทินหลัก + GitHub `stopstopw-bit`)
-- เจ้าของ 2 คนที่ต้องเห็นตารางนัด (ได้รับเชิญเข้านัด): `Chatchanok.than@gmail.com`, `pitchapawong.pw@gmail.com`
+- เจ้าของ 2 คนที่ต้องเห็นตารางนัด (ได้รับเชิญเข้านัด): `Chutchanok.than@gmail.com`, `pitchapawong.pw@gmail.com`
 - ลูกค้า ~10-20 คน/เดือน (ปริมาณไม่เยอะ ระบบไม่ต้องซับซ้อน)
 
 ---
@@ -221,7 +221,7 @@ Catcha-hotel/
 
 ### 🔴 กำลังแก้อยู่ — เจ้าของมองไม่เห็นนัดในปฏิทิน
 นัดถูกสร้างที่ปฏิทินของ **Stopstop.w** (บัญชีที่รันสคริปต์) แล้วเชิญ 2 คนเป็น guest แต่คำเชิญ guest มักขึ้นแบบ pending/ไม่เด้งอัตโนมัติ
-**แนะนำวิธีแก้ (robust กว่า):** สร้าง **ปฏิทินกลางชื่อ "CatCha Hotel"** (owned by Stopstop.w) → แชร์ให้ Chatchanok.than + pitchapawong.pw (สิทธิ์แก้ไข) → เปลี่ยน `CONFIG.CALENDAR_ID` เป็น ID ของปฏิทินนั้น (แทน `getDefaultCalendar()`) → ทุกคน subscribe ปฏิทินเดียว เห็นนัดตรงกันชัวร์
+**แนะนำวิธีแก้ (robust กว่า):** สร้าง **ปฏิทินกลางชื่อ "CatCha Hotel"** (owned by Stopstop.w) → แชร์ให้ Chutchanok.than + pitchapawong.pw (สิทธิ์แก้ไข) → เปลี่ยน `CONFIG.CALENDAR_ID` เป็น ID ของปฏิทินนั้น (แทน `getDefaultCalendar()`) → ทุกคน subscribe ปฏิทินเดียว เห็นนัดตรงกันชัวร์
 
 ### 🔜 เฟส 3 — ต่อ LINE
 - เปิด Messaging API ที่ LINE OA `@catchahotel` → เอา Channel access token + secret
