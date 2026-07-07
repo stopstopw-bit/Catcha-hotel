@@ -1,14 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DEMO_BOOKINGS, type Booking } from "@/lib/business";
+
+type ApiBooking = Booking & { lineUserId?: string };
 
 export default function AdminDashboard() {
   const [view, setView] = useState<"today" | "week">("today");
-  const [bookings] = useState<Booking[]>(DEMO_BOOKINGS);
+  const [bookings, setBookings] = useState<ApiBooking[]>(DEMO_BOOKINGS);
+  const [loading, setLoading] = useState(true);
 
-  const sendCard = (id: string) => {
-    alert(`ส่งการ์ด LINE ให้ ${id} (จะต่อ API จริง)`);
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/bookings");
+      const data = await res.json();
+      if (data.bookings?.length) {
+        setBookings(data.bookings as ApiBooking[]);
+      }
+    } catch {
+      /* ใช้ demo ถ้า API ไม่พร้อม */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const sendCard = async (b: ApiBooking) => {
+    if (!b.lineUserId) {
+      alert("ยังไม่มี LINE User ID — บันทึกตอนจองให้ลูกค้า");
+      return;
+    }
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: b.id,
+        action: "send_reminder",
+        lineUserId: b.lineUserId,
+      }),
+    });
+    if (res.ok) alert("ส่งการ์ด LINE แล้ว 📨");
+    else alert("ส่งไม่สำเร็จ — ตรวจ LINE_CHANNEL_TOKEN");
   };
 
   return (
@@ -33,7 +68,8 @@ export default function AdminDashboard() {
           ตารางนัด · Google Calendar
         </h2>
         <p className="mb-3 text-xs text-brown-soft">
-          นัดจะซิงก์ไปปฏิทิน Catcha Hotel อัตโนมัติ (ต่อ API ในเฟสถัดไป)
+          นัดซิงก์ Google Calendar + แจ้ง Telegram เมื่อมีจองใหม่
+          {loading ? " · กำลังโหลด…" : ""}
         </p>
         <ul className="space-y-2">
           {bookings.map((b) => (
@@ -61,7 +97,7 @@ export default function AdminDashboard() {
               {b.status === "pending" && (
                 <button
                   type="button"
-                  onClick={() => sendCard(b.id)}
+                  onClick={() => sendCard(b)}
                   className="rounded-full bg-latte/30 px-3 py-1.5 text-xs font-bold text-catcha-chocolate"
                 >
                   📨 ส่งการ์ด

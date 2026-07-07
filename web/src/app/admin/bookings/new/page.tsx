@@ -7,10 +7,35 @@ export default function NewBookingPage() {
   const [service, setService] = useState<"groom" | "room">("groom");
   const [saved, setSaved] = useState(false);
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    const fd = new FormData(e.currentTarget);
+    const payload = {
+      customerName: String(fd.get("customer") || ""),
+      catName: String(fd.get("cat") || ""),
+      lineUserId: String(fd.get("lineId") || "") || undefined,
+      service,
+      date: service === "groom" ? String(fd.get("date") || "") : undefined,
+      time: service === "groom" ? String(fd.get("time") || "") : undefined,
+      room: service === "room" ? String(fd.get("room") || "") : undefined,
+      checkin: service === "room" ? String(fd.get("checkin") || "") : undefined,
+      checkout: service === "room" ? String(fd.get("checkout") || "") : undefined,
+      notes: String(fd.get("notes") || "") || undefined,
+    };
+
+    const res = await fetch("/api/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      setSaved(true);
+      e.currentTarget.reset();
+      setTimeout(() => setSaved(false), 2500);
+    } else {
+      alert("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง");
+    }
   };
 
   return (
