@@ -16,10 +16,10 @@
 - ตัวอย่างสด (Artifact): https://claude.ai/code/artifact/045f24a5-103b-4377-aa71-651b526fa7e7
 
 ## 🔜 เฟส 2 — ต่อ Google Calendar จริง (โค้ดเสร็จแล้ว รอเจ้าของติดตั้ง)
-พอกดบันทึกจอง → สร้าง event ใน Google Calendar + เชิญอีเมลเจ้าของ 2 คน (ต่างคนเห็นในปฏิทินตัวเอง)
+พอกดบันทึกจอง → สร้างนัดในปฏิทินร่วม **CatCha Hotel — Bookings** (เจ้าของ 2 คนเห็นบนมือถือ)
 
-**อีเมลเจ้าของที่รับเชิญเข้านัด:** Chutchanok.than@gmail.com · pitchapawong.pw@gmail.com
-(บัญชีที่รัน Apps Script/ปฏิทินหลัก = Stopstop.w@gmail.com)
+**อีเมลเจ้าของที่แชร์ปฏิทิน:** Chutchanok.than@gmail.com · pitchapawong.pw@gmail.com
+(บัญชีที่รัน Apps Script = Stopstop.w@gmail.com)
 
 **โค้ดที่เขียนไว้แล้ว:**
 - `apps-script/Code.gs` — หลังบ้าน: saveBooking() สร้างนัด Calendar + เชิญ 2 คน, เก็บลง Google Sheet
@@ -33,7 +33,7 @@
 **หมายเหตุแก้บั๊ก:** getCalendarById('primary') คืน null → เปลี่ยนเป็น getDefaultCalendar() แล้ว
 ถ้าแก้ Code.gs ต้อง Deploy → Manage deployments → ✏️ → Version: New version ทุกครั้ง
 
-**ค้างที่:** ทดสอบจอง → ยืนยันว่านัดเด้งเข้า Google Calendar สำเร็จ
+**ค้างที่:** รัน `setup` สร้างปฏิทินร่วม → เจ้าของ 2 คนเปิดแสดง "CatCha Hotel — Bookings" บนมือถือ → ทดสอบจอง
 
 ## เฟสถัดไป (ยังไม่ทำ)
 - เฟส 3: ต่อ LINE (ส่งการ์ด Flex + ปุ่มยืนยัน LIFF) — ต้องเปิด Messaging API ที่ LINE OA @catchahotel
