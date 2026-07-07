@@ -1,5 +1,7 @@
 # Deploy บน Vercel
 
-**Root Directory = `web`** (โฟลเดอร์ Next.js — ไม่ใช่ `webapp`)
+**Root Directory = `webapp`** (เว็บ Next.js ใหม่)
 
-ดูรายละเอียด env vars ใน `web/DEPLOY.md`
+เว็บ HTML เก่าอยู่ที่ `legacy-webapp/` — ไม่ต้อง deploy
+
+ดูรายละเอียด env vars ใน `webapp/DEPLOY.md`

@@ -13,7 +13,7 @@ Deploy ต้องใช้ **บัญชี Vercel ของคุณ** (logi
 
 1. เปิด https://vercel.com → Login ด้วย GitHub `stopstopw-bit`
 2. **Add New Project** → เลือก repo `Catcha-hotel`
-3. ตั้ง **Root Directory** = `web`
+3. ตั้ง **Root Directory** = `webapp`
 4. ใส่ Environment Variables:
 
 | ชื่อ | ค่า |
@@ -47,6 +47,6 @@ Deploy ต้องใช้ **บัญชี Vercel ของคุณ** (logi
 
 ## ดูเว็บบนคอมก่อน deploy
 ```bash
-cd web && npm run dev
+cd webapp && npm run dev
 ```
 เปิด http://localhost:3000/app

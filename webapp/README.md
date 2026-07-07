@@ -16,7 +16,7 @@ npm run dev
 ## Deploy (Vercel) — เจ้าของทำครั้งเดียว
 
 1. Push repo ไป GitHub
-2. เข้า [vercel.com](https://vercel.com) → Import project → เลือกโฟลเดอร์ `web`
+2. เข้า [vercel.com](https://vercel.com) → Import project → เลือกโฟลเดอร์ `webapp`
 3. ใส่ Environment Variables:
 
 | ตัวแปร | ค่า |

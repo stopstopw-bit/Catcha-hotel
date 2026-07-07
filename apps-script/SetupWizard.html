@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ติดตั้ง CatCha Hotel</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FFF8F0;color:#3D2B1F;padding:20px 16px 40px}
+    .wrap{max-width:480px;margin:0 auto}
+    h1{font-size:1.35rem;color:#5C4033;margin-bottom:4px}
+    .lead{color:#A08060;font-size:.9rem;margin-bottom:24px;line-height:1.5}
+    .card{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 4px 20px rgba(92,64,51,.08)}
+    .card h2{font-size:1rem;margin-bottom:12px;color:#5C4033}
+    .status{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F5EDE4;font-size:.9rem}
+    .status:last-child{border:none}
+    .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .dot.ok{background:#6B9E6B}.dot.wait{background:#E0D5C8}.dot.err{background:#c0392b}
+    label{display:block;font-size:.85rem;font-weight:600;margin:14px 0 6px;color:#5C4033}
+    input{width:100%;padding:12px;border:1px solid #E8DDD0;border-radius:10px;font-size:.9rem}
+    input:focus{outline:none;border-color:#C4956A}
+    .hint{font-size:.78rem;color:#A08060;margin-top:4px;line-height:1.4}
+    .btn{width:100%;padding:16px;border:none;border-radius:12px;background:#C4956A;color:#fff;font-size:1rem;font-weight:600;margin-top:16px;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn2{width:100%;padding:12px;border:2px solid #C4956A;border-radius:12px;background:transparent;color:#5C4033;font-size:.9rem;margin-top:8px;cursor:pointer}
+    .log{background:#FFF8F0;border-radius:10px;padding:12px;font-size:.8rem;white-space:pre-wrap;margin-top:12px;max-height:200px;overflow:auto;display:none}
+    .log.show{display:block}
+    a{color:#C4956A}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🐱 ติดตั้ง CatCha Hotel</h1>
+    <p class="lead">กดปุ่มเดียวด้านล่าง — ระบบจะตั้งปฏิทิน + แชร์ให้เจ้าของ + เตือนเที่ยงอัตโนมัติให้เอง<br>ไม่ต้องแก้โค้ด</p>
+
+    <div class="card">
+      <h2>สถานะระบบ</h2>
+      <div id="statusList">กำลังเช็ค...</div>
+    </div>
+
+    <div class="card">
+      <h2>⚙️ ติดตั้งทั้งหมด (กดครั้งเดียว)</h2>
+      <p class="hint" style="margin-bottom:8px">ขั้นนี้ทำปฏิทิน + ชีต + แชร์ให้ Chutchanok + Pitchapa + ตั้งเวลาเตือน 12:00 น.</p>
+      <button class="btn" id="bootstrapBtn" onclick="runBootstrap(false)">🚀 ติดตั้งระบบทั้งหมด</button>
+      <div class="log" id="log1"></div>
+    </div>
+
+    <div class="card">
+      <h2>📱 ต่อ LINE (ทำทีหลังก็ได้)</h2>
+      <label>Channel access token</label>
+      <input type="password" id="lineToken" placeholder="วางจาก LINE Developers Console">
+      <p class="hint">LINE Developers → Channel @catchahotel → Messaging API → Issue token</p>
+      <label>LIFF ID</label>
+      <input type="text" id="liffId" placeholder="เช่น 1234567890-AbCdEfGh">
+      <p class="hint">สร้าง LIFF ชี้ไป URL นี้: <span id="confirmUrl">—</span></p>
+      <button class="btn btn-line" id="lineBtn" onclick="runBootstrap(true)">📱 บันทึก LINE + ติดตั้ง</button>
+      <div class="log" id="log2"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔗 ลิงก์ใช้งาน</h2>
+      <p class="hint">หลัง Deploy แล้ว เปิดลิงก์นี้จองคิว:</p>
+      <p style="margin-top:8px;word-break:break-all;font-size:.85rem" id="appUrl">—</p>
+      <button class="btn2" onclick="openBooking()">เปิดหน้าจองคิว</button>
+    </div>
+  </div>
+  <script>
+    function loadStatus() {
+      google.script.run
+        .withSuccessHandler(renderStatus)
+        .withFailureHandler(function(e) {
+          document.getElementById('statusList').innerHTML = '<div class="status"><span class="dot err"></span>ยังไม่ได้อนุญาตสิทธิ์ — กดติดตั้งแล้ว Allow</div>';
+        })
+        .getSystemStatus();
+    }
+
+    function renderStatus(s) {
+      var items = [
+        ['ชีต Bookings', s.sheet],
+        ['ปฏิทิน Catcha Hotel', s.calendar],
+        ['แชร์ให้เจ้าของ 2 คน', s.shared],
+        ['เตือนอัตโนมัติ 12:00 น.', s.trigger],
+        ['LINE Messaging', s.line]
+      ];
+      document.getElementById('statusList').innerHTML = items.map(function(x) {
+        var cls = x[1] === true ? 'ok' : (x[1] === 'partial' ? 'wait' : 'wait');
+        var txt = x[1] === true ? 'พร้อม ✅' : (x[1] === 'partial' ? 'ทำบางส่วน' : 'ยังไม่ตั้ง');
+        if (x[0].indexOf('LINE') >= 0 && !x[1]) txt = 'ยังไม่ตั้ง (ทำทีหลังได้)';
+        return '<div class="status"><span class="dot '+cls+'"></span><span>'+x[0]+' — '+txt+'</span></div>';
+      }).join('');
+      if (s.webAppUrl) {
+        document.getElementById('appUrl').textContent = s.webAppUrl;
+        document.getElementById('confirmUrl').textContent = s.webAppUrl + '?page=confirm';
+      }
+    }
+
+    function runBootstrap(withLine) {
+      var btn = withLine ? document.getElementById('lineBtn') : document.getElementById('bootstrapBtn');
+      var log = document.getElementById(withLine ? 'log2' : 'log1');
+      btn.disabled = true;
+      log.className = 'log show';
+      log.textContent = 'กำลังติดตั้ง...';
+      google.script.run
+        .withSuccessHandler(function(msg) {
+          log.textContent = msg;
+          btn.disabled = false;
+          loadStatus();
+        })
+        .withFailureHandler(function(e) {
+          log.textContent = '❌ ' + (e.message || e);
+          btn.disabled = false;
+        })
+        .ownerBootstrap({
+          lineToken: withLine ? document.getElementById('lineToken').value.trim() : '',
+          liffId: withLine ? document.getElementById('liffId').value.trim() : ''
+        });
+    }
+
+    function openBooking() {
+      var url = document.getElementById('appUrl').textContent;
+      if (url && url !== '—') window.open(url, '_blank');
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>
