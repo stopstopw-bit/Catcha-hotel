@@ -15,7 +15,10 @@
       "Bash(git credential *)",
       "Bash(git credential-manager *)",
       "Bash(git remote *)",
-      "Bash(git commit -m 'Add SKILL_BRIEF for booking+reminder system, plus brand/menu assets *)"
+      "Bash(git commit -m 'Add SKILL_BRIEF for booking+reminder system, plus brand/menu assets *)",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "Bash(git commit -m 'Phase 1: booking UI mockup \\(cozy minimal\\) + shop logo *)"
     ]
   }
 }
