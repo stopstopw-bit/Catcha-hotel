@@ -1,16 +1,17 @@
 /**
  * CatCha Hotel — ระบบจองคิว (หลังบ้าน)
- * เฟส 2: บันทึกจอง → สร้างนัดในปฏิทินร่วม "CatCha Hotel" ที่เจ้าของ 2 คนเห็นบนมือถือ
+ * เฟส 2: บันทึกจอง → ลงปฏิทินร่วม "Catcha Hotel" ที่เจ้าของ 2 คนเห็นบนมือถือ
  *
  * วิธีติดตั้ง: อ่าน apps-script/SETUP.md
  * ต้องเปิด Advanced service "Google Calendar API" (Services +)
  */
 
 var CONFIG = {
-  // อีเมลเจ้าของ 2 คน — แชร์ปฏิทินร่วมให้ทั้งคู่ (เห็นนัดบนมือถือโดยไม่ต้องกดรับคำเชิญทีละนัด)
   OWNER_EMAILS: ['Chutchanok.than@gmail.com', 'pitchapawong.pw@gmail.com'],
 
-  SHARED_CALENDAR_NAME: 'CatCha Hotel — Bookings',
+  // ชื่อปฏิทินร่วม — ตรงกับที่เห็นใน Google Calendar ของเจ้าของ
+  SHARED_CALENDAR_NAME: 'Catcha Hotel',
+  SHARED_CALENDAR_ALIASES: ['Catcha Hotel', 'CatCha Hotel', 'CatCha Hotel — Bookings'],
   CALENDAR_ID_KEY: 'CATCHA_CALENDAR_ID',
 
   SHEET_NAME: 'Bookings',
@@ -18,10 +19,10 @@ var CONFIG = {
   MAPS: 'https://maps.app.goo.gl/u38pzVGa9LiEsLEK8',
   TIMEZONE: 'Asia/Bangkok',
 
-  GROOM_DURATION_MIN: 90       // อาบน้ำ/กรูมมิ่ง กันเวลาไว้กี่นาทีในปฏิทิน
+  GROOM_DURATION_MIN: 90
 };
 
-// ── หน้าเว็บ (เปิดจากลิงก์ Web App) ─────────────────────────────
+// ── หน้าเว็บ ───────────────────────────────────────────────────
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('CatCha Hotel — จองคิว')
@@ -29,33 +30,48 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// ── รันครั้งเดียวตอนติดตั้ง (สร้างชีต + ปฏิทินร่วม + แชร์ให้เจ้าของ) ──
+// ── รันครั้งเดียวตอนติดตั้ง ───────────────────────────────────
 function setup() {
   getSheet_();
   ensureCalendarApi_();
-  var calMsg = ensureSharedCalendar_();
-  return 'ตั้งค่าเรียบร้อย ✅\nชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน\n' + calMsg;
+  return 'ตั้งค่าเรียบร้อย ✅\nชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน\n' + ensureSharedCalendar_();
+}
+
+// รันเมื่อเจ้าของยังไม่ได้อีเมลแชร์ปฏิทิน — ยิงอีเมลใหม่ไป 2 คน
+function shareWithOwners() {
+  ensureCalendarApi_();
+  var cal = CalendarApp.getCalendarById(getCalendarId_());
+  shareCalendarWithOwners_(cal, true);
+  return 'ส่งคำเชิญแชร์ปฏิทิน "' + cal.getName() + '" ไปแล้ว:\n' +
+         CONFIG.OWNER_EMAILS.join('\n') +
+         '\n\nเช็ค Inbox + Spam + Promotions แล้วกด "เพิ่มปฏิทิน"';
 }
 
 function ensureCalendarApi_() {
   if (typeof Calendar === 'undefined' || !Calendar.Events) {
-    throw new Error('เปิด Advanced service "Google Calendar API" ก่อน: ซ้ายมือ Services (+) → Google Calendar API → เปิด');
+    throw new Error('เปิด Advanced service "Google Calendar API" ก่อน: Services (+) → Google Calendar API');
   }
 }
 
-// สร้าง/คืนปฏิทินร่วม CatCha Hotel แล้วแชร์ให้เจ้าของ 2 คน
 function ensureSharedCalendar_() {
   var props = PropertiesService.getScriptProperties();
-  var existingId = props.getProperty(CONFIG.CALENDAR_ID_KEY);
+  var storedId = props.getProperty(CONFIG.CALENDAR_ID_KEY);
 
-  if (existingId) {
+  if (storedId) {
     try {
-      var existing = CalendarApp.getCalendarById(existingId);
-      shareCalendarWithOwners_(existing);
-      return 'ปฏิทินร่วม: ' + CONFIG.SHARED_CALENDAR_NAME + ' (ใช้ของเดิม)\n' + ownerCalendarHint_();
+      var stored = CalendarApp.getCalendarById(storedId);
+      shareCalendarWithOwners_(stored, true);
+      return calendarSetupMessage_(stored);
     } catch (e) {
       props.deleteProperty(CONFIG.CALENDAR_ID_KEY);
     }
+  }
+
+  var found = findWritableCalendar_();
+  if (found) {
+    props.setProperty(CONFIG.CALENDAR_ID_KEY, found.getId());
+    shareCalendarWithOwners_(found, true);
+    return 'ใช้ปฏิทินเดิม "' + found.getName() + '" ✅\n' + calendarSetupMessage_(found);
   }
 
   var cal = CalendarApp.createCalendar(CONFIG.SHARED_CALENDAR_NAME, {
@@ -63,29 +79,88 @@ function ensureSharedCalendar_() {
     timeZone: CONFIG.TIMEZONE
   });
   props.setProperty(CONFIG.CALENDAR_ID_KEY, cal.getId());
-  shareCalendarWithOwners_(cal);
+  shareCalendarWithOwners_(cal, true);
 
-  return 'สร้างปฏิทินร่วม "' + CONFIG.SHARED_CALENDAR_NAME + '" แล้ว ✅\n' +
-         'แชร์ให้เจ้าของ 2 คนแล้ว — เช็คอีเมลยืนยัน แล้วเปิดแสดงปฏิทินนี้บนมือถือ\n' +
-         ownerCalendarHint_();
+  return 'สร้างปฏิทิน "' + CONFIG.SHARED_CALENDAR_NAME + '" แล้ว ✅\n' + calendarSetupMessage_(cal);
 }
 
-function shareCalendarWithOwners_(cal) {
+function findWritableCalendar_() {
+  var token;
+  do {
+    var page = Calendar.CalendarList.list({ maxResults: 250, pageToken: token });
+    var items = page.items || [];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (CONFIG.SHARED_CALENDAR_ALIASES.indexOf(item.summary) < 0) continue;
+      if (item.accessRole === 'owner' || item.accessRole === 'writer') {
+        return CalendarApp.getCalendarById(item.id);
+      }
+    }
+    token = page.nextPageToken;
+  } while (token);
+  return null;
+}
+
+function shareCalendarWithOwners_(cal, sendEmail) {
+  var calId = cal.getId();
+  var aclByEmail = getAclByEmail_(calId);
+
   CONFIG.OWNER_EMAILS.forEach(function(email) {
     try { cal.addEditor(email); } catch (e) {}
+
+    var key = email.toLowerCase();
+    if (aclByEmail[key]) {
+      if (sendEmail) {
+        try {
+          Calendar.Acl.patch(
+            { role: 'writer', scope: { type: 'user', value: email } },
+            calId, aclByEmail[key].id, { sendNotifications: true }
+          );
+        } catch (e) {}
+      }
+      return;
+    }
+
+    try {
+      Calendar.Acl.insert({
+        role: 'writer',
+        scope: { type: 'user', value: email }
+      }, calId, { sendNotifications: !!sendEmail });
+    } catch (e) {}
   });
 }
 
+function getAclByEmail_(calId) {
+  var map = {};
+  var token;
+  do {
+    var page = Calendar.Acl.list(calId, { pageToken: token });
+    (page.items || []).forEach(function(rule) {
+      if (rule.scope && rule.scope.type === 'user' && rule.scope.value) {
+        map[rule.scope.value.toLowerCase()] = rule;
+      }
+    });
+    token = page.nextPageToken;
+  } while (token);
+  return map;
+}
+
+function calendarSetupMessage_(cal) {
+  return 'ปฏิทิน: ' + cal.getName() + '\n' +
+         'แชร์ไป: ' + CONFIG.OWNER_EMAILS.join(', ') + '\n' +
+         ownerCalendarHint_();
+}
+
 function ownerCalendarHint_() {
-  return 'มือถือ: เปิด Google Calendar → ☰ → เลื่อนหา "' + CONFIG.SHARED_CALENDAR_NAME + '" → ติ๊กเปิดแสดง';
+  return 'มือถือ/คอม: Google Calendar → ☰ → ติ๊กเปิด "' + CONFIG.SHARED_CALENDAR_NAME + '"';
 }
 
 function getCalendarId_() {
-  var existingId = PropertiesService.getScriptProperties().getProperty(CONFIG.CALENDAR_ID_KEY);
-  if (existingId) {
+  var storedId = PropertiesService.getScriptProperties().getProperty(CONFIG.CALENDAR_ID_KEY);
+  if (storedId) {
     try {
-      CalendarApp.getCalendarById(existingId);
-      return existingId;
+      CalendarApp.getCalendarById(storedId);
+      return storedId;
     } catch (e) {
       PropertiesService.getScriptProperties().deleteProperty(CONFIG.CALENDAR_ID_KEY);
     }
@@ -107,12 +182,13 @@ function getSheet_() {
   return sh;
 }
 
-// ── บันทึกการจอง (ฟอร์มเรียกผ่าน google.script.run.saveBooking) ──
+// ── บันทึกการจอง ─────────────────────────────────────────────
 function saveBooking(p) {
   if (!p || !p.customer || !p.cat) throw new Error('ต้องมีชื่อลูกค้าและชื่อน้องแมว');
 
   ensureCalendarApi_();
-  getCalendarId_(); // สร้าง/แชร์ปฏิทินร่วมถ้ายังไม่มี
+  var calId = getCalendarId_();
+  var cal = CalendarApp.getCalendarById(calId);
 
   var sh = getSheet_();
   var id = 'B' + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss');
@@ -123,7 +199,7 @@ function saveBooking(p) {
     var co = parseDate_(p.checkout);
     if (!ci || !co) throw new Error('ห้องพัก: ต้องมีวันเช็คอินและวันเช็คเอาท์');
     var coExclusive = new Date(co.getTime() + 86400000);
-    event = insertCalendarEvent_({
+    event = insertCalendarEvent_(calId, {
       summary: '🏠 ' + p.cat + ' เข้าพัก (' + p.customer + ')',
       description: desc_(p, id),
       start: { date: formatDateYmd_(ci) },
@@ -137,7 +213,7 @@ function saveBooking(p) {
     var t = parseTime_(p.time);
     var start = new Date(d.getTime()); start.setHours(t.h, t.m, 0, 0);
     var end = new Date(start.getTime() + CONFIG.GROOM_DURATION_MIN * 60000);
-    event = insertCalendarEvent_({
+    event = insertCalendarEvent_(calId, {
       summary: '🛁 อาบน้ำ ' + p.cat + ' (' + p.customer + ')',
       description: desc_(p, id),
       start: { dateTime: formatDateTimeIso_(start), timeZone: CONFIG.TIMEZONE },
@@ -150,15 +226,13 @@ function saveBooking(p) {
   sh.appendRow([id, new Date(), p.customer, p.cat, p.contact || '', p.service,
                 when, when2, nights, '', 'รอยืนยัน', p.notes || '', event.id]);
 
-  return { ok: true, id: id, eventId: event.id, calendar: CONFIG.SHARED_CALENDAR_NAME };
+  return { ok: true, id: id, eventId: event.id, calendar: cal.getName() };
 }
 
-// ลงนัดในปฏิทินร่วม — เจ้าของที่ถูกแชร์ปฏิทินจะเห็นทันที (ไม่พึ่งคำเชิญ guest รายนัด)
-function insertCalendarEvent_(resource) {
-  return Calendar.Events.insert(resource, getCalendarId_(), { sendUpdates: 'none' });
+function insertCalendarEvent_(calId, resource) {
+  return Calendar.Events.insert(resource, calId, { sendUpdates: 'none' });
 }
 
-// ── อ่านนัดที่จะถึง (ไว้ให้หน้าเว็บโหลดตารางในเฟสถัดไป) ──────────
 function getUpcomingBookings() {
   var data = getSheet_().getDataRange().getValues();
   var out = [];
