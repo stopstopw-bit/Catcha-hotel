@@ -1,12 +1,13 @@
 /**
  * CatCha Hotel — ระบบจองคิว (หลังบ้าน)
- * เฟส 2: บันทึกจอง → สร้างนัดใน Google Calendar + เชิญเจ้าของ 2 คน
+ * เฟส 2: บันทึกจอง → สร้างนัดใน Google Calendar + ส่งอีเมลเชิญเจ้าของ 2 คน
  *
  * วิธีติดตั้ง: อ่าน apps-script/SETUP.md
+ * ต้องเปิด Advanced service "Google Calendar API" (Services +) เพื่อส่งอีเมลเชิญ
  */
 
 var CONFIG = {
-  // อีเมลเจ้าของ 2 คน — จะถูกเชิญเข้านัดในปฏิทินทุกครั้ง
+  // อีเมลเจ้าของ 2 คน — จะถูกเชิญเข้านัดในปฏิทินทุกครั้ง (ได้รับอีเมล + แจ้งเตือนมือถือ)
   OWNER_EMAILS: ['Chatchanok.than@gmail.com', 'pitchapawong.pw@gmail.com'],
 
   // ปฏิทินที่จะลงนัด: 'primary' = ปฏิทินหลักของบัญชีที่รันสคริปต์นี้ (ควรเป็น Stopstop.w)
@@ -15,6 +16,7 @@ var CONFIG = {
   SHEET_NAME: 'Bookings',
   SHOP: 'CatCha Hotel บางนา',
   MAPS: 'https://maps.app.goo.gl/u38pzVGa9LiEsLEK8',
+  TIMEZONE: 'Asia/Bangkok',
 
   GROOM_DURATION_MIN: 90       // อาบน้ำ/กรูมมิ่ง กันเวลาไว้กี่นาทีในปฏิทิน
 };
@@ -30,11 +32,24 @@ function doGet() {
 // ── รันครั้งเดียวตอนติดตั้ง (สร้างชีต + ขออนุญาต Calendar) ────────
 function setup() {
   var sh = getSheet_();
-  getCal_(); // trigger สิทธิ์ปฏิทิน
+  getCal_(); // trigger สิทธิ์ปฏิทิน (CalendarApp)
+  ensureCalendarApi_(); // trigger สิทธิ์ Advanced Calendar API
   return 'ตั้งค่าเรียบร้อย ✅  ชีต "' + CONFIG.SHEET_NAME + '" พร้อมใช้งาน';
 }
 
-// คืนปฏิทินที่จะลงนัด — 'primary'/ว่าง = ปฏิทินหลักของบัญชี (getDefaultCalendar ชัวร์กว่า getCalendarById('primary'))
+function ensureCalendarApi_() {
+  if (typeof Calendar === 'undefined' || !Calendar.Events) {
+    throw new Error('เปิด Advanced service "Google Calendar API" ก่อน: ซ้ายมือ Services (+) → Google Calendar API → เปิด');
+  }
+  Calendar.Events.list(getCalendarId_(), { maxResults: 1 });
+}
+
+function getCalendarId_() {
+  var id = CONFIG.CALENDAR_ID;
+  return (!id || id === 'primary') ? 'primary' : id;
+}
+
+// คืนปฏิทินที่จะลงนัด — ใช้ตอน setup / ขอสิทธิ์
 function getCal_() {
   var id = CONFIG.CALENDAR_ID;
   if (!id || id === 'primary') return CalendarApp.getDefaultCalendar();
@@ -58,10 +73,11 @@ function getSheet_() {
 function saveBooking(p) {
   if (!p || !p.customer || !p.cat) throw new Error('ต้องมีชื่อลูกค้าและชื่อน้องแมว');
 
-  var sh  = getSheet_();
-  var cal = getCal_();
-  var id  = 'B' + Utilities.formatDate(new Date(), 'GMT+7', 'yyyyMMdd-HHmmss');
-  var guests = CONFIG.OWNER_EMAILS.join(',');
+  ensureCalendarApi_();
+
+  var sh = getSheet_();
+  var id = 'B' + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss');
+  var attendees = ownerAttendees_();
   var event, when, when2, nights = '';
 
   if (p.service === 'room') {
@@ -69,26 +85,53 @@ function saveBooking(p) {
     var co = parseDate_(p.checkout);
     if (!ci || !co) throw new Error('ห้องพัก: ต้องมีวันเช็คอินและวันเช็คเอาท์');
     var coExclusive = new Date(co.getTime() + 86400000);   // all-day event วันจบเป็น exclusive
-    event = cal.createAllDayEvent('🏠 ' + p.cat + ' เข้าพัก (' + p.customer + ')',
-              ci, coExclusive, { guests: guests, sendInvites: true, description: desc_(p, id) });
-    setColor_(event, CalendarApp.EventColor.PALE_BLUE);
+    event = insertCalendarEvent_({
+      summary: '🏠 ' + p.cat + ' เข้าพัก (' + p.customer + ')',
+      description: desc_(p, id),
+      start: { date: formatDateYmd_(ci) },
+      end: { date: formatDateYmd_(coExclusive) },
+      attendees: attendees,
+      colorId: '9',
+      guestsCanModify: false,
+      guestsCanInviteOthers: false,
+      guestsCanSeeOtherGuests: true
+    });
     when = p.checkin; when2 = p.checkout; nights = nights_(ci, co);
   } else {
     var d = parseDate_(p.date);
     if (!d) throw new Error('อาบน้ำ: ต้องมีวันที่นัด');
     var t = parseTime_(p.time);
     var start = new Date(d.getTime()); start.setHours(t.h, t.m, 0, 0);
-    var end   = new Date(start.getTime() + CONFIG.GROOM_DURATION_MIN * 60000);
-    event = cal.createEvent('🛁 อาบน้ำ ' + p.cat + ' (' + p.customer + ')',
-              start, end, { guests: guests, sendInvites: true, description: desc_(p, id) });
-    setColor_(event, CalendarApp.EventColor.YELLOW);
+    var end = new Date(start.getTime() + CONFIG.GROOM_DURATION_MIN * 60000);
+    event = insertCalendarEvent_({
+      summary: '🛁 อาบน้ำ ' + p.cat + ' (' + p.customer + ')',
+      description: desc_(p, id),
+      start: { dateTime: formatDateTimeIso_(start), timeZone: CONFIG.TIMEZONE },
+      end: { dateTime: formatDateTimeIso_(end), timeZone: CONFIG.TIMEZONE },
+      attendees: attendees,
+      colorId: '5',
+      guestsCanModify: false,
+      guestsCanInviteOthers: false,
+      guestsCanSeeOtherGuests: true
+    });
     when = p.date; when2 = p.time;
   }
 
   sh.appendRow([id, new Date(), p.customer, p.cat, p.contact || '', p.service,
-                when, when2, nights, '', 'รอยืนยัน', p.notes || '', event.getId()]);
+                when, when2, nights, '', 'รอยืนยัน', p.notes || '', event.id]);
 
-  return { ok: true, id: id, eventId: event.getId() };
+  return { ok: true, id: id, eventId: event.id };
+}
+
+// สร้างนัด + ยิงอีเมลเชิญไปเจ้าของทุกคน (sendUpdates: all จำเป็นต่อ CalendarApp.sendInvites)
+function insertCalendarEvent_(resource) {
+  return Calendar.Events.insert(resource, getCalendarId_(), { sendUpdates: 'all' });
+}
+
+function ownerAttendees_() {
+  return CONFIG.OWNER_EMAILS.map(function(email) {
+    return { email: email, responseStatus: 'needsAction' };
+  });
 }
 
 // ── อ่านนัดที่จะถึง (ไว้ให้หน้าเว็บโหลดตารางในเฟสถัดไป) ──────────
@@ -112,6 +155,12 @@ function desc_(p, id) {
   L.push('สถานะ: รอยืนยัน', '— CatCha Booking ' + id);
   return L.join('\n');
 }
+function formatDateYmd_(d) {
+  return Utilities.formatDate(d, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+}
+function formatDateTimeIso_(d) {
+  return Utilities.formatDate(d, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+}
 function parseDate_(s) {
   if (!s) return null;
   var p = String(s).split('-');
@@ -125,4 +174,3 @@ function parseTime_(s) {
   return { h: 10, m: 0 };                      // เผื่อ "ระบุเอง" → ตั้ง 10:00
 }
 function nights_(a, b) { return Math.max(0, Math.round((b - a) / 86400000)); }
-function setColor_(ev, c) { try { ev.setColor(c); } catch (e) {} }
