@@ -1,32 +1,19 @@
 /**
  * Telegram Bot — แจ้งเตือนเจ้าของเมื่อมีจอง / ลูกค้ายืนยัน
- * ตั้งค่า: TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_CHAT_IDS (คั่นด้วย comma)
  */
 
+import { getTelegramOwnerChatIds, getTelegramToken, sendTelegramReply } from "./telegram-config";
+
 export async function sendTelegram(text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chats = (process.env.TELEGRAM_OWNER_CHAT_IDS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const token = await getTelegramToken();
+  const chats = await getTelegramOwnerChatIds();
 
   if (!token || !chats.length) return { ok: false, reason: "not_configured" };
 
   const results = await Promise.all(
     chats.map(async (chatId) => {
-      const res = await fetch(
-        `https://api.telegram.org/bot${token}/sendMessage`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text,
-            parse_mode: "HTML",
-          }),
-        }
-      );
-      return res.ok;
+      const data = await sendTelegramReply(token, chatId, { message: text, html: true });
+      return data.ok;
     })
   );
 
