@@ -3,9 +3,19 @@
 import { useEffect, useState } from "react";
 import type { RoomType } from "@/lib/business";
 
+type SaveResult = {
+  ok: boolean;
+  bookingId?: string;
+  calendarLink?: string;
+  calendarMock?: boolean;
+  calendarReason?: string;
+  error?: string;
+};
+
 export default function NewBookingPage() {
   const [service, setService] = useState<"groom" | "room">("groom");
-  const [saved, setSaved] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<SaveResult | null>(null);
   const [rooms, setRooms] = useState<RoomType[]>([]);
   const [groomSlots, setGroomSlots] = useState<string[]>(["09:30", "12:30", "15:30"]);
 
@@ -20,7 +30,10 @@ export default function NewBookingPage() {
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    if (submitting) return;
+
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const payload = {
       customerName: String(fd.get("customer") || ""),
       catName: String(fd.get("cat") || ""),
@@ -34,18 +47,36 @@ export default function NewBookingPage() {
       notes: String(fd.get("notes") || "") || undefined,
     };
 
-    const res = await fetch("/api/bookings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    setSubmitting(true);
+    setResult(null);
 
-    if (res.ok) {
-      setSaved(true);
-      e.currentTarget.reset();
-      setTimeout(() => setSaved(false), 2500);
-    } else {
-      alert("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง");
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setResult({
+          ok: true,
+          bookingId: data.booking?.id,
+          calendarLink: data.calendar?.htmlLink || data.calendar?.googleUrl,
+          calendarMock: Boolean(data.calendar?.mock),
+          calendarReason: data.calendar?.reason,
+        });
+        form.reset();
+      } else {
+        setResult({
+          ok: false,
+          error: data.error || "บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง",
+        });
+      }
+    } catch {
+      setResult({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -127,11 +158,57 @@ export default function NewBookingPage() {
 
         <Field label="โน้ตนิสัยน้อง (ลูกค้าใหม่)" name="notes" textarea />
 
+        {result && (
+          <div
+            className={`rounded-catcha-sm border px-4 py-3 text-sm ${
+              result.ok
+                ? "border-green-200 bg-green-50 text-green-900"
+                : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            {result.ok ? (
+              <div className="space-y-2">
+                <p className="font-extrabold">✅ บันทึกการจองแล้ว</p>
+                {result.bookingId && (
+                  <p className="text-xs text-green-800">รหัสจอง: {result.bookingId}</p>
+                )}
+                {result.calendarLink && !result.calendarMock ? (
+                  <>
+                    <p className="text-xs">สร้างนัดใน Google Calendar แล้ว</p>
+                    <a
+                      href={result.calendarLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block rounded-catcha-sm bg-white px-3 py-2 text-xs font-bold text-catcha-chocolate shadow-sm underline"
+                    >
+                      📅 เปิดนัดใน Google Calendar
+                    </a>
+                    <p className="text-[10px] leading-relaxed text-green-800">
+                      ถ้าไม่เห็นในปฏิทินหลัก → เปิด Google Calendar แล้วติ๊กปฏิทิน
+                      <strong> Catcha Hotel </strong>
+                      ทางซ้ายมือ
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-amber-800">
+                    ⚠️ บันทึกจองแล้ว แต่ยังสร้างนัด Calendar อัตโนมัติไม่ได้
+                    {result.calendarReason ? ` (${result.calendarReason})` : ""}
+                    — ไปที่ Admin → ตั้งค่า → Google แล้วกดทดสอบอีกครั้ง
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="font-bold">❌ {result.error}</p>
+            )}
+          </div>
+        )}
+
         <button
           type="submit"
-          className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3.5 text-sm font-extrabold text-catcha-chocolate"
+          disabled={submitting}
+          className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3.5 text-sm font-extrabold text-catcha-chocolate disabled:opacity-60"
         >
-          {saved ? "✅ บันทึกแล้ว + สร้างนัด Calendar" : "🗓️ บันทึกการจอง"}
+          {submitting ? "กำลังบันทึก…" : "🗓️ บันทึกการจอง + สร้างนัด Calendar"}
         </button>
       </form>
     </div>
