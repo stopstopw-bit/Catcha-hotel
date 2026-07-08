@@ -1,6 +1,6 @@
 import { bookingMatchesCustomer, datesForBooking, isUpcomingBooking } from "./booking-customer-match";
 import type { Booking } from "./business";
-import { listBookings } from "./bookings-store";
+import { listBookings, listBookingsForCustomer } from "./bookings-store";
 import { getAccount, getPointsHistory } from "./points-store";
 import { getSupabase } from "./supabase/server";
 
@@ -113,7 +113,21 @@ function seedMem() {
 }
 seedMem();
 
-function mapCustomer(row: CustomerRow): CustomerRecord {
+function normName(s: string) {
+  return s.trim().toLowerCase();
+}
+
+function customerMatchKeys(c: CustomerRecord) {
+  const keys: string[] = [];
+  if (c.lineUserId) keys.push(`line:${c.lineUserId}`);
+  for (const cat of c.cats) {
+    keys.push(`name:${normName(c.name)}|${normName(cat.name)}`);
+  }
+  if (!c.cats.length) keys.push(`name:${normName(c.name)}|`);
+  return keys;
+}
+
+function mapCustomer(row: CustomerRow, includePhotos = true): CustomerRecord {
   return {
     id: row.id,
     name: row.name,
@@ -127,20 +141,24 @@ function mapCustomer(row: CustomerRow): CustomerRecord {
     cats: (row.cats || []).map((c) => ({
       id: c.id,
       name: c.name,
-      photoDataUrl: c.photo_data_url ?? undefined,
+      photoDataUrl: includePhotos ? c.photo_data_url ?? undefined : undefined,
       staffNote: c.staff_note ?? undefined,
     })),
   };
 }
 
-async function fetchAllCustomers(): Promise<CustomerRecord[]> {
+const CUSTOMER_LIST_SELECT =
+  "id, name, phone, line_user_id, is_member, member_credit, member_since, created_at, updated_at, cats(id, name, staff_note)";
+
+async function fetchAllCustomers(opts?: { includePhotos?: boolean }): Promise<CustomerRecord[]> {
+  const includePhotos = opts?.includePhotos ?? false;
   const sb = getSupabase();
   if (sb) {
-    const { data } = await sb
-      .from("customers")
-      .select("*, cats(*)")
-      .order("updated_at", { ascending: false });
-    return ((data as CustomerRow[] | null) || []).map(mapCustomer);
+    const select = includePhotos ? "*, cats(*)" : CUSTOMER_LIST_SELECT;
+    const { data } = await sb.from("customers").select(select).order("updated_at", {
+      ascending: false,
+    });
+    return ((data as CustomerRow[] | null) || []).map((row) => mapCustomer(row, includePhotos));
   }
   return [...memCustomers.values()].sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt)
@@ -159,21 +177,77 @@ async function touchCustomer(id: string) {
 }
 
 async function attachAppointmentCounts(customers: CustomerRecord[]) {
+  if (!customers.length) return customers.map((c) => ({ ...c, upcomingAppointments: 0 }));
+
   const allBookings = await listBookings();
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = allBookings.filter((b) => isUpcomingBooking(b, today));
+
+  const keyToCustomerId = new Map<string, string>();
+  for (const c of customers) {
+    for (const key of customerMatchKeys(c)) {
+      if (!keyToCustomerId.has(key)) keyToCustomerId.set(key, c.id);
+    }
+  }
+
+  const counts = new Map<string, number>();
+  for (const b of upcoming) {
+    let customerId: string | undefined;
+    if (b.lineUserId) customerId = keyToCustomerId.get(`line:${b.lineUserId}`);
+    if (!customerId) {
+      customerId = keyToCustomerId.get(
+        `name:${normName(b.customerName)}|${normName(b.catName)}`
+      );
+    }
+    if (customerId) {
+      counts.set(customerId, (counts.get(customerId) || 0) + 1);
+    }
+  }
+
   return customers.map((c) => ({
     ...c,
-    upcomingAppointments: allBookings.filter(
-      (b) => bookingMatchesCustomer(b, c) && isUpcomingBooking(b)
-    ).length,
+    upcomingAppointments: counts.get(c.id) || 0,
   }));
 }
 
 export async function listCustomers() {
-  return fetchAllCustomers();
+  return fetchAllCustomers({ includePhotos: false });
+}
+
+export async function listCustomersLite() {
+  return fetchAllCustomers({ includePhotos: false });
 }
 
 export async function listCustomersWithAppointmentCounts() {
-  return attachAppointmentCounts(await fetchAllCustomers());
+  const [customers, withCounts] = await Promise.all([
+    fetchAllCustomers({ includePhotos: false }),
+    listBookings(),
+  ]);
+  // reuse bookings already loaded in attach — inline optimized path
+  if (!customers.length) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = withCounts.filter((b) => isUpcomingBooking(b, today));
+  const keyToCustomerId = new Map<string, string>();
+  for (const c of customers) {
+    for (const key of customerMatchKeys(c)) {
+      if (!keyToCustomerId.has(key)) keyToCustomerId.set(key, c.id);
+    }
+  }
+  const counts = new Map<string, number>();
+  for (const b of upcoming) {
+    let customerId: string | undefined;
+    if (b.lineUserId) customerId = keyToCustomerId.get(`line:${b.lineUserId}`);
+    if (!customerId) {
+      customerId = keyToCustomerId.get(
+        `name:${normName(b.customerName)}|${normName(b.catName)}`
+      );
+    }
+    if (customerId) counts.set(customerId, (counts.get(customerId) || 0) + 1);
+  }
+  return customers.map((c) => ({
+    ...c,
+    upcomingAppointments: counts.get(c.id) || 0,
+  }));
 }
 
 export async function getCustomer(id: string) {
@@ -184,7 +258,7 @@ export async function getCustomer(id: string) {
       .select("*, cats(*)")
       .eq("id", id)
       .maybeSingle();
-    return data ? mapCustomer(data as CustomerRow) : undefined;
+    return data ? mapCustomer(data as CustomerRow, true) : undefined;
   }
   return memCustomers.get(id);
 }
@@ -194,27 +268,26 @@ export async function findCustomerByLine(lineUserId: string) {
   return all.find((c) => c.lineUserId === lineUserId);
 }
 
-export async function searchCustomers(query: string) {
+export async function searchCustomers(query: string, opts?: { withCounts?: boolean }) {
   const q = query.trim().toLowerCase();
-  const all = await fetchAllCustomers();
-  if (!q) return attachAppointmentCounts(all);
-  const filtered = all.filter((c) => {
-    const hay = [
-      c.name,
-      c.phone,
-      c.lineUserId,
-      ...c.cats.map((cat) => cat.name),
-      ...c.cats.map((cat) => cat.staffNote || ""),
-    ]
-      .join(" ")
-      .toLowerCase();
-    return hay.includes(q);
-  });
-  return attachAppointmentCounts(filtered);
-}
+  const all = await fetchAllCustomers({ includePhotos: false });
+  const filtered = !q
+    ? all
+    : all.filter((c) => {
+        const hay = [
+          c.name,
+          c.phone,
+          c.lineUserId,
+          ...c.cats.map((cat) => cat.name),
+          ...c.cats.map((cat) => cat.staffNote || ""),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
 
-function normName(s: string) {
-  return s.trim().toLowerCase();
+  if (opts?.withCounts === false) return filtered;
+  return attachAppointmentCounts(filtered);
 }
 
 /** ลูกค้าเปิดแอปจาก LINE → สร้าง/ผูกบัญชีอัตโนมัติ */
@@ -697,15 +770,14 @@ async function listMemberTopups(customerId: string): Promise<MemberTopupRecord[]
 
 export async function getCustomerHistory(customerId: string) {
   const c = await getCustomer(customerId);
-  const allBookings = await listBookings();
-  const bookings = c
-    ? allBookings.filter((b) => bookingMatchesCustomer(b, c))
-    : [];
+  const bookings = c ? await listBookingsForCustomer(c) : [];
   const upcomingBookings = bookings.filter((b) => isUpcomingBooking(b));
   const pastBookings = bookings.filter((b) => !isUpcomingBooking(b));
-  const services = await listServiceRecords(customerId);
-  const points = c?.lineUserId ? await getPointsHistory(c.lineUserId) : [];
-  const memberTopups = await listMemberTopups(customerId);
+  const [services, points, memberTopups] = await Promise.all([
+    listServiceRecords(customerId),
+    c?.lineUserId ? getPointsHistory(c.lineUserId) : Promise.resolve([]),
+    listMemberTopups(customerId),
+  ]);
   return { bookings, upcomingBookings, pastBookings, services, points, memberTopups };
 }
 

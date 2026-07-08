@@ -5,6 +5,30 @@ function norm(s: string) {
   return s.trim().toLowerCase();
 }
 
+/** Fast lookup map: booking → customer id */
+export function buildCustomerIdLookup(customers: CustomerRecord[]) {
+  const map = new Map<string, string>();
+  for (const c of customers) {
+    if (c.lineUserId) map.set(`line:${c.lineUserId}`, c.id);
+    for (const cat of c.cats) {
+      map.set(`name:${norm(c.name)}|${norm(cat.name)}`, c.id);
+    }
+    if (!c.cats.length) map.set(`name:${norm(c.name)}|`, c.id);
+  }
+  return map;
+}
+
+export function customerIdForBooking(
+  booking: Pick<Booking, "customerName" | "catName"> & { lineUserId?: string },
+  lookup: Map<string, string>
+) {
+  if (booking.lineUserId) {
+    const id = lookup.get(`line:${booking.lineUserId}`);
+    if (id) return id;
+  }
+  return lookup.get(`name:${norm(booking.customerName)}|${norm(booking.catName)}`);
+}
+
 /** จับคู่นัดกับลูกค้า — ใช้ LINE ID หรือชื่อลูกค้า+ชื่อแมว */
 export function bookingMatchesCustomer(
   booking: Pick<Booking, "customerName" | "catName"> & { lineUserId?: string },

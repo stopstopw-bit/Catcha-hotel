@@ -14,8 +14,8 @@ import {
   updateBooking,
   type StoredBooking,
 } from "@/lib/bookings-store";
-import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
-import { listCustomers, resolveCustomerForBooking } from "@/lib/customers-store";
+import { customerIdForBooking, buildCustomerIdLookup } from "@/lib/booking-customer-match";
+import { listCustomersLite, resolveCustomerForBooking } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { pushLineMessage, buildReminderFlex } from "@/lib/line";
 
@@ -36,20 +36,19 @@ function bookingCalendarPayload(b: StoredBooking) {
 
 export async function GET(req: NextRequest) {
   const lineUserId = req.nextUrl.searchParams.get("lineUserId") || undefined;
-  const allCustomers = lineUserId ? [] : await listCustomers();
-  const items = (await listBookings(lineUserId)).map((b) => {
-    const customer = allCustomers.find((c) => bookingMatchesCustomer(b, c));
-    return {
-      ...toBooking(b),
-      lineUserId: b.lineUserId,
-      service: b.service,
-      room: b.room,
-      checkin: b.checkin,
-      checkout: b.checkout,
-      notes: b.notes,
-      customerId: customer?.id,
-    };
-  });
+  const lookup = lineUserId
+    ? new Map<string, string>()
+    : buildCustomerIdLookup(await listCustomersLite());
+  const items = (await listBookings(lineUserId)).map((b) => ({
+    ...toBooking(b),
+    lineUserId: b.lineUserId,
+    service: b.service,
+    room: b.room,
+    checkin: b.checkin,
+    checkout: b.checkout,
+    notes: b.notes,
+    customerId: customerIdForBooking(b, lookup),
+  }));
   return NextResponse.json({ bookings: items });
 }
 
