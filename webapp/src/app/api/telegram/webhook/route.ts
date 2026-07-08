@@ -4,8 +4,10 @@ import {
   buildStartReply,
   getTelegramWebhookInfo,
   getTelegramWebhookUrl,
+  normalizeTelegramInput,
   parseTelegramCommand,
   sendTelegramToChat,
+  setTelegramBotCommands,
   setTelegramWebhook,
 } from "@/lib/telegram";
 
@@ -34,11 +36,13 @@ export async function GET(req: NextRequest) {
     }
 
     const setResult = await setTelegramWebhook(webhookUrl);
+    const commandsResult = await setTelegramBotCommands();
     const info = await getTelegramWebhookInfo();
     return NextResponse.json({
       ok: setResult.ok,
       webhookUrl,
       setWebhook: setResult.data,
+      setCommands: commandsResult.data,
       webhookInfo: info.data,
     });
   }
@@ -73,7 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   const chatId = message.chat.id;
-  const text = String(message.text).trim();
+  const text = normalizeTelegramInput(String(message.text));
   const { command } = parseTelegramCommand(text);
 
   let reply: { message: string; html?: boolean };
@@ -83,7 +87,10 @@ export async function POST(req: NextRequest) {
     reply = await handleTelegramCommand(text, chatId);
   }
 
-  const sent = await sendTelegramToChat(chatId, reply.message, reply.html !== false);
+  const sent = await sendTelegramToChat(chatId, reply.message, {
+    html: reply.html !== false,
+    showMenu: true,
+  });
   if (!sent.ok) {
     console.error("telegram sendMessage failed", sent.status, sent.data);
     return NextResponse.json(

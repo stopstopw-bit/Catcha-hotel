@@ -18,9 +18,12 @@ export async function handleTelegramCommand(
     return {
       html: true,
       message:
-        `คำสั่ง CatCha Bot:\n` +
-        `/today /month /queue /sales /search /finance\n` +
-        `ตัวอย่าง: /search ส้ม`,
+        `🐱 <b>วิธีใช้ CatCha Bot</b>\n\n` +
+        `👇 กดปุ่มเมนูด้านล่างได้เลย\n` +
+        `📅 นัดวันนี้ · ⏳ คิวรอยืนยัน · 🗓️ ตารางเดือน\n` +
+        `💰 ยอดขาย · 📒 การเงิน · 👥 ลูกค้าล่าสุด\n\n` +
+        `ค้นหา: พิมพ์ <code>/search ชื่อ</code>\n` +
+        `ตัวอย่าง: <code>/search ส้ม</code>`,
     };
   }
 
@@ -123,5 +126,8 @@ export async function handleTelegramCommand(
     };
   }
 
-  return { message: "พิมพ์ /help ดูคำสั่ง" };
+  return {
+    html: true,
+    message: "กดปุ่มเมนูด้านล่าง หรือพิมพ์ <code>/help</code> ดูวิธีใช้",
+  };
 }
