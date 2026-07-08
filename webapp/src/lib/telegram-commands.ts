@@ -3,16 +3,41 @@ import { searchCustomers, listCustomers } from "@/lib/customers-store";
 import { todayFinance, monthFinance } from "@/lib/finance-store";
 import { salesSummary } from "@/lib/invoices-store";
 import { adminDashboardStats, bookingsForMonth } from "@/lib/admin-stats";
+import type { TelegramReply } from "@/lib/telegram-config";
 
-export async function handleTelegramCommand(text: string) {
+function normalizeCommand(text: string) {
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+  const shortcuts: Record<string, string> = {
+    m: "/month",
+    t: "/today",
+    q: "/queue",
+    s: "/sales",
+    f: "/finance",
+    h: "/help",
+    "?": "/help",
+  };
+  if (shortcuts[lower]) return shortcuts[lower];
+  return trimmed;
+}
+
+export async function handleTelegramCommand(
+  text: string,
+  chatId?: number | string
+): Promise<TelegramReply> {
+  const command = normalizeCommand(text);
   const today = new Date().toISOString().slice(0, 10);
   const ym = today.slice(0, 7);
 
-  if (text === "/start") {
+  if (command === "/start") {
+    const chatLine = chatId
+      ? `\n\nChat ID ของคุณ: <b>${chatId}</b>\nนำไปใส่ใน Admin → ติดตั้ง → Telegram เพื่อรับแจ้งเตือนจอง`
+      : "";
     return {
       html: true,
+      keyboard: true,
       message:
-        `🐱 <b>CatCha Hotel Bot</b>\n\n` +
+        `🐱 สวัสดีจาก <b>CatCha Hotel Bot</b>${chatLine}\n\n` +
         `คำสั่ง:\n` +
         `/today — นัดวันนี้\n` +
         `/month — ตารางเดือนนี้\n` +
@@ -20,21 +45,24 @@ export async function handleTelegramCommand(text: string) {
         `/sales — ยอดขายวันนี้\n` +
         `/search ชื่อ — ค้นหาลูกค้า\n` +
         `/finance — รายรับรายจ่ายวันนี้\n` +
-        `/help — ดูคำสั่ง`,
+        `/help — ดูคำสั่ง\n\n` +
+        `ทางลัด: พิมพ์ <b>M</b> = เดือนนี้ · <b>T</b> = วันนี้`,
     };
   }
 
-  if (text === "/help") {
+  if (command === "/help") {
     return {
       html: true,
+      keyboard: true,
       message:
         `คำสั่ง CatCha Bot:\n` +
         `/today /month /queue /sales /search /finance\n` +
+        `ทางลัด: M T Q S F\n` +
         `ตัวอย่าง: /search ส้ม`,
     };
   }
 
-  if (text === "/today") {
+  if (command === "/today") {
     const list = await bookingsForDate(today);
     if (!list.length) return { message: "📅 วันนี้ยังไม่มีนัดในระบบ" };
     return {
@@ -50,7 +78,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/month") {
+  if (command === "/month") {
     const list = await bookingsForMonth(ym);
     const byDay = new Map<string, number>();
     for (const b of list) {
@@ -66,7 +94,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/queue") {
+  if (command === "/queue") {
     const pending = (await listBookings()).filter((b) => b.status === "pending");
     if (!pending.length) return { message: "⏳ ไม่มีคิวรอยืนยัน" };
     return {
@@ -81,7 +109,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/sales") {
+  if (command === "/sales") {
     const s = await salesSummary(today, today);
     const stats = await adminDashboardStats();
     return {
@@ -93,7 +121,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/finance") {
+  if (command === "/finance") {
     const f = await todayFinance();
     const m = await monthFinance(ym);
     return {
@@ -106,8 +134,8 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text.startsWith("/search ")) {
-    const q = text.slice(8).trim();
+  if (command.startsWith("/search ")) {
+    const q = command.slice(8).trim();
     if (!q) return { message: "พิมพ์ /search ชื่อลูกค้าหรือชื่อแมว" };
     const found = await searchCustomers(q);
     if (!found.length) return { message: `ไม่พบ "${q}"` };
@@ -124,7 +152,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/customers") {
+  if (command === "/customers") {
     const all = (await listCustomers()).slice(0, 10);
     return {
       message: all
@@ -133,5 +161,9 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  return { message: "พิมพ์ /help ดูคำสั่ง" };
+  return {
+    html: true,
+    keyboard: true,
+    message: `ไม่เข้าใจคำสั่ง "<b>${text}</b>"\nพิมพ์ /help หรือกดปุ่มด้านล่าง`,
+  };
 }

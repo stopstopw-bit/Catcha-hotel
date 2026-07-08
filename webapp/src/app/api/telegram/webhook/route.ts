@@ -1,31 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleTelegramCommand } from "@/lib/telegram-commands";
+import { getTelegramToken, sendTelegramReply } from "@/lib/telegram-config";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = await getTelegramToken();
   if (!token) {
-    return NextResponse.json({ ok: false }, { status: 503 });
+    return NextResponse.json({ ok: false, reason: "not_configured" }, { status: 503 });
   }
 
-  const body = await req.json();
+  let body: { message?: { text?: string; chat?: { id?: number } } };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ ok: false, reason: "bad_json" }, { status: 400 });
+  }
+
   const message = body.message;
-  if (!message?.text || !message.chat?.id) {
-    return NextResponse.json({ ok: true });
+  if (!message?.text || message.chat?.id == null) {
+    return NextResponse.json({ ok: true, skipped: true });
   }
 
   const chatId = message.chat.id;
   const text = String(message.text).trim();
-  const result = await handleTelegramCommand(text);
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: result.message,
-      parse_mode: result.html ? "HTML" : undefined,
-    }),
-  });
-
-  return NextResponse.json({ ok: true });
+  try {
+    const result = await handleTelegramCommand(text, chatId);
+    const sent = await sendTelegramReply(token, chatId, result);
+    if (!sent.ok) {
+      return NextResponse.json(
+        { ok: false, reason: sent.description || "send_failed" },
+        { status: 502 }
+      );
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, reason }, { status: 500 });
+  }
 }
