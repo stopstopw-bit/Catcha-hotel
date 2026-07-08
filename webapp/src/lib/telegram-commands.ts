@@ -4,27 +4,17 @@ import { todayFinance, monthFinance } from "@/lib/finance-store";
 import { salesSummary } from "@/lib/invoices-store";
 import { adminDashboardStats, bookingsForMonth } from "@/lib/admin-stats";
 
-export async function handleTelegramCommand(text: string) {
+import { parseTelegramCommand } from "@/lib/telegram";
+
+export async function handleTelegramCommand(
+  text: string,
+  _chatId?: number | string
+) {
   const today = new Date().toISOString().slice(0, 10);
   const ym = today.slice(0, 7);
+  const { command, payload } = parseTelegramCommand(text);
 
-  if (text === "/start") {
-    return {
-      html: true,
-      message:
-        `🐱 <b>CatCha Hotel Bot</b>\n\n` +
-        `คำสั่ง:\n` +
-        `/today — นัดวันนี้\n` +
-        `/month — ตารางเดือนนี้\n` +
-        `/queue — คิวรอยืนยัน\n` +
-        `/sales — ยอดขายวันนี้\n` +
-        `/search ชื่อ — ค้นหาลูกค้า\n` +
-        `/finance — รายรับรายจ่ายวันนี้\n` +
-        `/help — ดูคำสั่ง`,
-    };
-  }
-
-  if (text === "/help") {
+  if (text === "/help" || command === "/help") {
     return {
       html: true,
       message:
@@ -34,7 +24,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/today") {
+  if (command === "/today") {
     const list = await bookingsForDate(today);
     if (!list.length) return { message: "📅 วันนี้ยังไม่มีนัดในระบบ" };
     return {
@@ -50,7 +40,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/month") {
+  if (command === "/month") {
     const list = await bookingsForMonth(ym);
     const byDay = new Map<string, number>();
     for (const b of list) {
@@ -66,7 +56,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/queue") {
+  if (command === "/queue") {
     const pending = (await listBookings()).filter((b) => b.status === "pending");
     if (!pending.length) return { message: "⏳ ไม่มีคิวรอยืนยัน" };
     return {
@@ -81,7 +71,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/sales") {
+  if (command === "/sales") {
     const s = await salesSummary(today, today);
     const stats = await adminDashboardStats();
     return {
@@ -93,7 +83,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/finance") {
+  if (command === "/finance") {
     const f = await todayFinance();
     const m = await monthFinance(ym);
     return {
@@ -106,8 +96,8 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text.startsWith("/search ")) {
-    const q = text.slice(8).trim();
+  if (command === "/search") {
+    const q = payload?.trim() || "";
     if (!q) return { message: "พิมพ์ /search ชื่อลูกค้าหรือชื่อแมว" };
     const found = await searchCustomers(q);
     if (!found.length) return { message: `ไม่พบ "${q}"` };
@@ -124,7 +114,7 @@ export async function handleTelegramCommand(text: string) {
     };
   }
 
-  if (text === "/customers") {
+  if (command === "/customers") {
     const all = (await listCustomers()).slice(0, 10);
     return {
       message: all
