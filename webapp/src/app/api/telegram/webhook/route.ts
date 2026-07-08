@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleTelegramCommand } from "@/lib/telegram-commands";
+import { handleTelegramMessage } from "@/lib/telegram-handler";
 import {
   getTelegramCredentials,
   isTelegramConfigured,
@@ -9,7 +9,6 @@ import {
   buildStartReply,
   getTelegramWebhookInfo,
   getTelegramWebhookUrl,
-  normalizeTelegramInput,
   parseTelegramCommand,
   sendTelegramToChat,
 } from "@/lib/telegram";
@@ -87,27 +86,25 @@ export async function POST(req: NextRequest) {
   }
 
   const chatId = message.chat.id;
-  const text = normalizeTelegramInput(String(message.text));
+  const text = String(message.text).trim();
   const { command } = parseTelegramCommand(text);
 
-  let reply: { message: string; html?: boolean };
   if (command === "/start") {
-    reply = { html: true, message: buildStartReply(chatId) };
-  } else {
-    reply = await handleTelegramCommand(text, chatId);
-  }
-
-  const sent = await sendTelegramToChat(creds.botToken, chatId, reply.message, {
-    html: reply.html !== false,
-    showMenu: true,
-  });
-  if (!sent.ok) {
-    console.error("telegram sendMessage failed", sent.status, sent.data);
-    return NextResponse.json(
-      { ok: false, error: "send_failed", detail: sent.data },
-      { status: 502 }
+    const sent = await sendTelegramToChat(
+      creds.botToken,
+      chatId,
+      buildStartReply(chatId),
+      { html: true, showMenu: true }
     );
+    if (!sent.ok) {
+      return NextResponse.json(
+        { ok: false, error: "send_failed", detail: sent.data },
+        { status: 502 }
+      );
+    }
+    return NextResponse.json({ ok: true });
   }
 
+  await handleTelegramMessage(chatId, text);
   return NextResponse.json({ ok: true });
 }
