@@ -307,7 +307,7 @@ export default function CustomersPage() {
 
   const search = useCallback(async (query: string) => {
     setLoading(true);
-    const params = query ? `?q=${encodeURIComponent(query)}` : "";
+    const params = query ? `?q=${encodeURIComponent(query)}&counts=0` : "?counts=1";
     const res = await fetch(`/api/customers${params}`);
     const data = await res.json();
     setList(data.customers || []);

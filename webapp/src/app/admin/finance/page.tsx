@@ -17,12 +17,10 @@ export default function FinancePage() {
   const [summary, setSummary] = useState({ income: 0, expense: 0, net: 0 });
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/finance?summary=1");
+    const res = await fetch("/api/finance?summary=1&records=1");
     const data = await res.json();
-    setSummary(data.summary);
-    const list = await fetch("/api/finance");
-    const listData = await list.json();
-    setRecords(listData.records || []);
+    setSummary(data.summary || { income: 0, expense: 0, net: 0 });
+    setRecords(data.records || []);
   }, []);
 
   useEffect(() => {

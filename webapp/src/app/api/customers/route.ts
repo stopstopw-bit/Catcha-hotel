@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   listCustomersWithAppointmentCounts,
+  listCustomersLite,
   searchCustomers,
   getCustomer,
   updateCustomer,
@@ -10,9 +11,12 @@ import {
   customerSummary,
 } from "@/lib/customers-store";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
-  const q = req.nextUrl.searchParams.get("q");
+  const qParam = req.nextUrl.searchParams.get("q");
+  const withCounts = req.nextUrl.searchParams.get("counts") === "1";
 
   if (id) {
     const summary = await customerSummary(id);
@@ -20,11 +24,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(summary);
   }
 
-  if (q) {
-    const customers = await searchCustomers(q);
+  if (qParam !== null) {
+    const customers = await searchCustomers(qParam, { withCounts });
     return NextResponse.json({ customers });
   }
-  const customers = await listCustomersWithAppointmentCounts();
+
+  const customers = withCounts
+    ? await listCustomersWithAppointmentCounts()
+    : await listCustomersLite();
   return NextResponse.json({ customers });
 }
 

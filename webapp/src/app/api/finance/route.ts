@@ -5,6 +5,15 @@ export async function GET(req: NextRequest) {
   const from = req.nextUrl.searchParams.get("from") || undefined;
   const to = req.nextUrl.searchParams.get("to") || undefined;
   const summary = req.nextUrl.searchParams.get("summary") === "1";
+  const withRecords = req.nextUrl.searchParams.get("records") === "1";
+
+  if (summary && withRecords) {
+    const [summaryData, records] = await Promise.all([
+      financeSummary(from, to),
+      listFinance(from, to),
+    ]);
+    return NextResponse.json({ summary: summaryData, records });
+  }
 
   if (summary) {
     return NextResponse.json({ summary: await financeSummary(from, to) });

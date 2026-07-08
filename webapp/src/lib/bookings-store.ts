@@ -85,13 +85,65 @@ function storedToRow(b: Partial<StoredBooking>) {
 export async function listBookings(lineUserId?: string) {
   const sb = getSupabase();
   if (sb) {
-    let q = sb.from("bookings").select("*").order("created_at", { ascending: false });
+    let q = sb
+      .from("bookings")
+      .select(
+        "id, customer_name, cat_name, service, date, time, checkout, checkin, room, line_user_id, notes, status, checkin_time, calendar_event_id, created_at"
+      )
+      .order("created_at", { ascending: false });
     if (lineUserId) q = q.eq("line_user_id", lineUserId);
     const { data } = await q;
     return (data as BookingRow[] | null)?.map(rowToStored) || [];
   }
   if (!lineUserId) return [...mem];
   return mem.filter((b) => b.lineUserId === lineUserId);
+}
+
+/** Bookings for one customer — avoids loading full table */
+export async function listBookingsForCustomer(customer: {
+  name: string;
+  lineUserId?: string;
+  cats: { name: string }[];
+}) {
+  const sb = getSupabase();
+  const cols =
+    "id, customer_name, cat_name, service, date, time, checkout, checkin, room, line_user_id, notes, status, checkin_time, calendar_event_id, created_at";
+
+  if (sb && customer.lineUserId) {
+    const { data } = await sb
+      .from("bookings")
+      .select(cols)
+      .eq("line_user_id", customer.lineUserId)
+      .order("created_at", { ascending: false });
+    return (data as BookingRow[] | null)?.map(rowToStored) || [];
+  }
+
+  if (sb && customer.name.trim()) {
+    const { data } = await sb
+      .from("bookings")
+      .select(cols)
+      .ilike("customer_name", customer.name.trim())
+      .order("created_at", { ascending: false });
+    const rows = (data as BookingRow[] | null)?.map(rowToStored) || [];
+    const catNames = new Set(customer.cats.map((c) => c.name.trim().toLowerCase()));
+    if (!catNames.size) return rows;
+    return rows.filter((b) => catNames.has(b.catName.trim().toLowerCase()));
+  }
+
+  const all = await listBookings();
+  const { bookingMatchesCustomer } = await import("./booking-customer-match");
+  return all.filter((b) =>
+    bookingMatchesCustomer(b, {
+      id: "",
+      name: customer.name,
+      lineUserId: customer.lineUserId,
+      cats: customer.cats.map((c, i) => ({ id: String(i), name: c.name })),
+      isMember: false,
+      memberCredit: 0,
+      createdAt: "",
+      updatedAt: "",
+    })
+  );
 }
 
 export async function getBooking(id: string) {

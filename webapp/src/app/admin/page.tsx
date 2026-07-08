@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { adminJson } from "@/lib/admin-fetch";
 import { BookingEditModal, type EditableBooking } from "@/components/BookingEditModal";
-import { bookingOnDate } from "@/lib/booking-customer-match";
 
 type Stats = {
   today: string;
@@ -38,7 +37,6 @@ function formatThaiDate(iso: string) {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [calendar, setCalendar] = useState<Record<string, CalendarDay[]>>({});
-  const [bookings, setBookings] = useState<CalendarDay[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,16 +48,14 @@ export default function AdminDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const [sResult, bResult] = await Promise.all([
-      adminJson<{ stats: Stats; calendar: Record<string, CalendarDay[]> }>("/api/admin/stats"),
-      adminJson<{ bookings: CalendarDay[] }>("/api/bookings"),
-    ]);
+    const sResult = await adminJson<{
+      stats: Stats;
+      calendar: Record<string, CalendarDay[]>;
+    }>("/api/admin/stats");
 
     if (sResult.ok && sResult.data.stats) {
       setStats(sResult.data.stats);
       setCalendar(sResult.data.calendar || {});
-      if (bResult.ok) setBookings(bResult.data.bookings || []);
-      else setBookings([]);
       setSelectedDate((prev) => prev || sResult.data.stats.today);
     } else {
       setStats(null);
@@ -85,9 +81,7 @@ export default function AdminDashboard() {
   const today = stats?.today || new Date().toISOString().slice(0, 10);
   const activeDate = selectedDate || today;
 
-  const dayBookings = bookings.filter(
-    (b) => b.status !== "cancelled" && bookingOnDate(b, activeDate)
-  );
+  const dayBookings = (calendar[activeDate] || []).filter((b) => b.status !== "cancelled");
 
   const pickDate = (key: string) => {
     setSelectedDate(key);
