@@ -1,4 +1,4 @@
-import { GROOM_SLOTS } from "@/lib/business";
+import { GROOM_SLOTS, ROOMS } from "@/lib/business";
 import {
   addBooking,
   cancelBooking,
@@ -16,6 +16,7 @@ import {
   searchCustomers,
   upsertCustomerFromBooking,
   getCustomer,
+  topupMemberCredit,
 } from "@/lib/customers-store";
 import { addFinanceEntry } from "@/lib/finance-store";
 import {
@@ -31,6 +32,7 @@ import {
   pushLineMessage,
 } from "@/lib/line";
 import { BUSINESS } from "@/lib/business";
+import { formatBookingTelegram, sendTelegram } from "@/lib/telegram";
 
 export async function telegramCreateGroomBooking(data: {
   customerName: string;
@@ -73,6 +75,16 @@ export async function telegramCreateGroomBooking(data: {
 
   await updateBooking(booking.id, { calendarEventId: cal.eventId });
 
+  await sendTelegram(
+    formatBookingTelegram("📌 จองใหม่ (Telegram)", {
+      ลูกค้า: customer.name,
+      น้องแมว: data.catName,
+      บริการ: "อาบน้ำ",
+      วันที่: `${data.date} ${data.time}`,
+      รหัส: booking.id,
+    })
+  );
+
   return {
     ok: true as const,
     message:
@@ -82,6 +94,110 @@ export async function telegramCreateGroomBooking(data: {
       `📅 ${data.date} ${data.time}\n` +
       (cal.googleUrl ? `📎 ${cal.googleUrl}` : ""),
     bookingId: booking.id,
+  };
+}
+
+export async function telegramCreateRoomBooking(data: {
+  customerName: string;
+  catName: string;
+  checkin: string;
+  checkout: string;
+  roomId: string;
+  phone?: string;
+  notes?: string;
+}) {
+  const room = ROOMS.find((r) => r.id === data.roomId);
+  if (!room) {
+    return { ok: false as const, message: "ไม่พบห้องที่เลือก" };
+  }
+  if (data.checkout <= data.checkin) {
+    return { ok: false as const, message: "วันเช็คเอาต์ต้องหลังวันเช็คอิน" };
+  }
+
+  const customer = await resolveCustomerForBooking({
+    customerName: data.customerName,
+    catName: data.catName,
+    phone: data.phone,
+    staffNote: data.notes,
+  });
+  if (!customer) {
+    return { ok: false as const, message: "ต้องมีชื่อลูกค้าและชื่อแมว" };
+  }
+
+  const booking = await addBooking({
+    customerName: customer.name,
+    catName: data.catName,
+    service: "room",
+    date: data.checkin,
+    checkin: data.checkin,
+    checkout: data.checkout,
+    room: room.id,
+    lineUserId: customer.lineUserId,
+    notes: data.notes,
+  });
+
+  const cal = await createCalendarEvent({
+    summary: `🏠 ${data.catName} (${customer.name})`,
+    description: `ห้องพัก ${room.name} · ${data.notes || ""}`,
+    start: data.checkin,
+    end: data.checkout,
+    allDay: true,
+    service: "room",
+    eventId: booking.id,
+  });
+
+  await updateBooking(booking.id, { calendarEventId: cal.eventId });
+
+  await sendTelegram(
+    formatBookingTelegram("📌 จองห้องใหม่ (Telegram)", {
+      ลูกค้า: customer.name,
+      น้องแมว: data.catName,
+      ห้อง: room.name,
+      เช็คอิน: data.checkin,
+      เช็คเอาต์: data.checkout,
+      รหัส: booking.id,
+    })
+  );
+
+  return {
+    ok: true as const,
+    message:
+      `✅ จองห้องแล้ว\n` +
+      `🆔 ${booking.id}\n` +
+      `👤 ${customer.name} · 🐱 ${data.catName}\n` +
+      `🏠 ${room.name}\n` +
+      `📅 ${data.checkin} → ${data.checkout}\n` +
+      (cal.googleUrl ? `📎 ${cal.googleUrl}` : ""),
+    bookingId: booking.id,
+  };
+}
+
+export async function telegramTopupMember(data: {
+  customerId: string;
+  paidAmount: number;
+  bonusAmount?: number;
+  note?: string;
+}) {
+  const result = await topupMemberCredit(data.customerId, {
+    paidAmount: data.paidAmount,
+    bonusAmount: data.bonusAmount || 0,
+    note: data.note,
+  });
+  if (!result) {
+    return { ok: false as const, message: "เติมเครดิตไม่สำเร็จ — ตรวจสอบยอดและลูกค้า" };
+  }
+  const { customer, topup } = result;
+  return {
+    ok: true as const,
+    message:
+      `✅ เติม Member แล้ว\n` +
+      `👤 ${customer.name}\n` +
+      `💰 รับ ${topup.paidAmount.toLocaleString()} บาท` +
+      (topup.bonusAmount > 0
+        ? ` + แถม ${topup.bonusAmount.toLocaleString()} บาท`
+        : "") +
+      `\n➕ เครดิตรวม +${topup.creditAdded.toLocaleString()} บาท` +
+      `\n💎 คงเหลือ ${customer.memberCredit.toLocaleString()} บาท`,
   };
 }
 
@@ -289,6 +405,26 @@ export function parseGroomTime(input: string) {
 export async function findCustomerForBill(query: string) {
   const found = await searchCustomers(query.trim());
   return found.slice(0, 5);
+}
+
+export function parseRoomChoice(input: string) {
+  const t = input.trim();
+  const n = Number(t);
+  if (Number.isInteger(n) && n >= 1 && n <= ROOMS.length) {
+    return ROOMS[n - 1].id;
+  }
+  const byId = ROOMS.find((r) => r.id === t);
+  if (byId) return byId.id;
+  const byName = ROOMS.find(
+    (r) => r.name.toLowerCase() === t.toLowerCase()
+  );
+  return byName?.id || null;
+}
+
+export function formatRoomPickerList() {
+  return ROOMS.map(
+    (r, i) => `${i + 1}. ${r.name} (${r.price}฿/คืน)`
+  ).join("\n");
 }
 
 export async function getCustomerBrief(id: string) {

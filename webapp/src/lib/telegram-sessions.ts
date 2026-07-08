@@ -1,4 +1,4 @@
-export type TelegramFlow = "book" | "customer" | "expense" | "bill";
+export type TelegramFlow = "book" | "room" | "customer" | "expense" | "bill" | "topup";
 
 export type TelegramSession = {
   flow: TelegramFlow;

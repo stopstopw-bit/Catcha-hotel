@@ -29,10 +29,12 @@ export const TELEGRAM_MENU_BUTTONS = {
 
 /** ปุ่มทำรายการ — wizard ลงนัด / ลูกค้า / การเงิน */
 export const TELEGRAM_ACTION_BUTTONS = {
-  book: "➕ ลงนัด",
+  book: "🛁 ลงนัดอาบน้ำ",
+  room: "🏠 จองห้อง",
   customer: "👤 ลูกค้าใหม่",
   expense: "💸 รายจ่าย",
   bill: "🧾 ส่งบิล",
+  topup: "💎 เติมเครดิต",
   pendingBills: "📋 บิลค้างชำระ",
 } as const;
 
@@ -51,11 +53,15 @@ export function getTelegramMenuKeyboard() {
     keyboard: [
       [
         { text: TELEGRAM_ACTION_BUTTONS.book },
-        { text: TELEGRAM_ACTION_BUTTONS.customer },
+        { text: TELEGRAM_ACTION_BUTTONS.room },
       ],
       [
+        { text: TELEGRAM_ACTION_BUTTONS.customer },
         { text: TELEGRAM_ACTION_BUTTONS.bill },
+      ],
+      [
         { text: TELEGRAM_ACTION_BUTTONS.expense },
+        { text: TELEGRAM_ACTION_BUTTONS.topup },
       ],
       [
         { text: TELEGRAM_MENU_BUTTONS.today },
@@ -200,7 +206,7 @@ export function buildStartReply(chatId: number | string) {
   return (
     `🐱 <b>สวัสดีจาก CatCha Hotel Bot</b>\n\n` +
     `Chat ID ของคุณ: <code>${chatId}</code>\n\n` +
-    `<b>ทำรายการ:</b> ลงนัด · ลูกค้าใหม่ · ส่งบิล · รายจ่าย\n` +
+    `<b>ทำรายการ:</b> อาบน้ำ · ห้องพัก · ลูกค้า · บิล · รายจ่าย · เติมเครดิต\n` +
     `<b>ดูรายงาน:</b> นัดวันนี้ · คิว · ยอดขาย · การเงิน\n\n` +
     `ลัด: <code>ยืนยัน B123</code> · <code>ยกเลิก B123</code> · <code>ชำระ INV...</code>`
   );
