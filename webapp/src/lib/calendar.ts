@@ -47,6 +47,12 @@ function formatBangkokDateTime(d: Date) {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}+07:00`;
 }
 
+function addMinutesToTime(time: string, minutes: number) {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  return `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}`;
+}
+
 function addMinutesToDateTime(iso: string, minutes: number) {
   const d = new Date(iso);
   d.setMinutes(d.getMinutes() + minutes);
@@ -85,9 +91,12 @@ export function buildIcsContent(event: {
     ? `DTSTART;VALUE=DATE:${event.start.replace(/-/g, "")}`
     : `DTSTART:${toIcsUtc(event.start, event.time)}`;
   const endDate = event.end || event.start;
+  const endTime =
+    event.endTime ||
+    (!event.allDay && event.time ? addMinutesToTime(event.time, GROOM_DURATION_MIN) : event.time);
   const dtEnd = event.allDay
     ? `DTEND;VALUE=DATE:${addDaysYmd(endDate, 1).replace(/-/g, "")}`
-    : `DTEND:${toIcsUtc(endDate, event.endTime || event.time)}`;
+    : `DTEND:${toIcsUtc(endDate, endTime)}`;
 
   const attendees = CALENDAR_OWNER_EMAILS.map(
     (email) => `ATTENDEE;CN=${email}:mailto:${email}`
