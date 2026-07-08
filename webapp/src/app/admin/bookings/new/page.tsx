@@ -1,128 +1,185 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomType } from "@/lib/business";
 import type { CustomerRecord } from "@/lib/customers-store";
 
 type CustomerListItem = CustomerRecord & { upcomingAppointments?: number };
 
+type PickedCustomer = {
+  customerId: string;
+  customerName: string;
+  catName: string;
+  lineUserId?: string;
+  staffNote?: string;
+  isMember?: boolean;
+};
+
 function CustomerPicker({
+  selected,
   onSelect,
+  onClear,
 }: {
-  onSelect: (data: {
-    customerId: string;
-    customerName: string;
-    catName: string;
-    lineUserId?: string;
-  }) => void;
+  selected: PickedCustomer | null;
+  onSelect: (data: PickedCustomer) => void;
+  onClear: () => void;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CustomerListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
-  const search = useCallback(async (query: string) => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setResults([]);
-      return;
-    }
+  const load = useCallback(async (query: string) => {
     setLoading(true);
-    const res = await fetch(`/api/customers?q=${encodeURIComponent(trimmed)}`);
-    const data = await res.json();
-    setResults(data.customers || []);
-    setLoading(false);
+    try {
+      const params = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+      const res = await fetch(`/api/customers${params}`);
+      const data = await res.json();
+      setResults((data.customers || []).slice(0, 15));
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => search(q), 250);
+    if (!open || selected) return;
+    const t = setTimeout(() => load(q), q.trim() ? 250 : 0);
     return () => clearTimeout(t);
-  }, [q, search]);
+  }, [q, open, load, selected]);
 
-  const pick = (c: CustomerListItem, catName?: string) => {
-    const cat = catName || c.cats[0]?.name || "";
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const pick = (c: CustomerListItem, cat: { name: string; staffNote?: string }) => {
     onSelect({
       customerId: c.id,
       customerName: c.name,
-      catName: cat,
+      catName: cat.name,
       lineUserId: c.lineUserId,
+      staffNote: cat.staffNote,
+      isMember: c.isMember,
     });
     setQ("");
     setResults([]);
+    setOpen(false);
   };
 
+  if (selected) {
+    return (
+      <div className="rounded-catcha-sm border border-sage/50 bg-sage/10 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[10px] font-bold text-brown-soft">ลูกค้าเก่า</p>
+            <p className="text-sm font-extrabold text-brown">
+              🐱 {selected.catName} · {selected.customerName}
+              {selected.isMember && <span className="text-latte-deep"> 💎</span>}
+            </p>
+            {selected.lineUserId && (
+              <p className="mt-0.5 text-[10px] font-bold text-ok">LINE ผูกแล้ว — ลูกค้าเห็นนัดในแอป</p>
+            )}
+            {selected.staffNote && (
+              <p className="mt-0.5 text-[10px] text-brown-soft">โน้ต: {selected.staffNote}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClear}
+            className="shrink-0 rounded-full bg-paper px-2.5 py-1 text-[10px] font-bold text-brown-soft"
+          >
+            เปลี่ยน
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-catcha-sm border border-latte/40 bg-honey/10 p-3">
+    <div ref={wrapRef} className="relative rounded-catcha-sm border border-latte/40 bg-honey/10 p-3">
       <label className="block text-xs font-extrabold text-catcha-chocolate">
-        🔍 ค้นหาลูกค้า (ชื่อแมว / ชื่อใน LINE)
+        🔍 ค้นหาลูกค้าเก่า
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="เช่น น้องจู๊ด หรือ ชื่อที่เห็นใน LINE"
-          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+          onChange={(e) => {
+            setQ(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            if (!q.trim()) load("");
+          }}
+          placeholder="ชื่อลูกค้า / ชื่อแมว / เบอร์โทร"
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-latte-deep"
         />
       </label>
       <p className="mt-1 text-[10px] text-brown-soft">
-        เลือกจากรายการ → ระบบใส่ชื่อ LINE + ผูกนัดให้อัตโนมัติ
+        เลือกจากรายการ → ใส่ชื่อ + LINE ให้อัตโนมัติ · หรือกรอกด้านล่างถ้าเป็นลูกค้าใหม่
       </p>
 
-      {loading && <p className="mt-2 text-[10px] text-brown-faint">กำลังค้นหา…</p>}
-
-      {results.length > 0 && (
-        <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-          {results.map((c) => (
-            <li key={c.id}>
-              {c.cats.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => pick(c)}
-                  className="w-full rounded-catcha-sm bg-card px-3 py-2 text-left text-xs hover:bg-paper"
-                >
-                  <span className="font-bold text-brown">{c.name}</span>
-                  {c.lineUserId && (
-                    <span className="ml-1 text-[10px] text-ok">LINE ✓</span>
-                  )}
-                  <span className="block text-[10px] text-brown-faint">ยังไม่มีชื่อแมวในระบบ</span>
-                </button>
-              ) : (
-                c.cats.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => pick(c, cat.name)}
-                    className="mb-1 w-full rounded-catcha-sm bg-card px-3 py-2 text-left text-xs hover:bg-paper"
-                  >
-                    <span className="font-bold text-brown">🐱 {cat.name}</span>
-                    <span className="text-brown-soft"> · {c.name}</span>
-                    {c.lineUserId && (
-                      <span className="ml-1 text-[10px] text-ok">LINE ✓</span>
-                    )}
-                    {c.isMember && <span className="text-latte-deep"> 💎</span>}
-                  </button>
-                ))
-              )}
+      {open && (
+        <ul className="absolute left-0 right-0 z-20 mt-1 max-h-52 overflow-y-auto rounded-catcha-sm border border-catcha-line bg-card shadow-catcha">
+          {loading && <li className="px-3 py-2 text-xs text-brown-soft">กำลังโหลด…</li>}
+          {!loading && results.length === 0 && (
+            <li className="px-3 py-2 text-xs text-brown-soft">
+              {q.trim() ? "ไม่พบ — กรอกด้านล่างเป็นลูกค้าใหม่" : "ยังไม่มีลูกค้าในระบบ"}
             </li>
-          ))}
+          )}
+          {!loading &&
+            results.map((c) =>
+              (c.cats.length ? c.cats : [{ id: "—", name: "—" }]).map((cat) => (
+                <li key={`${c.id}-${cat.id}`}>
+                  <button
+                    type="button"
+                    onClick={() => pick(c, cat)}
+                    className="w-full border-b border-catcha-line/50 px-3 py-2.5 text-left last:border-0 hover:bg-honey/15"
+                  >
+                    <span className="text-sm font-bold text-brown">
+                      🐱 {cat.name} · {c.name}
+                      {c.isMember && <span className="text-latte-deep"> 💎</span>}
+                    </span>
+                    {cat.staffNote && (
+                      <span className="mt-0.5 block text-[10px] text-brown-soft">{cat.staffNote}</span>
+                    )}
+                    {c.phone && (
+                      <span className="mt-0.5 block text-[10px] text-brown-faint">📞 {c.phone}</span>
+                    )}
+                  </button>
+                </li>
+              ))
+            )}
         </ul>
-      )}
-
-      {q.trim() && !loading && results.length === 0 && (
-        <p className="mt-2 text-[10px] text-brown-faint">
-          ไม่พบในระบบ — กรอกชื่อแมวด้านล่างได้เลย (ชื่อเจ้าของใส่ทีหลังในประวัติ)
-        </p>
       )}
     </div>
   );
 }
 
+type SaveResult = {
+  ok: boolean;
+  calendarLink?: string;
+  calendarMock?: boolean;
+  error?: string;
+};
+
 export default function NewBookingPage() {
   const [service, setService] = useState<"groom" | "room">("groom");
-  const [saved, setSaved] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<SaveResult | null>(null);
   const [rooms, setRooms] = useState<RoomType[]>([]);
   const [groomSlots, setGroomSlots] = useState<string[]>(["09:30", "12:30", "15:30"]);
-  const [customerId, setCustomerId] = useState("");
+  const [picked, setPicked] = useState<PickedCustomer | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [catName, setCatName] = useState("");
   const [lineUserId, setLineUserId] = useState("");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     fetch("/api/config")
@@ -133,45 +190,74 @@ export default function NewBookingPage() {
       });
   }, []);
 
+  const clearCustomer = () => {
+    setPicked(null);
+    setCustomerName("");
+    setCatName("");
+    setLineUserId("");
+    setNotes("");
+  };
+
+  const applyPick = (data: PickedCustomer) => {
+    setPicked(data);
+    setCustomerName(data.customerName);
+    setCatName(data.catName);
+    setLineUserId(data.lineUserId || "");
+    if (data.staffNote) setNotes(data.staffNote);
+  };
+
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const cat = String(fd.get("cat") || catName).trim();
+    if (submitting) return;
+
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const cat = catName.trim() || String(fd.get("cat") || "").trim();
     if (!cat) {
       alert("กรอกชื่อน้องแมวอย่างน้อย 1 ชื่อ");
       return;
     }
 
     const payload = {
-      customerId: customerId || undefined,
-      customerName: String(fd.get("customer") || customerName).trim() || undefined,
+      customerId: picked?.customerId,
+      customerName: customerName.trim() || String(fd.get("customer") || "").trim() || undefined,
       catName: cat,
-      lineUserId: lineUserId || undefined,
+      lineUserId: lineUserId.trim() || undefined,
       service,
       date: service === "groom" ? String(fd.get("date") || "") : undefined,
       time: service === "groom" ? String(fd.get("time") || "") : undefined,
       room: service === "room" ? String(fd.get("room") || "") : undefined,
       checkin: service === "room" ? String(fd.get("checkin") || "") : undefined,
       checkout: service === "room" ? String(fd.get("checkout") || "") : undefined,
-      notes: String(fd.get("notes") || "") || undefined,
+      notes: notes.trim() || String(fd.get("notes") || "") || undefined,
     };
 
-    const res = await fetch("/api/bookings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    setSubmitting(true);
+    setResult(null);
 
-    if (res.ok) {
-      setSaved(true);
-      setCustomerId("");
-      setCustomerName("");
-      setCatName("");
-      setLineUserId("");
-      e.currentTarget.reset();
-      setTimeout(() => setSaved(false), 2500);
-    } else {
-      alert("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง");
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setResult({
+          ok: true,
+          calendarLink: data.calendar?.htmlLink || data.calendar?.googleUrl,
+          calendarMock: Boolean(data.calendar?.mock),
+        });
+        clearCustomer();
+        form.reset();
+      } else {
+        setResult({ ok: false, error: data.error || "บันทึกไม่สำเร็จ" });
+      }
+    } catch {
+      setResult({ ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -204,21 +290,14 @@ export default function NewBookingPage() {
       </div>
 
       <form onSubmit={submit} className="space-y-4 rounded-catcha bg-card p-5 shadow-catcha-sm">
-        <CustomerPicker
-          onSelect={(data) => {
-            setCustomerId(data.customerId);
-            setCustomerName(data.customerName);
-            setCatName(data.catName);
-            setLineUserId(data.lineUserId || "");
-          }}
-        />
+        <CustomerPicker selected={picked} onSelect={applyPick} onClear={clearCustomer} />
 
         <Field
-          label="ชื่อใน LINE (ไม่บังคับ — เลือกจากค้นหาด้านบนได้)"
+          label="ชื่อลูกค้า"
           name="customer"
           value={customerName}
           onChange={setCustomerName}
-          placeholder="ชื่อที่เห็นใน LINE"
+          placeholder="คุณมาย"
         />
         <Field
           label="ชื่อน้องแมว *"
@@ -226,12 +305,22 @@ export default function NewBookingPage() {
           value={catName}
           onChange={setCatName}
           required
-          placeholder="รู้แค่ชื่อแมวก็บันทึกได้"
+          placeholder="น้องส้ม"
         />
+
+        {!picked?.lineUserId && (
+          <Field
+            label="LINE User ID (ถ้ามี)"
+            name="lineId"
+            value={lineUserId}
+            onChange={setLineUserId}
+            placeholder="Uxxxxxxxx..."
+          />
+        )}
 
         {lineUserId && (
           <p className="rounded-catcha-sm bg-sage/15 px-3 py-2 text-[10px] font-bold text-ok">
-            ✅ ผูก LINE แล้ว — ลูกค้าเห็นนัดในแอบอัตโนมัติ
+            ✅ ผูก LINE แล้ว — ลูกค้าเห็นนัดในแอปอัตโนมัติ
           </p>
         )}
 
@@ -278,13 +367,49 @@ export default function NewBookingPage() {
           </>
         )}
 
-        <Field label="โน้ตนิสัยน้อง (ลูกค้าใหม่)" name="notes" textarea />
+        <Field
+          label="โน้ตนิสัยน้อง"
+          name="notes"
+          textarea
+          value={notes}
+          onChange={setNotes}
+          placeholder="เช่น แมวดุ อาบยาก (ดึงจากประวัติอัตโนมัติถ้าเลือกลูกค้าเก่า)"
+        />
+
+        {result && (
+          <div
+            className={`rounded-catcha-sm border px-4 py-3 text-sm ${
+              result.ok
+                ? "border-green-200 bg-green-50 text-green-900"
+                : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            {result.ok ? (
+              <div className="space-y-2">
+                <p className="font-extrabold">✅ บันทึกการจองแล้ว</p>
+                {result.calendarLink && !result.calendarMock ? (
+                  <a
+                    href={result.calendarLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs font-bold underline"
+                  >
+                    📅 เปิดนัดใน Google Calendar
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <p className="font-bold">❌ {result.error}</p>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"
-          className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3.5 text-sm font-extrabold text-catcha-chocolate"
+          disabled={submitting}
+          className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3.5 text-sm font-extrabold text-catcha-chocolate disabled:opacity-60"
         >
-          {saved ? "✅ บันทึกแล้ว + สร้างนัด Calendar" : "🗓️ บันทึกการจอง"}
+          {submitting ? "กำลังบันทึก…" : "🗓️ บันทึกการจอง + สร้างนัด Calendar"}
         </button>
       </form>
     </div>
@@ -316,7 +441,14 @@ function Field({
     <label className="block text-xs font-bold text-brown-soft">
       {label}
       {textarea ? (
-        <textarea name={name} className={cls} rows={2} />
+        <textarea
+          name={name}
+          className={cls}
+          rows={2}
+          value={value}
+          placeholder={placeholder}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        />
       ) : (
         <input
           name={name}
