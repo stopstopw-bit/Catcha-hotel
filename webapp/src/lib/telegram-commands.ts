@@ -3,8 +3,57 @@ import { searchCustomers, listCustomers } from "@/lib/customers-store";
 import { todayFinance, monthFinance } from "@/lib/finance-store";
 import { salesSummary } from "@/lib/invoices-store";
 import { adminDashboardStats, bookingsForMonth } from "@/lib/admin-stats";
+import { getTelegramCredentials } from "@/lib/telegram-config";
 
-import { parseTelegramCommand } from "@/lib/telegram";
+import {
+  parseTelegramCommand,
+  sendTelegramToChat,
+  TELEGRAM_ACTION_BUTTONS,
+  TELEGRAM_MENU_BUTTONS,
+} from "@/lib/telegram";
+
+const MENU_BUTTON_SET = new Set<string>(Object.values(TELEGRAM_MENU_BUTTONS));
+const ACTION_BUTTON_SET = new Set<string>(Object.values(TELEGRAM_ACTION_BUTTONS));
+
+const MENU_TO_COMMAND: Record<string, string> = {
+  [TELEGRAM_MENU_BUTTONS.today]: "/today",
+  [TELEGRAM_MENU_BUTTONS.queue]: "/queue",
+  [TELEGRAM_MENU_BUTTONS.month]: "/month",
+  [TELEGRAM_MENU_BUTTONS.sales]: "/sales",
+  [TELEGRAM_MENU_BUTTONS.finance]: "/finance",
+  [TELEGRAM_MENU_BUTTONS.customers]: "/customers",
+  [TELEGRAM_MENU_BUTTONS.help]: "/help",
+};
+
+export function isTelegramMenuButton(text: string) {
+  return MENU_BUTTON_SET.has(text.trim());
+}
+
+export function isTelegramActionButton(text: string) {
+  return ACTION_BUTTON_SET.has(text.trim());
+}
+
+async function sendCommandReply(
+  chatId: number | string,
+  reply: { message: string; html?: boolean }
+) {
+  const creds = await getTelegramCredentials();
+  if (!creds?.botToken) return;
+  await sendTelegramToChat(creds.botToken, chatId, reply.message, {
+    html: reply.html !== false,
+    showMenu: true,
+  });
+}
+
+export async function handleTelegramMenuButton(
+  chatId: number | string,
+  buttonText: string
+) {
+  const cmd = MENU_TO_COMMAND[buttonText.trim()];
+  if (!cmd) return;
+  const reply = await handleTelegramCommand(cmd, chatId);
+  await sendCommandReply(chatId, reply);
+}
 
 export async function handleTelegramCommand(
   text: string,
@@ -19,11 +68,16 @@ export async function handleTelegramCommand(
       html: true,
       message:
         `🐱 <b>วิธีใช้ CatCha Bot</b>\n\n` +
-        `👇 กดปุ่มเมนูด้านล่างได้เลย\n` +
-        `📅 นัดวันนี้ · ⏳ คิวรอยืนยัน · 🗓️ ตารางเดือน\n` +
-        `💰 ยอดขาย · 📒 การเงิน · 👥 ลูกค้าล่าสุด\n\n` +
-        `ค้นหา: พิมพ์ <code>/search ชื่อ</code>\n` +
-        `ตัวอย่าง: <code>/search ส้ม</code>`,
+        `<b>ทำรายการ</b> (กดปุ่มด้านล่าง)\n` +
+        `🛁 อาบน้ำ · 🏠 ห้องพัก · 👤 ลูกค้าใหม่\n` +
+        `🧾 ส่งบิล · 💸 รายจ่าย · 💎 เติมเครดิต\n\n` +
+        `<b>ดูรายงาน</b>\n` +
+        `📅 นัดวันนี้ · ⏳ คิวรอยืนยัน · 💰 ยอดขาย · 📒 การเงิน\n\n` +
+        `<b>ลัด</b>\n` +
+        `<code>ยืนยัน B123</code> ยืนยันนัด\n` +
+        `<code>ยกเลิก B123</code> ยกเลิกนัด\n` +
+        `<code>ชำระ INV...</code> รับเงินบิล\n\n` +
+        `ค้นหา: <code>/search ชื่อ</code>`,
     };
   }
 
@@ -68,7 +122,7 @@ export async function handleTelegramCommand(
         pending
           .map(
             (b, i) =>
-              `${i + 1}. ${b.catName} · ${b.customerName}\n   ${b.date || b.checkin} ${b.time || ""}`
+              `${i + 1}. ${b.id} · ${b.catName} · ${b.customerName}\n   ${b.date || b.checkin} ${b.time || ""}\n   พิมพ์: ยืนยัน ${b.id}`
           )
           .join("\n\n"),
     };

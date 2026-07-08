@@ -27,6 +27,17 @@ export const TELEGRAM_MENU_BUTTONS = {
   help: "❓ วิธีใช้",
 } as const;
 
+/** ปุ่มทำรายการ — wizard ลงนัด / ลูกค้า / การเงิน */
+export const TELEGRAM_ACTION_BUTTONS = {
+  book: "🛁 ลงนัดอาบน้ำ",
+  room: "🏠 จองห้อง",
+  customer: "👤 ลูกค้าใหม่",
+  expense: "💸 รายจ่าย",
+  bill: "🧾 ส่งบิล",
+  topup: "💎 เติมเครดิต",
+  pendingBills: "📋 บิลค้างชำระ",
+} as const;
+
 const MENU_TO_COMMAND: Record<string, string> = {
   [TELEGRAM_MENU_BUTTONS.today]: "/today",
   [TELEGRAM_MENU_BUTTONS.queue]: "/queue",
@@ -41,34 +52,48 @@ export function getTelegramMenuKeyboard() {
   return {
     keyboard: [
       [
+        { text: TELEGRAM_ACTION_BUTTONS.book },
+        { text: TELEGRAM_ACTION_BUTTONS.room },
+      ],
+      [
+        { text: TELEGRAM_ACTION_BUTTONS.customer },
+        { text: TELEGRAM_ACTION_BUTTONS.bill },
+      ],
+      [
+        { text: TELEGRAM_ACTION_BUTTONS.expense },
+        { text: TELEGRAM_ACTION_BUTTONS.topup },
+      ],
+      [
         { text: TELEGRAM_MENU_BUTTONS.today },
         { text: TELEGRAM_MENU_BUTTONS.queue },
       ],
       [
-        { text: TELEGRAM_MENU_BUTTONS.month },
         { text: TELEGRAM_MENU_BUTTONS.sales },
+        { text: TELEGRAM_MENU_BUTTONS.finance },
       ],
       [
-        { text: TELEGRAM_MENU_BUTTONS.finance },
-        { text: TELEGRAM_MENU_BUTTONS.customers },
+        { text: TELEGRAM_ACTION_BUTTONS.pendingBills },
+        { text: TELEGRAM_MENU_BUTTONS.help },
       ],
-      [{ text: TELEGRAM_MENU_BUTTONS.help }],
     ],
     resize_keyboard: true,
     is_persistent: true,
   };
 }
 
-/** แปลงข้อความจากปุ่มเมนู → คำสั่ง */
+const ALL_ACTION_BUTTON_TEXTS = new Set<string>(Object.values(TELEGRAM_ACTION_BUTTONS));
+
+/** แปลงข้อความจากปุ่มเมนูรายงาน → คำสั่ง (ไม่แตะปุ่มทำรายการ) */
 export function normalizeTelegramInput(text: string) {
   const trimmed = text.trim();
+  if (ALL_ACTION_BUTTON_TEXTS.has(trimmed)) return trimmed;
   if (MENU_TO_COMMAND[trimmed]) return MENU_TO_COMMAND[trimmed];
   if (/คิว.*ยืนยัน/.test(trimmed)) return "/queue";
   if (/นัดวันนี้/.test(trimmed)) return "/today";
   if (/ตารางเดือน/.test(trimmed)) return "/month";
   if (/ยอดขาย/.test(trimmed)) return "/sales";
   if (/การเงิน/.test(trimmed)) return "/finance";
-  if (/ลูกค้า/.test(trimmed)) return "/customers";
+  if (/ลูกค้าล่าสุด/.test(trimmed)) return "/customers";
   if (/วิธีใช้|help/i.test(trimmed)) return "/help";
   return trimmed;
 }
@@ -171,6 +196,7 @@ export async function setTelegramBotCommands(token: string) {
       { command: "sales", description: "ยอดขายวันนี้" },
       { command: "finance", description: "การเงินวันนี้" },
       { command: "customers", description: "ลูกค้าล่าสุด" },
+      { command: "search", description: "ค้นหาลูกค้า" },
       { command: "help", description: "วิธีใช้" },
     ],
   });
@@ -179,9 +205,10 @@ export async function setTelegramBotCommands(token: string) {
 export function buildStartReply(chatId: number | string) {
   return (
     `🐱 <b>สวัสดีจาก CatCha Hotel Bot</b>\n\n` +
-    `Chat ID ของคุณ: <code>${chatId}</code>\n` +
-    `👇 กดปุ่มเมนูด้านล่างได้เลย\n` +
-    `หรือพิมพ์ /search ชื่อ เพื่อค้นหาลูกค้า`
+    `Chat ID ของคุณ: <code>${chatId}</code>\n\n` +
+    `<b>ทำรายการ:</b> อาบน้ำ · ห้องพัก · ลูกค้า · บิล · รายจ่าย · เติมเครดิต\n` +
+    `<b>ดูรายงาน:</b> นัดวันนี้ · คิว · ยอดขาย · การเงิน\n\n` +
+    `ลัด: <code>ยืนยัน B123</code> · <code>ยกเลิก B123</code> · <code>ชำระ INV...</code>`
   );
 }
 
