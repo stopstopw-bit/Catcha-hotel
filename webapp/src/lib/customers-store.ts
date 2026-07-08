@@ -466,6 +466,72 @@ export async function upsertCustomerFromBooking(data: {
   return existing;
 }
 
+/** สร้างลูกค้าใหม่จากหลังบ้าน — ไม่รวมกับรายการเดิม */
+export async function createCustomer(data: {
+  name: string;
+  catName: string;
+  phone?: string;
+  lineUserId?: string;
+  staffNote?: string;
+  isMember?: boolean;
+}) {
+  const name = data.name.trim();
+  const catName = data.catName.trim();
+  if (!name || !catName) return null;
+
+  const sb = getSupabase();
+  const now = new Date().toISOString();
+  const id = `C${Date.now()}`;
+  const catId = `CAT${Date.now()}`;
+  const isMember = Boolean(data.isMember);
+
+  const customer: CustomerRecord = {
+    id,
+    name,
+    phone: data.phone?.trim() || undefined,
+    lineUserId: data.lineUserId?.trim() || undefined,
+    cats: [
+      {
+        id: catId,
+        name: catName,
+        staffNote: data.staffNote?.trim() || undefined,
+      },
+    ],
+    isMember,
+    memberCredit: 0,
+    memberSince: isMember ? now.slice(0, 10) : undefined,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (sb) {
+    const { error: customerErr } = await sb.from("customers").insert({
+      id,
+      name,
+      phone: customer.phone || null,
+      line_user_id: customer.lineUserId || null,
+      is_member: isMember,
+      member_credit: 0,
+      member_since: customer.memberSince || null,
+      created_at: now,
+      updated_at: now,
+    });
+    if (customerErr) throw customerErr;
+
+    const { error: catErr } = await sb.from("cats").insert({
+      id: catId,
+      customer_id: id,
+      name: catName,
+      staff_note: customer.cats[0].staffNote || null,
+    });
+    if (catErr) throw catErr;
+  } else {
+    memCustomers.set(id, customer);
+  }
+
+  return customer;
+}
+
 export async function findCustomerForBooking(
   booking: Pick<Booking, "customerName" | "catName"> & { lineUserId?: string }
 ) {

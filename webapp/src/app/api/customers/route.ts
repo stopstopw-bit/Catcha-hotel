@@ -7,8 +7,11 @@ import {
   updateCat,
   topupMemberCredit,
   upsertCustomerFromBooking,
+  createCustomer,
   customerSummary,
 } from "@/lib/customers-store";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
@@ -30,6 +33,30 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+
+  if (body.action === "create") {
+    try {
+      const customer = await createCustomer({
+        name: String(body.name || body.customerName || ""),
+        catName: String(body.catName || ""),
+        phone: body.phone ? String(body.phone) : undefined,
+        lineUserId: body.lineUserId ? String(body.lineUserId) : undefined,
+        staffNote: body.staffNote ? String(body.staffNote) : undefined,
+        isMember: Boolean(body.isMember),
+      });
+      if (!customer) {
+        return NextResponse.json(
+          { error: "กรอกชื่อลูกค้าและชื่อน้องแมวให้ครบ" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ ok: true, customer });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
   const customer = await upsertCustomerFromBooking({
     customerName: body.customerName,
     catName: body.catName,

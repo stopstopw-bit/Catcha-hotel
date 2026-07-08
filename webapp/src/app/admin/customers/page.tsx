@@ -8,6 +8,7 @@ import type { PointsHistoryEntry } from "@/lib/points-store";
 import type { Booking } from "@/lib/business";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { BookingEditModal, type EditableBooking } from "@/components/BookingEditModal";
+import { adminJson } from "@/lib/admin-fetch";
 
 type Summary = {
   customer: CustomerRecord;
@@ -298,26 +299,197 @@ function MemberTopupSection({
   );
 }
 
+function AddCustomerForm({ onCreated }: { onCreated: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [catName, setCatName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [lineUserId, setLineUserId] = useState("");
+  const [staffNote, setStaffNote] = useState("");
+  const [isMember, setIsMember] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const reset = () => {
+    setName("");
+    setCatName("");
+    setPhone("");
+    setLineUserId("");
+    setStaffNote("");
+    setIsMember(false);
+    setMsg("");
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !catName.trim()) {
+      setMsg("กรอกชื่อลูกค้าและชื่อน้องแมว");
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    const res = await fetch("/api/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        name: name.trim(),
+        catName: catName.trim(),
+        phone: phone.trim() || undefined,
+        lineUserId: lineUserId.trim() || undefined,
+        staffNote: staffNote.trim() || undefined,
+        isMember,
+      }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (res.ok && data.customer?.id) {
+      reset();
+      setOpen(false);
+      onCreated(data.customer.id);
+    } else {
+      setMsg(data.error || "บันทึกไม่สำเร็จ");
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mb-4 w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3 text-sm font-extrabold text-catcha-chocolate"
+      >
+        ➕ เพิ่มลูกค้าใหม่
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mb-4 space-y-3 rounded-catcha border border-honey/40 bg-card p-4 shadow-catcha-sm"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-extrabold text-catcha-chocolate">➕ เพิ่มลูกค้าใหม่</h2>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            reset();
+          }}
+          className="text-xs font-bold text-brown-soft"
+        >
+          ปิด
+        </button>
+      </div>
+
+      <label className="block text-xs font-bold text-brown-soft">
+        ชื่อลูกค้า *
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="คุณมาย"
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      </label>
+
+      <label className="block text-xs font-bold text-brown-soft">
+        ชื่อน้องแมว *
+        <input
+          value={catName}
+          onChange={(e) => setCatName(e.target.value)}
+          required
+          placeholder="น้องส้ม"
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      </label>
+
+      <label className="block text-xs font-bold text-brown-soft">
+        เบอร์โทร
+        <input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="08x-xxx-xxxx"
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      </label>
+
+      <label className="block text-xs font-bold text-brown-soft">
+        LINE User ID
+        <input
+          value={lineUserId}
+          onChange={(e) => setLineUserId(e.target.value)}
+          placeholder="Uxxxxxxxx..."
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      </label>
+
+      <label className="block text-xs font-bold text-brown-soft">
+        โน้ตนิสัยน้อง
+        <textarea
+          value={staffNote}
+          onChange={(e) => setStaffNote(e.target.value)}
+          rows={2}
+          placeholder="เช่น แมวดุ อาบยาก"
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      </label>
+
+      <label className="flex items-center gap-2 text-xs font-bold text-brown-soft">
+        <input
+          type="checkbox"
+          checked={isMember}
+          onChange={(e) => setIsMember(e.target.checked)}
+          className="h-4 w-4 rounded"
+        />
+        สมาชิก Member 💎
+      </label>
+
+      {msg && <p className="text-xs font-bold text-wait">{msg}</p>}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full rounded-catcha-sm bg-latte/30 py-2.5 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
+      >
+        {saving ? "กำลังบันทึก…" : "💾 บันทึกลูกค้า"}
+      </button>
+    </form>
+  );
+}
+
 export default function CustomersPage() {
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [list, setList] = useState<CustomerListItem[]>([]);
   const [selected, setSelected] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const search = useCallback(async (query: string) => {
     setLoading(true);
+    setError("");
     const params = query ? `?q=${encodeURIComponent(query)}` : "";
-    const res = await fetch(`/api/customers${params}`);
-    const data = await res.json();
-    setList(data.customers || []);
+    const result = await adminJson<{ customers: CustomerListItem[] }>(
+      `/api/customers${params}`
+    );
+    if (result.ok) {
+      setList(result.data.customers || []);
+    } else {
+      setList([]);
+      setError(result.error);
+    }
     setLoading(false);
   }, []);
 
   const open = useCallback(async (id: string) => {
-    const res = await fetch(`/api/customers?id=${id}`);
-    const data = await res.json();
-    setSelected(data);
+    const result = await adminJson<Summary>(`/api/customers?id=${id}`);
+    if (result.ok) {
+      setSelected(result.data);
+    } else {
+      alert(result.error || "โหลดข้อมูลลูกค้าไม่สำเร็จ");
+    }
   }, []);
 
   useEffect(() => {
@@ -469,6 +641,14 @@ export default function CustomersPage() {
     <div>
       <h1 className="mb-4 text-lg font-extrabold text-catcha-chocolate">👤 ลูกค้า</h1>
       <ExportSheetsButton className="mb-4" />
+
+      <AddCustomerForm
+        onCreated={(id) => {
+          search(q);
+          open(id);
+        }}
+      />
+
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -486,6 +666,21 @@ export default function CustomersPage() {
 
       {loading ? (
         <p className="text-center text-sm text-brown-soft">กำลังโหลด…</p>
+      ) : error ? (
+        <div className="py-6 text-center">
+          <p className="text-sm font-bold text-wait">{error}</p>
+          <button
+            type="button"
+            onClick={() => search(q)}
+            className="mt-3 rounded-catcha-sm bg-honey/40 px-4 py-2 text-xs font-bold"
+          >
+            🔄 ลองใหม่
+          </button>
+        </div>
+      ) : list.length === 0 ? (
+        <p className="py-6 text-center text-sm text-brown-soft">
+          ยังไม่มีลูกค้า — กดปุ่มด้านบนเพื่อเพิ่ม
+        </p>
       ) : (
         <ul className="space-y-3">
           {list.map((c) => (
