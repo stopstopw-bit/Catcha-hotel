@@ -27,6 +27,8 @@ import {
   sendCustomerFollowUp,
   sendInactiveFollowUps,
 } from "@/lib/customer-crm";
+import { pushLineMessage, buildMemberBalanceFlex } from "@/lib/line";
+import { getSiteConfig } from "@/lib/config-store";
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
@@ -213,10 +215,29 @@ export async function PATCH(req: NextRequest) {
     if (!result) {
       return NextResponse.json({ error: "invalid_topup" }, { status: 400 });
     }
+
+    // แจ้งลูกค้าเฉพาะตอนติ๊กเท่านั้น — ยกยอดเก่าเข้าระบบทีละหลายคนไม่ควรไปกวนลูกค้า
+    // (และไม่เสียโควตาข้อความโดยไม่จำเป็น)
+    let notifyError: string | undefined;
+    if (body.notify === true && result.customer.lineUserId) {
+      const cfg = await getSiteConfig();
+      try {
+        await pushLineMessage(result.customer.lineUserId, [
+          buildMemberBalanceFlex({
+            customerName: result.customer.name,
+            memberCredit: result.customer.memberCredit,
+          }, cfg.cards?.memberBalance),
+        ]);
+      } catch (e) {
+        notifyError = e instanceof Error ? e.message : String(e);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       customer: result.customer,
       topup: result.topup,
+      notifyError,
     });
   }
 
