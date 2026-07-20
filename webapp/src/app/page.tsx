@@ -553,6 +553,22 @@ export default function HomePage() {
               ดูบทความทั้งหมด →
             </Link>
           </p>
+
+          {/* คู่มือดูแลแมว — Catcha Cat Academy (subdomain) */}
+          <a
+            href="https://guide.catchahotel.com"
+            className="mt-6 block rounded-catcha border-2 border-honey/60 bg-honey/15 p-5 text-center shadow-catcha-sm transition hover:-translate-y-0.5 hover:border-honey"
+          >
+            <p className="text-sm font-extrabold text-catcha-chocolate">
+              🎓 คู่มือดูแลแมวฉบับมือใหม่ — Catcha Cat Academy
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-brown-soft">
+              รวมทุกเรื่องต้องรู้: อาหาร น้ำ กระบะทราย สุขภาพ อาบน้ำ พฤติกรรม และการฝากโรงแรมแมว อ่านฟรี
+            </p>
+            <span className="mt-2 inline-block text-xs font-extrabold text-latte-deep">
+              เปิดคู่มือดูแลแมว →
+            </span>
+          </a>
         </section>
 
         {/* ── CTA ท้าย ── */}

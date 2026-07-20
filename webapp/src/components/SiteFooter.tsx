@@ -72,6 +72,12 @@ export default function SiteFooter() {
         <Link href="/cat-bath-bangna" className="font-bold text-brown-soft underline">
           อาบน้ำแมว บางนา–ศรีนครินทร์–พัฒนาการ
         </Link>
+        <a
+          href="https://guide.catchahotel.com"
+          className="font-bold text-brown-soft underline"
+        >
+          คู่มือดูแลแมว (Catcha Cat Academy)
+        </a>
       </nav>
       <p className="font-bold text-brown-soft">
         CatCha Hotel — โรงแรมแมว รับฝากแมว อาบน้ำแมว
