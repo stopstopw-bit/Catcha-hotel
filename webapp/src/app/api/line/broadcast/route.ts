@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFrom } from "@/lib/auth";
 import { BUSINESS } from "@/lib/business";
+import { randomUUID } from "crypto";
 import { storeBroadcastImage } from "@/lib/broadcast-image-store";
+import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
 import {
   listCustomersByTier,
   getBroadcastAudience,
@@ -28,6 +30,13 @@ async function resolveLineImageUrl(body: {
   imageUrl?: string;
 }): Promise<string | undefined> {
   if (body.imageData && body.imageData.startsWith("data:")) {
+    // เก็บรูปเป็นไฟล์ใน Supabase Storage (URL สาธารณะ) แทนยัด base64 ลงตาราง broadcast_images
+    const stored = await uploadDataUrlToStorage(
+      `broadcast/${randomUUID()}`,
+      body.imageData
+    );
+    if (!stored.startsWith("data:")) return stored;
+    // อัป Storage ไม่สำเร็จ → fallback แบบเดิม (เก็บ DB แล้วเสิร์ฟผ่าน route)
     const id = await storeBroadcastImage(body.imageData);
     const base = getAppUrlFromEnv() || "https://catchahotel.com";
     return `${base}/api/line/broadcast-image/${id}`;

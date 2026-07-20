@@ -19,6 +19,7 @@ import {
   BROADCAST_TEMPLATES,
   type BroadcastActionId,
 } from "@/lib/line-broadcast";
+import { toJpegDataUrl } from "@/lib/image-convert";
 
 type Promo = {
   id: string;
@@ -223,10 +224,15 @@ export default function PromosAdminPage() {
     setBroadcastActions(tpl.suggestedActions);
   };
 
-  const onBroadcastImage = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => setBroadcastImage(String(reader.result));
-    reader.readAsDataURL(file);
+  const onBroadcastImage = async (file: File) => {
+    // ย่อรูปก่อนส่ง — กันรูปโปรใหญ่ๆ ทำให้ payload/สตอเรจบวม (ของเดิมส่ง base64 ดิบทั้งก้อน)
+    try {
+      setBroadcastImage(await toJpegDataUrl(file, 1200));
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => setBroadcastImage(String(reader.result));
+      reader.readAsDataURL(file);
+    }
   };
 
   const toggleBroadcastAction = (id: BroadcastActionId) => {

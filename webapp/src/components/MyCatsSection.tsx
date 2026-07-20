@@ -101,7 +101,8 @@ export function MyCatsSection() {
                   width={96}
                   height={96}
                   className="h-full w-full object-cover"
-                  unoptimized
+                  // รูปที่อยู่ใน Storage (URL จริง) ให้ next/image ย่อ+cache — คง unoptimized ไว้เฉพาะ data URL (fallback เก่า)
+                  unoptimized={cat.photoDataUrl.startsWith("data:")}
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center text-brown-faint">

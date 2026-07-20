@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "profile.line-scdn.net",
       },
+      // รูปแมว/มีเดียใน Supabase Storage — ให้ next/image ย่อ+cache แทนดึงดิบทุกครั้ง (ประหยัด egress)
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
 };
