@@ -442,6 +442,7 @@ export async function PATCH(req: NextRequest) {
             buildDepositThanksFlex({
               title: cfg.messages.depositThanksTitle,
               body: renderTemplate(cfg.messages.depositThanksBody, {
+                shop: cfg.business.name,
                 name: inv.customerName,
                 cat: inv.catName,
                 amount: (inv.deposit || 0).toLocaleString(),

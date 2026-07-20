@@ -38,7 +38,7 @@ async function resolveLineImageUrl(body: {
     if (!stored.startsWith("data:")) return stored;
     // อัป Storage ไม่สำเร็จ → fallback แบบเดิม (เก็บ DB แล้วเสิร์ฟผ่าน route)
     const id = await storeBroadcastImage(body.imageData);
-    const base = getAppUrlFromEnv() || "https://catchahotel.com";
+    const base = getAppUrlFromEnv();
     return `${base}/api/line/broadcast-image/${id}`;
   }
   if (body.imageUrl) {

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
 import { BLOG_POSTS } from "@/lib/blog-posts";
@@ -8,7 +10,9 @@ import SiteFooter from "@/components/SiteFooter";
 // บทความที่เขียนเองจากหลังบ้านโผล่ภายใน ~5 นาทีหลังบันทึก
 export const revalidate = 300;
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://catchahotel.com";
+import { getAppUrl } from "@/lib/app-url";
+
+const SITE_URL = getAppUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -28,6 +32,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogIndexPage() {
+  if (!isMarketingSite()) redirect("/app");
   // รวมบทความจากหลังบ้าน (DB) + บทความ SEO เดิม (โค้ด) เรียงตามวันที่
   // ถ้า slug ซ้ำ ให้ฉบับที่แก้ในหลังบ้าน (DB) แทนที่ของเดิมเสมอ — ไม่โชว์ซ้ำ
   const dbArticles = await listArticles();

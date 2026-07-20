@@ -22,6 +22,14 @@ export const SESSION_COOKIE = "catcha_session";
 const SESSION_DAYS = 7;
 
 /**
+ * รหัสเริ่มต้น — ใช้ได้เฉพาะตอน clone ใหม่ยังไม่ตั้ง env เพื่อให้ล็อกอินเข้าไปตั้งค่าได้
+ *
+ * ⚠️ ค่านี้เหมือนกันทุก clone = ใครรู้ก็เข้าหลังบ้านร้านที่ลืมตั้ง ADMIN_CODE ได้
+ * ทุกร้านต้องตั้ง ADMIN_CODE เป็นของตัวเอง — health check จะเตือนถ้ายังไม่ตั้ง (isOwnerCodeConfigured)
+ */
+export const DEFAULT_OWNER_CODE = "catcha2026";
+
+/**
  * รหัสเจ้าของร้าน — อ่านฝั่งเซิร์ฟเวอร์เท่านั้น
  *
  * ยอมรับ NEXT_PUBLIC_ADMIN_CODE ต่อไปเพื่อไม่ให้ร้านที่ตั้งค่าไว้แล้วหลุดออกจากระบบ
@@ -31,8 +39,20 @@ export function getOwnerCode(): string {
   return (
     process.env.ADMIN_CODE ||
     process.env.NEXT_PUBLIC_ADMIN_CODE ||
-    "catcha2026"
+    DEFAULT_OWNER_CODE
   );
+}
+
+/** ตั้งรหัสเจ้าของร้านเองแล้วหรือยัง — false = ยังใช้รหัสเริ่มต้นที่ทุก clone รู้ (ช่องโหว่) */
+export function isOwnerCodeConfigured(): boolean {
+  return Boolean(
+    process.env.ADMIN_CODE?.trim() || process.env.NEXT_PUBLIC_ADMIN_CODE?.trim()
+  );
+}
+
+/** ตั้ง SESSION_SECRET แยกแล้วหรือยัง — ถ้ายัง secret จะเดาได้จากรหัสเจ้าของร้าน */
+export function isSessionSecretConfigured(): boolean {
+  return Boolean(process.env.SESSION_SECRET?.trim());
 }
 
 function secretKey(): string {

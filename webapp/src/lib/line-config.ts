@@ -1,10 +1,24 @@
 import { getSecrets } from "./secrets-store";
+import { getAppUrl } from "./app-url";
 
 export type LineCredentials = {
   channelToken: string;
   liffId?: string;
   source: "env" | "database";
 };
+
+/**
+ * รับได้ทั้งรหัส LIFF ล้วน หรือ URL เต็ม (แม้เผลอวางซ้ำ) แล้วตัดเหลือแต่รหัส
+ * เช่น "https://liff.line.me/https://liff.line.me/123-abc?path=register" → "123-abc"
+ */
+export function normalizeLiffId(raw?: string): string {
+  if (!raw) return "";
+  let id = raw.trim();
+  id = id.replace(/https?:\/\/liff\.line\.me\//gi, ""); // ตัด prefix ทุกอัน (กันวางซ้ำ)
+  id = id.replace(/^\/+/, ""); // ตัด slash นำหน้า
+  id = id.split(/[?#/]/)[0]; // ตัด query/path ที่ตามมา
+  return id.trim();
+}
 
 export function parseLineChannelToken(raw: string) {
   const token = raw.trim();
@@ -20,20 +34,21 @@ export async function getLineCredentials(): Promise<LineCredentials | null> {
   const secrets = await getSecrets();
   const line = secrets.line;
   const envToken = process.env.LINE_CHANNEL_TOKEN?.trim();
-  const envLiff = process.env.NEXT_PUBLIC_LIFF_ID?.trim();
+  const envLiff = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID);
+  const dbLiff = normalizeLiffId(line?.liffId);
 
   if (line?.channelToken) {
     return {
       channelToken: line.channelToken,
-      liffId: line.liffId || envLiff,
+      liffId: dbLiff || envLiff,
       source: "database",
     };
   }
   if (envToken) {
     return { channelToken: envToken, liffId: envLiff, source: "env" };
   }
-  if (line?.liffId) {
-    return { channelToken: "", liffId: line.liffId, source: "database" };
+  if (dbLiff) {
+    return { channelToken: "", liffId: dbLiff, source: "database" };
   }
   if (envLiff) {
     return { channelToken: "", liffId: envLiff, source: "env" };
@@ -80,16 +95,12 @@ export async function testLineChannelToken(token: string) {
 /** URL หลักของเว็บ — ใช้ตั้ง LINE webhook/LIFF/ลิงก์การ์ด ต้องเป็นโดเมนถาวรเท่านั้น
  * (ห้าม fallback ไป VERCEL_URL เพราะเปลี่ยนทุกครั้งที่ deploy ใหม่ จะทำให้ webhook หลุด) */
 export function getAppUrlFromEnv() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
-    "https://catchahotel.com"
-  );
+  return getAppUrl();
 }
 
 export function bookingConfirmUrl(bookingId: string, liffId?: string) {
   const lid = liffId || process.env.NEXT_PUBLIC_LIFF_ID;
-  const base =
-    getAppUrlFromEnv() || "https://catchahotel.com";
+  const base = getAppUrl();
   if (lid) {
     return `https://liff.line.me/${lid}?path=bookings&id=${bookingId}`;
   }

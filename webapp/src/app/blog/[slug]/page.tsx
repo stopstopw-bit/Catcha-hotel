@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { isMarketingSite } from "@/lib/site-mode";
 import { BLOG_POSTS, getBlogPost, type BlogPost } from "@/lib/blog-posts";
 import { getArticleBySlug, articleBodyToBlocks } from "@/lib/articles-store";
 import SiteFooter from "@/components/SiteFooter";
@@ -36,7 +37,9 @@ async function resolvePost(
   return null;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://catchahotel.com";
+import { getAppUrl } from "@/lib/app-url";
+
+const SITE_URL = getAppUrl();
 
 type Params = { slug: string };
 
@@ -76,6 +79,7 @@ export async function generateMetadata({
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<Params> }) {
+  if (!isMarketingSite()) redirect("/app");
   const { slug } = await params;
   const resolved = await resolvePost(slug);
   if (!resolved) notFound();

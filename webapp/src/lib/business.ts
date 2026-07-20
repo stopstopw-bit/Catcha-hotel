@@ -1,7 +1,8 @@
 export const BUSINESS = {
-  name: "CatCha Hotel",
+  // ชื่อร้าน + LINE OA override ได้จาก env — ร้านที่ clone ระบบไปตั้งสองตัวนี้ก็เปลี่ยนแบรนด์ได้ทั้งแอปโดยไม่แตะโค้ด
+  name: process.env.NEXT_PUBLIC_SHOP_NAME?.trim() || "CatCha Hotel",
   tagline: { th: "โรงแรมแมว · อาบน้ำ & กรูมมิ่ง", en: "Cat Hotel · Grooming & Spa" },
-  lineOa: "@catchahotel",
+  lineOa: process.env.NEXT_PUBLIC_SHOP_LINE_OA?.trim() || "@catchahotel",
   phones: ["080-549-8969", "095-324-6989"],
   maps: "https://maps.app.goo.gl/u38pzVGa9LiEsLEK8",
   facebook: "catcha hotel",

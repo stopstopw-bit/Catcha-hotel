@@ -1,3 +1,4 @@
+import { BUSINESS } from "@/lib/business";
 import { bookingsForDate, listBookings } from "@/lib/bookings-store";
 import { searchCustomers, listCustomers } from "@/lib/customers-store";
 import { todayFinance, monthFinance } from "@/lib/finance-store";
@@ -71,7 +72,7 @@ export async function handleTelegramCommand(
     return {
       html: true,
       message:
-        `🐱 <b>วิธีใช้ CatCha Bot</b>\n\n` +
+        `🐱 <b>วิธีใช้ ${BUSINESS.name} Bot</b>\n\n` +
         `👇 กดปุ่มเมนูด้านล่างได้เลย\n` +
         `📅 นัดวันนี้ · 🌅 เตรียมตัวพรุ่งนี้\n` +
         `⏳ คิวรอยืนยัน · 🗓️ ตารางเดือน\n` +

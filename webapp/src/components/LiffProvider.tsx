@@ -127,6 +127,13 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // เผลอวาง URL เต็ม (แม้ซ้ำ) ก็ตัดเหลือแต่รหัส กัน liff.init พัง
+      liffId = liffId
+        .replace(/https?:\/\/liff\.line\.me\//gi, "")
+        .replace(/^\/+/, "")
+        .split(/[?#/]/)[0]
+        .trim();
+
       if (!liffId) {
         await applyAccount({
           lineUserId: "dev-user",

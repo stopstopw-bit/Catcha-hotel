@@ -1,6 +1,7 @@
 import type { CustomerRecord, CatRecord } from "./customers-store";
 import type { FinanceRecord } from "./finance-store";
 import { getGoogleCredentials, isGoogleConfigured } from "./google-config";
+import { BUSINESS } from "./business";
 import { getSheetsApi } from "./google-auth";
 import { listCustomers } from "./customers-store";
 import { listFinance } from "./finance-store";
@@ -223,7 +224,7 @@ async function writeSheet(
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        [`CatCha Hotel — ส่งออกเมื่อ ${exportedAt}`],
+        [`${BUSINESS.name} — ส่งออกเมื่อ ${exportedAt}`],
         headers,
         ...rows,
       ],

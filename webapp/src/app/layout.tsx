@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { BUSINESS } from "@/lib/business";
 
 export const metadata: Metadata = {
-  title: "CatCha Hotel",
-  description: "โรงแรมแมว · อาบน้ำ & กรูมมิ่ง บางนา",
+  title: BUSINESS.name,
+  description: `${BUSINESS.tagline.th} · ${BUSINESS.location.th}`,
 };
 
 export const viewport: Viewport = {

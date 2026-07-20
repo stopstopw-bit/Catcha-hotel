@@ -1,9 +1,15 @@
 import type { MetadataRoute } from "next";
 import { BLOG_POSTS } from "@/lib/blog-posts";
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://catchahotel.com";
+import { getAppUrl } from "@/lib/app-url";
+import { isMarketingSite } from "@/lib/site-mode";
+
+const SITE_URL = getAppUrl();
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  // โหมดหลังบ้านล้วน (clone ลูกค้า) — ไม่มีหน้าการตลาดให้ index
+  if (!isMarketingSite()) return [];
+
   return [
     {
       url: SITE_URL,

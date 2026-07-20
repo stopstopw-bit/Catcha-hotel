@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TIER_LABELS, type CustomerTier } from "@/lib/customer-tier";
+import { getAppUrl } from "@/lib/app-url";
 
 type LineStatus = {
   configured: boolean;
@@ -105,7 +106,7 @@ export function LiffSetupSection({ adminCode }: { adminCode?: string }) {
   const endpointUrl = useMemo(() => {
     if (status?.endpointUrl) return status.endpointUrl;
     if (typeof window !== "undefined") return `${window.location.origin}/app`;
-    return "https://catchahotel.com/app";
+    return `${getAppUrl()}/app`;
   }, [status?.endpointUrl]);
 
   const load = useCallback(async () => {

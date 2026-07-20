@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
 import { BUSINESS, ROOMS } from "@/lib/business";
@@ -6,7 +8,9 @@ import SiteFooter from "@/components/SiteFooter";
 
 /** หน้าประจำโซนบางนา–เมกาบางนา (Local SEO area page) — เนื้อหาเฉพาะโซน ไม่ซ้ำหน้าอื่น */
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://catchahotel.com";
+import { getAppUrl } from "@/lib/app-url";
+
+const SITE_URL = getAppUrl();
 const PHONE_MAIN = BUSINESS.phones[0];
 const LINE_URL = "https://line.me/R/ti/p/@catchahotel";
 
@@ -81,6 +85,7 @@ function jsonLd() {
 const topRooms = ROOMS.filter((r) => r.count).slice(0, 3);
 
 export default function CatHotelBangnaPage() {
+  if (!isMarketingSite()) redirect("/app");
   return (
     <main className="mx-auto max-w-3xl px-5 pb-16 pt-8">
       <script

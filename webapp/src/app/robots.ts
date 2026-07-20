@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://catchahotel.com";
+import { getAppUrl } from "@/lib/app-url";
+
+const SITE_URL = getAppUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {

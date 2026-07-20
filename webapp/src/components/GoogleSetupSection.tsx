@@ -12,12 +12,8 @@ type GoogleStatus = {
 export function GoogleSetupSection({ adminCode }: { adminCode: string }) {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [jsonText, setJsonText] = useState("");
-  const [spreadsheetUrl, setSpreadsheetUrl] = useState(
-    "https://docs.google.com/spreadsheets/d/1VQD7eHUpkiy6TuyfgVATsUM_aOxNdbxyZYSbrw1EF74/edit"
-  );
-  const [calendarUrl, setCalendarUrl] = useState(
-    "https://calendar.google.com/calendar/u/0?cid=OGU5ZDJkZjU3ODBiOWJmY2U0NmI2NjBhZGQzY2VlMmVkNDFlZDcxZTFiZDcwNjViMWFlY2YzZTgxZTI3OTI3Y0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t"
-  );
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
+  const [calendarUrl, setCalendarUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -92,6 +88,7 @@ export function GoogleSetupSection({ adminCode }: { adminCode: string }) {
         <input
           value={spreadsheetUrl}
           onChange={(e) => setSpreadsheetUrl(e.target.value)}
+          placeholder="วางลิงก์ Google Sheet ของร้านคุณ เช่น https://docs.google.com/spreadsheets/d/…/edit"
           className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-xs"
         />
       </label>
@@ -101,6 +98,7 @@ export function GoogleSetupSection({ adminCode }: { adminCode: string }) {
         <input
           value={calendarUrl}
           onChange={(e) => setCalendarUrl(e.target.value)}
+          placeholder="วางลิงก์ Google Calendar ของร้านคุณ เช่น https://calendar.google.com/calendar/…?cid=…"
           className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-xs"
         />
       </label>

@@ -5,6 +5,7 @@
 
 import { formatBookingWhen, formatThaiDate } from "./format-thai-date";
 import { getLineCredentials } from "./line-config";
+import { BUSINESS } from "./business";
 import type { CardStyleConfig } from "./config-types";
 
 const BRAND_GREEN = "#5A8F5A";
@@ -457,7 +458,7 @@ export function buildPromoFlex(data: {
         contents: [
           {
             type: "text" as const,
-            text: style?.texts?.header || "✨ โปรโมชั่น CatCha",
+            text: style?.texts?.header || `✨ โปรโมชั่น ${BUSINESS.name}`,
             color: style?.headerTextColor || "#FFFFFF",
             weight: "bold" as const,
             size: "md" as const,

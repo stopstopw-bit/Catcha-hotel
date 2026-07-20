@@ -10,6 +10,7 @@ import {
   testLineChannelToken,
   setLineWebhookEndpoint,
   getLineWebhookEndpoint,
+  normalizeLiffId,
 } from "@/lib/line-config";
 
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export async function GET() {
   const configured = await isLineConfigured();
   const liffConfigured = await isLiffConfigured();
   const creds = await getLineCredentials();
-  const appUrl = getAppUrlFromEnv() || "https://catchahotel.com";
+  const appUrl = getAppUrlFromEnv();
 
   let displayName: string | undefined;
   let basicId: string | undefined;
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === "save_liff") {
-      const liffId = String(body.liffId || "").trim();
+      const liffId = normalizeLiffId(String(body.liffId || ""));
       if (!liffId || liffId.length < 6) {
         return NextResponse.json(
           { ok: false, message: "กรอก LIFF ID ให้ครบ (จาก LINE Developers → LIFF)" },
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
           message: "ยังไม่ได้ตั้ง Channel Access Token — ใส่ Token ก่อน",
         });
       }
-      const appUrl = getAppUrlFromEnv() || "https://catchahotel.com";
+      const appUrl = getAppUrlFromEnv();
       const webhookUrl = `${appUrl}/api/line/webhook`;
       const result = await setLineWebhookEndpoint(creds.channelToken, webhookUrl);
       if (!result.ok) {

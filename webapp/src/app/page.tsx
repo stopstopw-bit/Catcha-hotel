@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
 import { BUSINESS, ROOMS } from "@/lib/business";
@@ -12,7 +14,9 @@ import SiteFooter, { SocialLinks } from "@/components/SiteFooter";
  * หมายเหตุ: ร้านมีบริการ "อาบน้ำแมว" เท่านั้น ไม่มีบริการตัดขน
  */
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://catchahotel.com";
+import { getAppUrl } from "@/lib/app-url";
+
+const SITE_URL = getAppUrl();
 const PHONE_MAIN = BUSINESS.phones[0];
 const LINE_URL = "https://line.me/R/ti/p/@catchahotel";
 const MAPS_URL = BUSINESS.maps;
@@ -184,6 +188,7 @@ function InfoCard({
 }
 
 export default function HomePage() {
+  if (!isMarketingSite()) redirect("/app");
   return (
     <main className="overflow-x-hidden">
       <script

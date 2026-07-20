@@ -1,4 +1,4 @@
-import type { Locale } from "./business";
+import { BUSINESS, type Locale } from "./business";
 
 const messages = {
   th: {
@@ -13,7 +13,7 @@ const messages = {
     },
     home: {
       greeting: "สวัสดี",
-      subtitle: "ยินดีต้อนรับสู่ CatCha Hotel 🐱",
+      subtitle: `ยินดีต้อนรับสู่ ${BUSINESS.name} 🐱`,
       services: "บริการของเรา",
       groom: "อาบน้ำ / กรูมมิ่ง",
       room: "ห้องพักแมว",
@@ -68,7 +68,7 @@ const messages = {
     },
     bookings: {
       title: "คิวของฉัน",
-      empty: "ยังไม่มีนัดค่ะ — ทัก LINE @catchahotel เพื่อจอง",
+      empty: `ยังไม่มีนัดค่ะ — ทัก LINE ${BUSINESS.lineOa} เพื่อจอง`,
       pending: "รอยืนยัน",
       confirmed: "ยืนยันแล้ว",
       cancelled: "ยกเลิกแล้ว",
@@ -135,7 +135,7 @@ const messages = {
     },
     home: {
       greeting: "Hello",
-      subtitle: "Welcome to CatCha Hotel 🐱",
+      subtitle: `Welcome to ${BUSINESS.name} 🐱`,
       services: "Our services",
       groom: "Grooming & Spa",
       room: "Cat boarding",
@@ -190,7 +190,7 @@ const messages = {
     },
     bookings: {
       title: "My bookings",
-      empty: "No bookings yet — chat us on LINE @catchahotel",
+      empty: `No bookings yet — chat us on LINE ${BUSINESS.lineOa}`,
       pending: "Pending",
       confirmed: "Confirmed",
       cancelled: "Cancelled",
