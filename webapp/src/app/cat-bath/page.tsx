@@ -87,9 +87,42 @@ export default function CatBathPage() {
         </span>
       </p>
 
-      {/* ตารางราคาแบบอ่านง่าย (ให้ Google อ่านได้เป็นข้อความ) */}
-      <div className="mt-8 overflow-x-auto rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-        <table className="w-full min-w-[560px] text-left text-sm">
+      {/* การ์ดราคาต่อสายพันธุ์ — อ่านครบในจอเดียวบนมือถือ */}
+      <div className="mt-8 space-y-3 sm:hidden">
+        {PRICE_ROWS.map(([breed, bath, degrease]) => {
+          const sizes = ["ลูกแมว", "M", "L"];
+          const bathPrices = bath.split(" / ");
+          const degreasePrices = degrease.split(" / ");
+          return (
+            <div
+              key={breed}
+              className="rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm"
+            >
+              <h3 className="font-extrabold text-catcha-chocolate">{breed}</h3>
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1">
+                <p className="text-xs font-extrabold text-brown-soft">อาบน้ำ–เป่าขน</p>
+                <p className="text-xs font-extrabold text-brown-soft">อาบน้ำ+ขจัดคราบมัน</p>
+                {sizes.map((size, i) => (
+                  <div key={size} className="contents">
+                    <div className="flex items-baseline justify-between border-t border-catcha-line/60 py-1.5 text-sm">
+                      <span className="text-brown-soft">{size}</span>
+                      <span className="font-bold text-brown">{bathPrices[i]}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between border-t border-catcha-line/60 py-1.5 text-sm">
+                      <span className="text-brown-soft">{size}</span>
+                      <span className="font-bold text-brown">{degreasePrices[i]}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ตารางราคาแบบอ่านง่าย (จอใหญ่ · ให้ Google อ่านได้เป็นข้อความ) */}
+      <div className="mt-8 hidden overflow-x-auto rounded-catcha border border-catcha-line bg-card shadow-catcha-sm sm:block">
+        <table className="w-full text-left text-sm">
           <thead>
             <tr className="bg-honey/25 text-catcha-chocolate">
               <th className="px-4 py-3 font-extrabold">สายพันธุ์</th>
