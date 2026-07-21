@@ -214,7 +214,35 @@ const CARDS: CardMeta[] = [
       { key: "litter", label: "⚠️ แจ้งเตรียมทราย (กรณีไม่แถมฟรี)" },
       { key: "care", label: "💗 ชวนแจ้งการดูแลพิเศษ" },
     ],
-    texts: [],
+    texts: [
+      {
+        stateKey: "prestayIntro",
+        label: "ข้อความเปิดหัวการ์ด",
+        multiline: true,
+        hint: "ใช้ได้: {cat}",
+      },
+      {
+        stateKey: "prestayPrepIntro",
+        label: "ข้อความนำก่อนรายการของที่ต้องเตรียม",
+        multiline: true,
+      },
+      {
+        stateKey: "prestayPrepItems",
+        label: "รายการของที่ต้องเตรียม (บรรทัดละ 1 ข้อ)",
+        multiline: true,
+      },
+      {
+        stateKey: "prestayCareNote",
+        label: "ข้อความชวนแจ้งการดูแลพิเศษ",
+        multiline: true,
+      },
+      {
+        stateKey: "prestayLitterNote",
+        label: "ข้อความเตือนเตรียมทราย",
+        multiline: true,
+        hint: "ใช้ได้: {min}",
+      },
+    ],
     styleTexts: [
       { key: "header", label: "ข้อความบนแถบหัว", placeholder: "🏠 เตรียมตัวก่อนเข้าพัก" },
       { key: "prepTitle", label: "หัวข้อรายการของที่ต้องเตรียม", placeholder: "🧳 สิ่งที่ต้องเตรียมมาด้วย" },
@@ -238,7 +266,20 @@ const CARDS: CardMeta[] = [
       { key: "buttonColor", label: "สีปุ่มเลือกเวลา", fallback: "#4A7348" },
     ],
     fields: [],
-    texts: [],
+    texts: [
+      {
+        stateKey: "checkinReminder",
+        label: "ข้อความในการ์ดเลือกเวลาเข้าพัก (เช็คอิน)",
+        multiline: true,
+        hint: "ใช้ได้: {shop} {cat} {checkin} {room}",
+      },
+      {
+        stateKey: "checkoutReminder",
+        label: "ข้อความในการ์ดเลือกเวลารับน้อง (เช็คเอาท์)",
+        multiline: true,
+        hint: "ใช้ได้: {shop} {cat} {checkout}",
+      },
+    ],
     styleTexts: [
       { key: "button", label: "คำในปุ่ม (ว่าง = ใช้คำเดิมของแต่ละแบบ)", placeholder: "🕒 เลือกเวลาส่งน้อง" },
     ],
@@ -258,7 +299,20 @@ const CARDS: CardMeta[] = [
       { key: "note", label: "📝 โน้ตเพิ่มเติม" },
       { key: "terms", label: "🐾 เงื่อนไขมัดจำ" },
     ],
-    texts: [],
+    texts: [
+      { stateKey: "depositThanksTitle", label: "หัวข้อการ์ด" },
+      {
+        stateKey: "depositThanksBody",
+        label: "เนื้อความ",
+        multiline: true,
+        hint: "ใช้ได้: {shop} {cat} {amount}",
+      },
+      {
+        stateKey: "depositTerms",
+        label: "เงื่อนไขมัดจำ (บรรทัดละ 1 ข้อ)",
+        multiline: true,
+      },
+    ],
     styleTexts: [
       { key: "amountLabel", label: "คำนำหน้ายอด", placeholder: "มัดจำที่รับ" },
       { key: "termsTitle", label: "หัวข้อเงื่อนไข", placeholder: "🐾 เงื่อนไขมัดจำ" },
@@ -861,6 +915,19 @@ export default function CardsStudioPage() {
           groomInfoIntro: cfg.messages?.groomInfoIntro || "",
           consentTitle: cfg.messages?.consentTitle || "",
           consentTerms: (cfg.messages?.consentTerms || []).join("\n"),
+          // การ์ดเลือกเวลาเช็คอิน/เช็คเอาท์
+          checkinReminder: cfg.messages?.checkinReminder || "",
+          checkoutReminder: cfg.messages?.checkoutReminder || "",
+          // การ์ดขอบคุณ (รับมัดจำแล้ว)
+          depositThanksTitle: cfg.messages?.depositThanksTitle || "",
+          depositThanksBody: cfg.messages?.depositThanksBody || "",
+          depositTerms: (cfg.messages?.depositTerms || []).join("\n"),
+          // การ์ดเตรียมตัวก่อนเข้าพัก
+          prestayIntro: cfg.messages?.prestayIntro || "",
+          prestayPrepIntro: cfg.messages?.prestayPrepIntro || "",
+          prestayPrepItems: (cfg.messages?.prestayPrepItems || []).join("\n"),
+          prestayCareNote: cfg.messages?.prestayCareNote || "",
+          prestayLitterNote: cfg.messages?.prestayLitterNote || "",
         });
       })
       .finally(() => setLoaded(true));
@@ -900,6 +967,12 @@ export default function CardsStudioPage() {
 
   const save = async () => {
     setSaving(true);
+    // เงื่อนไข/รายการหลายบรรทัด — เก็บเป็น array (บรรทัดละ 1 ข้อ ตัดบรรทัดว่างทิ้ง)
+    const lines = (s?: string) =>
+      (s || "")
+        .split("\n")
+        .map((t) => t.trim())
+        .filter(Boolean);
     try {
       const res = await fetch("/api/config", {
         method: "PATCH",
@@ -920,10 +993,20 @@ export default function CardsStudioPage() {
               reviewRequest: texts.reviewRequest,
               groomInfoIntro: texts.groomInfoIntro,
               consentTitle: texts.consentTitle,
-              consentTerms: texts.consentTerms
-                .split("\n")
-                .map((t) => t.trim())
-                .filter(Boolean),
+              consentTerms: lines(texts.consentTerms),
+              // การ์ดเลือกเวลาเช็คอิน/เช็คเอาท์
+              checkinReminder: texts.checkinReminder,
+              checkoutReminder: texts.checkoutReminder,
+              // การ์ดขอบคุณ (รับมัดจำแล้ว)
+              depositThanksTitle: texts.depositThanksTitle,
+              depositThanksBody: texts.depositThanksBody,
+              depositTerms: lines(texts.depositTerms),
+              // การ์ดเตรียมตัวก่อนเข้าพัก
+              prestayIntro: texts.prestayIntro,
+              prestayPrepIntro: texts.prestayPrepIntro,
+              prestayPrepItems: lines(texts.prestayPrepItems),
+              prestayCareNote: texts.prestayCareNote,
+              prestayLitterNote: texts.prestayLitterNote,
             },
           },
         }),
