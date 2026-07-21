@@ -72,6 +72,7 @@ type Booking = {
   time?: string;
   status: string;
   autoOff?: string[];
+  groomProgram?: string;
 };
 
 type ItemKind = "grooming" | "room" | "service" | "custom" | "freebie";
@@ -614,7 +615,16 @@ export default function BillingPage() {
       );
     } else {
       setItems(
-        group.map((g) => ({ ...newGrooming(), catName: many ? g.catName : undefined }))
+        group.map((g) => {
+          const base = { ...newGrooming(), catName: many ? g.catName : undefined };
+          // ลูกค้าเลือกโปรแกรมอาบน้ำมาตอนจองแล้ว → เซ็ตให้เลย ไม่ต้องเลือกซ้ำ
+          const prog = g.groomProgram ? groomProgram(g.groomProgram) : undefined;
+          if (prog) {
+            base.program = prog.id;
+            base.breed = prog.breeds[0].breed;
+          }
+          return base;
+        })
       );
     }
     if (many) {

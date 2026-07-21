@@ -7,6 +7,7 @@ import type { RoomType } from "@/lib/business";
 import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
+import { GROOM_PROGRAMS } from "@/lib/grooming-prices";
 
 type CustomerListItem = CustomerRecord & { upcomingAppointments?: number };
 
@@ -307,6 +308,8 @@ export default function NewBookingPage() {
       service,
       date: service === "groom" ? String(fd.get("date") || "") : undefined,
       time: service === "groom" ? String(fd.get("time") || "") : undefined,
+      groomProgram:
+        service === "groom" ? String(fd.get("groomProgram") || "") || undefined : undefined,
       room: service === "room" ? String(fd.get("room") || "") : undefined,
       checkin: service === "room" ? String(fd.get("checkin") || "") : undefined,
       checkout: service === "room" ? String(fd.get("checkout") || "") : undefined,
@@ -552,6 +555,25 @@ export default function NewBookingPage() {
               </datalist>
               <p className="mt-1 text-[10px] text-brown-faint">
                 เลือกจากรอบแนะนำ หรือพิมพ์เวลาเองได้
+              </p>
+            </label>
+
+            <label className="block text-xs font-bold text-brown-soft">
+              โปรแกรมอาบน้ำ (ถ้าลูกค้าเลือกมาแล้ว)
+              <select
+                name="groomProgram"
+                defaultValue=""
+                className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+              >
+                <option value="">— ยังไม่ระบุ (เลือกตอนคิดเงิน) —</option>
+                {GROOM_PROGRAMS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-brown-faint">
+                เลือกไว้แล้วจะติดไปในนัด · การ์ดแจ้งเตือน · และเด้งเข้าบิลให้อัตโนมัติ
               </p>
             </label>
           </>

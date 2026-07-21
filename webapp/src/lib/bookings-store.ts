@@ -22,6 +22,8 @@ export type StoredBooking = Booking & {
   pickupTime?: string;
   /** ประวัติน้องก่อนอาบน้ำ (JSON string) ที่ลูกค้ากรอกมา */
   groomHealthInfo?: string;
+  /** โปรแกรมอาบน้ำที่เลือกไว้ตอนจอง (เก็บเป็น id ของ GROOM_PROGRAMS) — โชว์ในการ์ด + prefill บิล */
+  groomProgram?: string;
   /**
    * ข้อความอัตโนมัติที่ "นัดนี้" ไม่ต้องส่ง (ปิดเป็นรายเคส คนละเรื่องกับปิดทั้งร้านในตั้งค่า)
    * ค่าที่ใช้ได้: ดู AUTO_MESSAGE_TOPICS
@@ -53,6 +55,7 @@ type BookingRow = {
   arrival_time?: string | null;
   pickup_time?: string | null;
   groom_health_info?: string | null;
+  groom_program?: string | null;
   auto_off?: string[] | null;
 };
 
@@ -95,6 +98,7 @@ function rowToStored(r: BookingRow): StoredBooking {
     arrivalTime: r.arrival_time || undefined,
     pickupTime: r.pickup_time || undefined,
     groomHealthInfo: r.groom_health_info || undefined,
+    groomProgram: r.groom_program || undefined,
     autoOff: r.auto_off || undefined,
   };
 }
@@ -272,6 +276,18 @@ export async function addBooking(
   if (sb) {
     const { error } = await sb.from("bookings").insert(storedToRow(booking));
     if (error) throw new Error(`addBooking failed: ${error.message}`);
+    // เขียนโปรแกรมอาบน้ำแยก เพราะ storedToRow ตัดคอลัมน์ใหม่ออก — ร้านที่ยังไม่รัน
+    // migration จะ insert แถวหลักได้ปกติ ส่วนโปรแกรมจะเข้าเมื่อรัน SQL แล้ว
+    if (booking.groomProgram) {
+      try {
+        await sb
+          .from("bookings")
+          .update({ groom_program: booking.groomProgram })
+          .eq("id", booking.id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ groom_program */
+      }
+    }
     return booking;
   }
 

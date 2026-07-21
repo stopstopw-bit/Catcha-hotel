@@ -34,6 +34,7 @@ import {
   buildDepositThanksFlex,
 } from "@/lib/line";
 import { buildBookingConfirmFlex } from "@/lib/booking-line-card";
+import { groomProgramName } from "@/lib/grooming-prices";
 import {
   findCustomerForBooking,
   recalculateCustomerTier,
@@ -113,6 +114,7 @@ export async function GET(req: NextRequest) {
       arrivalTime: b.arrivalTime,
       pickupTime: b.pickupTime,
       groomHealthInfo: b.groomHealthInfo,
+      groomProgram: b.groomProgram,
       autoOff: b.autoOff || [],
       customerId: customer?.id,
     };
@@ -134,6 +136,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "cat_name_required" }, { status: 400 });
   }
 
+  // โปรแกรมอาบน้ำ — เก็บเฉพาะนัดอาบน้ำ และเฉพาะ id ที่มีจริงในตารางราคา
+  const groomProgram =
+    body.service === "groom" && body.groomProgram && groomProgramName(String(body.groomProgram))
+      ? String(body.groomProgram)
+      : undefined;
+
   const booking = await addBooking({
     customerName: customer.name,
     catName: body.catName,
@@ -145,6 +153,7 @@ export async function POST(req: NextRequest) {
     room: body.room,
     lineUserId: customer.lineUserId,
     notes: body.notes,
+    groomProgram,
   });
 
   const cal = await createCalendarEvent({
@@ -168,6 +177,7 @@ export async function POST(req: NextRequest) {
       ลูกค้า: customer.name,
       น้องแมว: body.catName,
       บริการ: body.service === "room" ? "ห้องพัก" : "อาบน้ำ",
+      ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram) } : {}),
       วันที่: `${body.date || body.checkin}${body.time ? ` ${body.time}` : ""}`,
       ปฏิทิน: cal.googleUrl || icsUrl,
     })
@@ -248,6 +258,7 @@ export async function PATCH(req: NextRequest) {
         checkout: b.checkout,
         room: b.room,
         notes: b.notes,
+        groomProgram: b.groomProgram,
       });
 
       await pushLineMessage(to, [flex]);
@@ -386,6 +397,7 @@ export async function PATCH(req: NextRequest) {
             checkout: b.checkout,
             room: b.room,
             notes: b.notes,
+            groomProgram: b.groomProgram,
           })
         );
       } else if (part === "consent") {

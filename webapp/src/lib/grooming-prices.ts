@@ -79,6 +79,12 @@ export function groomProgram(id: string) {
   return GROOM_PROGRAMS.find((p) => p.id === id);
 }
 
+/** ชื่อโปรแกรมจาก id — "" ถ้าไม่เจอ (ใช้โชว์ในนัด/การ์ด/บิล) */
+export function groomProgramName(id?: string) {
+  if (!id) return "";
+  return GROOM_PROGRAMS.find((p) => p.id === id)?.name || "";
+}
+
 export function groomSizeLabel(size: GroomSize) {
   return GROOM_SIZES.find((s) => s.id === size)?.label || "";
 }

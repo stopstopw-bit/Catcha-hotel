@@ -6,6 +6,7 @@
 import { formatBookingWhen, formatThaiDate } from "./format-thai-date";
 import { getLineCredentials } from "./line-config";
 import { BUSINESS } from "./business";
+import { groomProgramName } from "./grooming-prices";
 import type { CardStyleConfig } from "./config-types";
 
 const BRAND_GREEN = "#5A8F5A";
@@ -129,6 +130,8 @@ export function buildAppointmentConfirmFlex(booking: {
   checkout?: string;
   room?: string;
   notes?: string;
+  /** โปรแกรมอาบน้ำที่เลือกไว้ (id ของ GROOM_PROGRAMS) — โชว์ให้ลูกค้าเห็นว่าอาบโปรแกรมไหน */
+  groomProgram?: string;
   confirmUrl: string;
   /** แผนที่/ที่อยู่ของร้าน — มาจาก config ไม่ใช่ค่าตายตัว ไม่มีก็ซ่อนแถวนั้นไป */
   mapsUrl?: string;
@@ -206,6 +209,10 @@ export function buildAppointmentConfirmFlex(booking: {
           },
           flexDetailRow("🗓️", "วันที่", dateText),
           flexDetailRow("⏰", "เวลา / รายละเอียด", timeText),
+          // เฉพาะนัดอาบน้ำที่เลือกโปรแกรมไว้ — โชว์ว่าอาบโปรแกรมไหน ลูกค้าจะได้ไม่ต้องถามซ้ำ
+          ...(!isRoom && groomProgramName(booking.groomProgram)
+            ? [flexDetailRow("🛁", "โปรแกรมอาบน้ำ", groomProgramName(booking.groomProgram))]
+            : []),
           ...(show("location") && booking.location
             ? [flexDetailRow("📍", "สถานที่", booking.location)]
             : []),

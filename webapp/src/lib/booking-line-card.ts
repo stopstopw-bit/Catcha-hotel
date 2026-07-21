@@ -21,6 +21,7 @@ export async function buildBookingConfirmFlex(
     checkout?: string;
     room?: string;
     notes?: string;
+    groomProgram?: string;
   }
 ) {
   const config = await getSiteConfig();

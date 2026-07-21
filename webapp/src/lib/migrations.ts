@@ -189,6 +189,11 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
     name: "invoices.package_id",
     sql: "alter table invoices add column if not exists package_id text;",
   },
+  {
+    // โปรแกรมอาบน้ำที่เลือกไว้ตอนจอง — โชว์ในการ์ดแจ้งเตือน + prefill บิล
+    name: "bookings.groom_program",
+    sql: "alter table bookings add column if not exists groom_program text;",
+  },
 ];
 
 export type MigrateResult = {
