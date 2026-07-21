@@ -72,7 +72,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-catcha-gradient">
       <Toaster />
-      <header className="sticky top-0 z-50 border-b border-catcha-line bg-card/90 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-catcha-line bg-card/90 backdrop-blur-md print:hidden">
         <div className="relative mx-auto max-w-3xl lg:max-w-6xl">
           <div className="flex items-center gap-3 px-4 py-3">
             <Logo size={40} />
