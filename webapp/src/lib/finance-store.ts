@@ -9,6 +9,8 @@ export type FinanceRecord = {
   date: string;
   customerId?: string;
   invoiceId?: string;
+  /** รูปบิล/ใบเสร็จที่แนบไว้ (URL ใน storage) — ไว้เป็นหลักฐานตอนยื่นภาษี */
+  receiptUrl?: string;
   createdAt: string;
 };
 
@@ -21,6 +23,7 @@ type FinanceRow = {
   date: string;
   customer_id: string | null;
   invoice_id: string | null;
+  receipt_url?: string | null;
   created_at: string;
 };
 
@@ -36,6 +39,7 @@ function rowToFinance(r: FinanceRow): FinanceRecord {
     date: r.date,
     customerId: r.customer_id || undefined,
     invoiceId: r.invoice_id || undefined,
+    receiptUrl: r.receipt_url || undefined,
     createdAt: r.created_at,
   };
 }
@@ -101,7 +105,7 @@ export async function listFinanceEnriched(
         }
       }
 
-      const desc = r.description.trim();
+      const desc = (r.description || "").trim();
       const hasCustomerInDesc =
         customerName && desc.includes(customerName);
       const genericDesc =
@@ -148,6 +152,14 @@ export async function addFinanceEntry(
       invoice_id: rec.invoiceId || null,
       created_at: rec.createdAt,
     });
+    // แนบรูปบิลแยก เพราะร้านที่ยังไม่รัน migration จะ insert ไม่ผ่านทั้งแถว
+    if (rec.receiptUrl) {
+      try {
+        await sb.from("finance_records").update({ receipt_url: rec.receiptUrl }).eq("id", rec.id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ receipt_url */
+      }
+    }
     return rec;
   }
 
@@ -158,7 +170,9 @@ export async function addFinanceEntry(
 /** แก้ไขรายการการเงินทีละอัน */
 export async function updateFinanceEntry(
   id: string,
-  patch: Partial<Pick<FinanceRecord, "type" | "amount" | "category" | "description" | "date">>
+  patch: Partial<
+    Pick<FinanceRecord, "type" | "amount" | "category" | "description" | "date" | "receiptUrl">
+  >
 ) {
   const sb = getSupabase();
   if (sb) {
@@ -169,6 +183,14 @@ export async function updateFinanceEntry(
     if (patch.description !== undefined) row.description = patch.description;
     if (patch.date !== undefined) row.date = patch.date;
     if (Object.keys(row).length) await sb.from("finance_records").update(row).eq("id", id);
+    // รูปบิล — เขียนแยกและกลืน error (คอลัมน์ receipt_url อาจยังไม่มี)
+    if (patch.receiptUrl !== undefined) {
+      try {
+        await sb.from("finance_records").update({ receipt_url: patch.receiptUrl || null }).eq("id", id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ receipt_url */
+      }
+    }
     return { ok: true as const };
   }
   const r = mem.find((x) => x.id === id);
