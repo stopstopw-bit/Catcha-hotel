@@ -567,7 +567,7 @@ function Preview({
             </div>
           )}
           {show("closing") && (
-            <p className="text-[10px] text-[#A2907E]">{st.closing || texts.summaryClosing || "โอนแล้วแจ้งสลิปได้เลยนะคะ 🧡"}</p>
+            <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing || texts.summaryClosing || "โอนแล้วแจ้งสลิปได้เลยนะคะ 🧡"}</p>
           )}
         </div>
         {show("bank") && btn(c("buttonColor", "#4A7348"), "📋 คัดลอกเลขบัญชี")}
@@ -598,7 +598,7 @@ function Preview({
               <p className="text-sm font-extrabold text-[#4A7348]">664-4-43446-0</p>
             </div>
           )}
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {btn(c("buttonColor", "#4A7348"), "📋 คัดลอกเลขบัญชี")}
       </div>
@@ -625,7 +625,7 @@ function Preview({
             </div>
           )}
           {show("closing") && (
-            <p className="text-center text-[10px] text-[#A2907E]">{st.closing || "ขอบคุณที่ไว้วางใจ CatCha Hotel นะคะ 🧡"}</p>
+            <p className="whitespace-pre-line text-center text-[10px] text-[#A2907E]">{st.closing || "ขอบคุณที่ไว้วางใจ CatCha Hotel นะคะ 🧡"}</p>
           )}
           {show("reviewBundle") && (
             <p className="rounded-lg border border-dashed border-[#d9c9a8] px-2 py-1.5 text-center text-[9px] text-[#A2907E]">
@@ -651,7 +651,7 @@ function Preview({
             {(texts.reviewRequest || "ถ้าประทับใจ ฝากรีวิวให้ทีมงานหน่อยนะคะ")
               .replace("{shop}", "CatCha Hotel").replace("{cat}", "น้อง Soju")}
           </p>
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {btn(c("buttonColor", "#C4956A"), "⭐ รีวิวให้เราหน่อยนะคะ")}
       </div>
@@ -726,7 +726,7 @@ function Preview({
           {show("care") && (
             <p className="rounded-lg bg-[#FBF0F1] px-2.5 py-1.5 text-[10px] text-[#7A6A5A]">💗 มีอะไรที่ต้องดูแลพิเศษ แจ้งได้เลยนะคะ</p>
           )}
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {btn(c("buttonColor", "#4A7348"), "🧡 อ่านรายละเอียด & ยืนยันการเข้าพัก")}
       </div>
@@ -741,7 +741,7 @@ function Preview({
         </div>
         <div className="space-y-2 px-4 py-3 text-[11px] text-[#4E3E32]">
           <p>น้องเรเนลเข้าพัก 20 ก.ค. นะคะ 🐾{"\n"}รบกวนเลือกเวลาที่สะดวกมาส่งน้องด้วยค่ะ</p>
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {btn(c("buttonColor", "#4A7348"), t("button", "🕒 เลือกเวลาส่งน้อง"))}
       </div>
@@ -774,7 +774,7 @@ function Preview({
               <p className="text-[10px] text-[#7A6A5A]">• เลื่อนนัดล่วงหน้า 24 ชม. ได้โดยไม่เสียมัดจำ</p>
             </>
           )}
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
       </div>
     );
@@ -792,7 +792,7 @@ function Preview({
             {t("balanceLabel", "คงเหลือ")} 1,500 บาท
           </p>
           {show("usedToday") && <p className="pt-1 text-[10px]">ใช้วันนี้ 550 บาท · Soju</p>}
-          {st.closing && <p className="pt-2 text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line pt-2 text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
       </div>
     );
@@ -818,7 +818,7 @@ function Preview({
               <p className="text-[10px] text-[#A2907E]">ชื่อบัญชี: CatCha Hotel</p>
             </div>
           )}
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {show("bank") && btn(c("buttonColor", "#4A7348"), "📋 คัดลอกเลขบัญชี")}
       </div>
@@ -861,7 +861,7 @@ function Preview({
           <p className={`${titleCls} font-extrabold`} style={{ color: c("accentColor", "#5C4033") }}>โปรเดือนกรกฎา อาบน้ำลด 15%</p>
           <p className="text-[10px] font-extrabold" style={{ color: c("buttonColor", "#4A7348") }}>ลด 15%</p>
           <p>จองคิวภายในสิ้นเดือนนี้ รับส่วนลดทันทีนะคะ 🐾</p>
-          {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+          {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {btn(c("buttonColor", "#4A7348"), "ดูรายละเอียด")}
       </div>
@@ -881,7 +881,7 @@ function Preview({
           {(texts.groomInfoIntro || "รบกวนแจ้งประวัติน้องสั้นๆ นะคะ 🐾")
             .replace("{shop}", "CatCha Hotel").replace("{cat}", "น้อง Soju")}
         </p>
-        {st.closing && <p className="text-[10px] text-[#A2907E]">{st.closing}</p>}
+        {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
       </div>
       {btn(c("buttonColor", "#4A7348"), "🩺 แจ้งประวัติน้อง")}
     </div>
