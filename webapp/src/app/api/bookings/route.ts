@@ -736,6 +736,11 @@ export async function PATCH(req: NextRequest) {
     if (body.room != null) patch.room = String(body.room) || undefined;
     if (body.notes != null) patch.notes = String(body.notes) || undefined;
     if (body.status != null) patch.status = body.status;
+    // โปรแกรมอาบน้ำ — รับได้เฉพาะ id ที่มีจริง (ค่าว่าง = ล้างโปรแกรมออก)
+    if (body.groomProgram != null) {
+      const pid = String(body.groomProgram);
+      patch.groomProgram = pid && groomProgramName(pid) ? pid : "";
+    }
     // หัวข้อข้อความอัตโนมัติที่นัดนี้ไม่ต้องส่ง
     if (Array.isArray(body.autoOff)) {
       const valid = new Set(AUTO_MESSAGE_TOPICS.map((t) => t.id));

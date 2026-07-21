@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Booking } from "@/lib/business";
 import { relevantAutoMessageTopics } from "@/lib/auto-messages";
+import { GROOM_PROGRAMS } from "@/lib/grooming-prices";
 
 export type EditableBooking = Booking & {
   lineUserId?: string;
@@ -11,6 +12,8 @@ export type EditableBooking = Booking & {
   notes?: string;
   /** หัวข้อข้อความอัตโนมัติที่นัดนี้ปิดไว้ */
   autoOff?: string[];
+  /** โปรแกรมอาบน้ำที่เลือกไว้ (id ของ GROOM_PROGRAMS) */
+  groomProgram?: string;
 };
 
 function EditField({
@@ -85,6 +88,7 @@ export function BookingEditModal({
             service: "groom" as const,
             date: String(fd.get("date") || ""),
             time: String(fd.get("time") || "") || undefined,
+            groomProgram: String(fd.get("groomProgram") || "") || undefined,
             notes: String(fd.get("notes") || "") || undefined,
             autoOff,
           }
@@ -158,6 +162,21 @@ export function BookingEditModal({
                     <option key={t} value={t} />
                   ))}
                 </datalist>
+              </label>
+              <label className="block text-xs font-bold text-brown-soft">
+                โปรแกรมอาบน้ำ
+                <select
+                  name="groomProgram"
+                  defaultValue={booking.groomProgram || ""}
+                  className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+                >
+                  <option value="">— ยังไม่ระบุ (เลือกตอนคิดเงิน) —</option>
+                  {GROOM_PROGRAMS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </>
           ) : (

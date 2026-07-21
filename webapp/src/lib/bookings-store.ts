@@ -314,6 +314,7 @@ export async function updateBooking(
       | "notes"
       | "lineUserId"
       | "autoOff"
+      | "groomProgram"
     >
   >
 ) {
@@ -352,6 +353,17 @@ export async function updateBooking(
           .eq("id", id);
       } catch {
         /* ยังไม่มีคอลัมน์ — ข้ามไป ฟีเจอร์จะทำงานเมื่ออัปเดตฐานข้อมูลแล้ว */
+      }
+    }
+    // โปรแกรมอาบน้ำ — เขียนแยกเช่นกัน (คอลัมน์ groom_program เพิ่มมาทีหลัง)
+    if (patch.groomProgram !== undefined) {
+      try {
+        await sb
+          .from("bookings")
+          .update({ groom_program: merged.groomProgram || null })
+          .eq("id", id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ groom_program */
       }
     }
     return getBooking(id);
