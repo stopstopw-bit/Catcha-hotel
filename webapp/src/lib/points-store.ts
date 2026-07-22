@@ -147,7 +147,27 @@ export async function redeemReward(
     return { ok: false as const, error: "insufficient_points" };
   }
 
-  const couponCode = `CATCHA-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  // ถ้ารางวัลมีมูลค่าส่วนลด (บาท) → ออกเป็นคูปองจริงเก็บในกระเป๋าลูกค้าเลย
+  // ลูกค้ากดใช้เองได้ในแอป และหักส่วนลดตอนคิดเงินได้ (ผูกเข้าบิลหลังบ้านอัตโนมัติ)
+  let couponCode = `CATCHA-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  if (tier.discount && tier.discount > 0) {
+    try {
+      const { findCustomerByLine } = await import("./customers-store");
+      const customer = await findCustomerByLine(lineUserId);
+      if (customer) {
+        const { issueCoupon } = await import("./coupons-store");
+        const coupon = await issueCoupon({
+          customerId: customer.id,
+          amount: tier.discount,
+          reason: `แลกจากแต้ม: ${tier.reward.th}`,
+          expiresInDays: 90,
+        });
+        couponCode = coupon.code; // ใช้โค้ดเดียวกับคูปองจริง ประวัติแต้มกับกระเป๋าคูปองจะตรงกัน
+      }
+    } catch {
+      /* ออกคูปองไม่ได้ (ยังไม่ผูกลูกค้า ฯลฯ) — ยังแลกได้ แต่เป็นโค้ดในประวัติเฉยๆ */
+    }
+  }
   const entry: PointsHistoryEntry = {
     id: `H${Date.now()}`,
     type: "redeem",
