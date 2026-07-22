@@ -81,53 +81,109 @@ export async function getAllPointsMap(): Promise<Record<string, number>> {
   return map;
 }
 
+/**
+ * แต้มผูกกับ "ลูกค้า" ไม่ใช่ LINE ID ดิบ
+ *
+ * LINE ให้ User ID คนละตัวได้บนคอม (LIFF) กับมือถือ (ในแอป LINE) ถ้าคนละ Provider
+ * แต่ findCustomerByLine(ID เครื่องปัจจุบัน) ชี้กลับมาลูกค้าคนเดิมเสมอ → ใช้คีย์
+ * C:<customerId> เก็บแต้ม แต้มจึงรวมเป็นบัญชีเดียวไม่แตกตามอุปกรณ์
+ */
+async function resolvePointsKey(lineUserId: string): Promise<string> {
+  const id = (lineUserId || "").trim();
+  if (!id || id.startsWith("C:")) return id;
+  try {
+    const { findCustomerByLine } = await import("./customers-store");
+    const c = await findCustomerByLine(id);
+    return c ? `C:${c.id}` : id;
+  } catch {
+    return id;
+  }
+}
+
+/** ย้ายแต้ม/ประวัติจาก LINE ID ดิบ → คีย์ลูกค้า (รวมครั้งเดียว กันแต้มค้างคนละ ID) */
+async function migrateLegacyPoints(rawId: string, key: string) {
+  const sb = getSupabase();
+  if (rawId === key) return;
+  if (sb) {
+    const { data: legacy } = await sb
+      .from("points_accounts")
+      .select("*")
+      .eq("line_user_id", rawId)
+      .maybeSingle();
+    if (!legacy) return;
+    await sb.from("points_history").update({ line_user_id: key }).eq("line_user_id", rawId);
+    const { data: keyAcc } = await sb
+      .from("points_accounts")
+      .select("points, display_name")
+      .eq("line_user_id", key)
+      .maybeSingle();
+    const merged = (keyAcc?.points || 0) + (legacy.points || 0);
+    await sb
+      .from("points_accounts")
+      .upsert(
+        { line_user_id: key, points: merged, display_name: keyAcc?.display_name || legacy.display_name },
+        { onConflict: "line_user_id" }
+      );
+    await sb.from("points_accounts").delete().eq("line_user_id", rawId);
+    return;
+  }
+  const legacy = mem.get(rawId);
+  if (!legacy) return;
+  const keyAcc = mem.get(key) || seedMem(key, legacy.displayName);
+  keyAcc.points += legacy.points;
+  keyAcc.history = [...legacy.history, ...keyAcc.history];
+  mem.set(key, keyAcc);
+  mem.delete(rawId);
+}
+
 export async function getAccount(
   lineUserId: string,
   displayName = ""
 ): Promise<CustomerAccount> {
+  const key = await resolvePointsKey(lineUserId);
+  if (key !== lineUserId) {
+    try {
+      await migrateLegacyPoints(lineUserId, key);
+    } catch {
+      /* รวมแต้มไม่สำเร็จ — อ่านต่อได้ ไม่ให้พังทั้งหน้า */
+    }
+  }
+
   const sb = getSupabase();
   if (sb) {
     const { data: acc } = await sb
       .from("points_accounts")
       .select("*")
-      .eq("line_user_id", lineUserId)
+      .eq("line_user_id", key)
       .maybeSingle();
 
     if (!acc) {
-      const points = lineUserId === "dev-user" ? 42 : 0;
+      const points = key === "dev-user" ? 42 : 0;
       await sb.from("points_accounts").insert({
-        line_user_id: lineUserId,
-        display_name: displayName || lineUserId,
+        line_user_id: key,
+        display_name: displayName || key,
         points,
       });
-      return {
-        lineUserId,
-        displayName: displayName || lineUserId,
-        points,
-        history: [],
-      };
+      return { lineUserId: key, displayName: displayName || key, points, history: [] };
     }
 
     if (displayName && acc.display_name !== displayName) {
-      await sb
-        .from("points_accounts")
-        .update({ display_name: displayName })
-        .eq("line_user_id", lineUserId);
+      await sb.from("points_accounts").update({ display_name: displayName }).eq("line_user_id", key);
     }
 
-    const history = await loadHistory(lineUserId);
+    const history = await loadHistory(key);
     return {
-      lineUserId,
+      lineUserId: key,
       displayName: displayName || acc.display_name,
       points: acc.points,
       history,
     };
   }
 
-  let account = mem.get(lineUserId);
+  let account = mem.get(key);
   if (!account) {
-    account = seedMem(lineUserId, displayName);
-    mem.set(lineUserId, account);
+    account = seedMem(key, displayName);
+    mem.set(key, account);
   }
   if (displayName) account.displayName = displayName;
   return account;
@@ -190,13 +246,14 @@ export async function redeemReward(
   const sb = getSupabase();
   if (sb) {
     const newPoints = acc.points - tier.points;
+    // เขียนด้วยคีย์เดียวกับที่ getAccount คืนมา (คีย์ลูกค้า) — ไม่ใช่ LINE ID ดิบ
     await sb
       .from("points_accounts")
       .update({ points: newPoints, display_name: acc.displayName })
-      .eq("line_user_id", lineUserId);
+      .eq("line_user_id", acc.lineUserId);
     await sb.from("points_history").insert({
       id: entry.id,
-      line_user_id: lineUserId,
+      line_user_id: acc.lineUserId,
       type: entry.type,
       points: entry.points,
       label_th: entry.labelTh,
@@ -241,13 +298,14 @@ export async function addPoints(
   const sb = getSupabase();
   if (sb) {
     const newPoints = acc.points + amount;
+    // ใช้คีย์ลูกค้าจาก getAccount (acc.lineUserId) ไม่ใช่ LINE ID ดิบที่ส่งเข้ามา
     await sb
       .from("points_accounts")
       .update({ points: newPoints })
-      .eq("line_user_id", lineUserId);
+      .eq("line_user_id", acc.lineUserId);
     await sb.from("points_history").insert({
       id: entry.id,
-      line_user_id: lineUserId,
+      line_user_id: acc.lineUserId,
       type: entry.type,
       points: entry.points,
       label_th: entry.labelTh,
@@ -263,5 +321,5 @@ export async function addPoints(
 }
 
 export async function getPointsHistory(lineUserId: string) {
-  return loadHistory(lineUserId);
+  return loadHistory(await resolvePointsKey(lineUserId));
 }
