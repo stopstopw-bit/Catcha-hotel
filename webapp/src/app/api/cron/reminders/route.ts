@@ -30,7 +30,6 @@ import { issueCoupon, listCustomerCoupons } from "@/lib/coupons-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { resolveGroomForm } from "@/lib/groom-form";
 import { renderTemplate } from "@/lib/messages";
-import { buildTomorrowPrepMessage } from "@/lib/telegram-commands";
 
 function addDays(dateStr: string, n: number) {
   const dt = new Date(`${dateStr}T12:00:00Z`);
@@ -383,13 +382,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // เตรียมตัวพรุ่งนี้ — ส่งทุกวัน (ไม่ต้องรอมีเหตุการณ์อื่น) ให้ร้านวางแผนงานล่วงหน้าได้
-  try {
-    const tomorrow = addDays(todayStr, 1);
-    await sendTelegram(await buildTomorrowPrepMessage(tomorrow));
-  } catch (e) {
-    errors.push(`tomorrow-prep: ${String(e)}`);
-  }
+  // หมายเหตุ: "เตรียมตัวพรุ่งนี้" ย้ายไปส่งรวมกับสรุปปิดวันตอน 2 ทุ่ม (cron/daily-close)
+  // แล้ว — ไม่ส่งซ้ำตอนเที่ยงอีก
 
   return NextResponse.json({
     ok: true,
