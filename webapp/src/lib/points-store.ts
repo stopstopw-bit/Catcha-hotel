@@ -133,6 +133,12 @@ export async function getAccount(
   return account;
 }
 
+/** อ่านจำนวนเงินส่วนลดจากชื่อรางวัล เช่น "คูปองส่วนลด 50 บาท" → 50 (ไม่เจอ = 0) */
+function parseDiscountBaht(label: string): number {
+  const m = (label || "").replace(/,/g, "").match(/(\d+)\s*บาท/);
+  return m ? Number(m[1]) : 0;
+}
+
 export async function redeemReward(
   lineUserId: string,
   rewardId: string,
@@ -149,8 +155,11 @@ export async function redeemReward(
 
   // ถ้ารางวัลมีมูลค่าส่วนลด (บาท) → ออกเป็นคูปองจริงเก็บในกระเป๋าลูกค้าเลย
   // ลูกค้ากดใช้เองได้ในแอป และหักส่วนลดตอนคิดเงินได้ (ผูกเข้าบิลหลังบ้านอัตโนมัติ)
+  // ถ้าไม่ได้ตั้งช่องมูลค่าไว้ ลองอ่านเลข "X บาท" จากชื่อรางวัลให้อัตโนมัติ (เช่น "คูปองส่วนลด 50 บาท")
+  const discountAmount =
+    tier.discount && tier.discount > 0 ? tier.discount : parseDiscountBaht(tier.reward.th);
   let couponCode = `CATCHA-${Date.now().toString(36).toUpperCase().slice(-6)}`;
-  if (tier.discount && tier.discount > 0) {
+  if (discountAmount > 0) {
     try {
       const { findCustomerByLine } = await import("./customers-store");
       const customer = await findCustomerByLine(lineUserId);
@@ -158,7 +167,7 @@ export async function redeemReward(
         const { issueCoupon } = await import("./coupons-store");
         const coupon = await issueCoupon({
           customerId: customer.id,
-          amount: tier.discount,
+          amount: discountAmount,
           reason: `แลกจากแต้ม: ${tier.reward.th}`,
           expiresInDays: 90,
         });
