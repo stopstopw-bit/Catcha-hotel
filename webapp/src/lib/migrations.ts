@@ -204,6 +204,25 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
     name: "customers.line_user_ids",
     sql: "alter table customers add column if not exists line_user_ids text[];",
   },
+  {
+    // ล้างของเก่า: ตัดบรรทัด "ของแถมฟรี" (ขึ้นต้นด้วย 🎁) ที่เคยหลุดไปฝัง
+    // ในโน้ตนิสัยแมว ออกให้หมด — ของแถมต้องผูกกับการจองแต่ละรอบ ไม่ใช่ข้อมูลถาวรของแมว
+    // idempotent: พอล้างแล้วไม่มี 🎁 เหลือ WHERE ก็ไม่ match อะไร รันซ้ำได้
+    name: "cats.strip_freebie_from_staff_note",
+    sql: `update cats
+set staff_note = nullif(
+  array_to_string(
+    array(
+      select l
+      from unnest(string_to_array(staff_note, E'\\n')) as l
+      where btrim(l) not like '🎁%'
+    ),
+    E'\\n'
+  ),
+  ''
+)
+where staff_note like '%🎁%';`,
+  },
 ];
 
 export type MigrateResult = {
