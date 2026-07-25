@@ -144,6 +144,7 @@ export function BookingCalendar() {
 
   const today = new Date().toISOString().slice(0, 10);
   const activeDate = selectedDate || today;
+  const [viewMonth, setViewMonth] = useState(() => today.slice(0, 7));
 
   const liveBookings = bookings.filter((b) => b.status !== "cancelled");
   const dayBookings = liveBookings.filter((b) => bookingOnDate(b, activeDate));
@@ -189,8 +190,13 @@ export function BookingCalendar() {
     load();
   };
 
-  const ym = today.slice(0, 7);
-  const [y, m] = ym.split("-").map(Number);
+  // เดือนที่กำลังดู — เลื่อนไปเดือนอื่นได้ (ดูนัดล่วงหน้า/ย้อนหลัง)
+  const [y, m] = viewMonth.split("-").map(Number);
+  const ym = viewMonth;
+  const shiftMonth = (delta: number) => {
+    const d = new Date(y, m - 1 + delta, 1);
+    setViewMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
   const firstDay = new Date(y, m - 1, 1);
   const daysInMonth = new Date(y, m, 0).getDate();
   const startPad = firstDay.getDay();
@@ -213,13 +219,34 @@ export function BookingCalendar() {
 
       <section className="rounded-catcha bg-card p-4 shadow-catcha-sm">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-base font-extrabold text-catcha-chocolate">
-            🗓️ ตารางนัดเดือน {m}/{y}
-          </h2>
-          {activeDate !== today && (
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => pickDate(today)}
+              onClick={() => shiftMonth(-1)}
+              aria-label="เดือนก่อนหน้า"
+              className="rounded-full bg-paper px-2.5 py-1 text-sm font-extrabold text-brown-soft"
+            >
+              ‹
+            </button>
+            <h2 className="text-base font-extrabold text-catcha-chocolate">
+              🗓️ ตารางนัดเดือน {m}/{y}
+            </h2>
+            <button
+              type="button"
+              onClick={() => shiftMonth(1)}
+              aria-label="เดือนถัดไป"
+              className="rounded-full bg-paper px-2.5 py-1 text-sm font-extrabold text-brown-soft"
+            >
+              ›
+            </button>
+          </div>
+          {(activeDate !== today || ym !== today.slice(0, 7)) && (
+            <button
+              type="button"
+              onClick={() => {
+                setViewMonth(today.slice(0, 7));
+                pickDate(today);
+              }}
               className="rounded-full bg-honey/30 px-3 py-1 text-[10px] font-bold text-catcha-chocolate"
             >
               กลับวันนี้
