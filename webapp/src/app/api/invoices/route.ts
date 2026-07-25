@@ -92,6 +92,7 @@ function summaryFlexFromInvoice(
     items: inv.items,
     subtotal: inv.subtotal,
     discount: inv.discount,
+    promoLabel: inv.promoLabel,
     total: inv.total,
     deposit,
     remaining,
@@ -382,6 +383,8 @@ export async function PATCH(req: NextRequest) {
         customerName: inv.customerName,
         catName: inv.catName,
         total: inv.total,
+        discount: inv.discount,
+        promoLabel: inv.promoLabel,
         pointsEarned: inv.pointsEarned || 0,
         shopName: cfgR.business.name,
         paymentMethod:
