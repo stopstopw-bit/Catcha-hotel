@@ -12,6 +12,7 @@ import {
   buildGroomInfoFlex,
   buildBillSummaryFlex,
   buildConsentFlex,
+  politeName,
 } from "@/lib/line";
 import { getPaymentConfig } from "@/lib/payment-config";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
@@ -358,7 +359,7 @@ export async function GET(req: NextRequest) {
       const text =
         renderTemplate(cfg.messages.birthdayGreeting, {
           shop: cfg.business.name,
-          name: c.name,
+          name: politeName(c.name),
           cat: (bdayCat ? bdayCat.name : c.name) || "น้องแมว",
         }) + couponLine;
       try {
