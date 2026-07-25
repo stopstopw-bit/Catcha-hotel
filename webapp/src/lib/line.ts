@@ -34,6 +34,17 @@ export function politeName(name?: string): string {
   return NAME_PREFIXES.some((p) => n.startsWith(p)) ? n : `คุณ${n}`;
 }
 
+/**
+ * ใส่ "น้อง" นำหน้าชื่อแมวตอนส่งข้อความหาลูกค้า — กันซ้ำถ้าร้านพิมพ์มาเองแล้ว
+ * ชื่อที่ขึ้นต้นด้วยคำเรียกอื่น (พี่/เจ้า) ปล่อยไว้ตามเดิม
+ */
+const CAT_PREFIXES = ["น้อง", "พี่", "เจ้า", "คุณ"];
+export function politeCat(name?: string): string {
+  const n = (name || "").trim();
+  if (!n) return "";
+  return CAT_PREFIXES.some((p) => n.startsWith(p)) ? n : `น้อง${n}`;
+}
+
 function flexDetailRow(icon: string, label: string, value: string) {
   return {
     type: "box" as const,
@@ -156,8 +167,8 @@ export function buildAppointmentConfirmFlex(booking: {
   const t = (k: string, fb: string) => st.texts?.[k]?.trim() || fb;
   const isRoom = booking.service === "room";
   const serviceTitle = isRoom
-    ? `${t("roomServicePrefix", "ห้องพัก")} · ${booking.catName}`
-    : `${t("groomServicePrefix", "อาบน้ำ & กรูมมิ่ง")} · ${booking.catName}`;
+    ? `${t("roomServicePrefix", "ห้องพัก")} · ${politeCat(booking.catName)}`
+    : `${t("groomServicePrefix", "อาบน้ำ & กรูมมิ่ง")} · ${politeCat(booking.catName)}`;
   const dateText = isRoom
     ? formatBookingWhen({
         service: booking.service,
@@ -177,7 +188,7 @@ export function buildAppointmentConfirmFlex(booking: {
     booking.notes?.trim() ||
     t("notesFallback", "หากมีรายละเอียดอื่นๆ เพิ่มเติม สามารถแจ้งในแชท LINE ได้เลยนะคะ");
 
-  const altText = `ยืนยันนัด ${booking.catName} — ${dateText}`;
+  const altText = `ยืนยันนัด ${politeCat(booking.catName)} — ${dateText}`;
 
   return {
     type: "flex",
@@ -349,7 +360,7 @@ export function buildConsentFlex(data: {
     },
     {
       type: "text",
-      text: `${data.businessName} · 🐱 ${data.catName}`,
+      text: `${data.businessName} · 🐱 ${politeCat(data.catName)}`,
       size: "xs",
       color: "#A2907E",
       margin: "md",
@@ -388,7 +399,7 @@ export function buildConsentFlex(data: {
 
   return {
     type: "flex",
-    altText: `${data.title} — ${data.catName}`,
+    altText: `${data.title} — ${politeCat(data.catName)}`,
     contents: {
       type: "bubble",
       size: "mega",
@@ -602,7 +613,7 @@ export function buildPaymentFlex(data: {
           },
           {
             type: "text",
-            text: `${data.catName} · ${politeName(data.customerName)}`,
+            text: `${politeCat(data.catName)} · ${politeName(data.customerName)}`,
             size: "sm",
             color: "#A2907E",
             margin: "md",
@@ -779,7 +790,7 @@ export function buildBillSummaryFlex(data: {
     },
     {
       type: "text",
-      text: `${data.catName} · ${politeName(data.customerName)}`,
+      text: `${politeCat(data.catName)} · ${politeName(data.customerName)}`,
       size: "sm",
       color: "#A2907E",
       margin: "sm",
@@ -1076,7 +1087,7 @@ export function buildPrestayFlex(data: {
     // ชื่อน้อง + ร้าน
     {
       type: "text",
-      text: `🐱 ${data.catName}`,
+      text: `🐱 ${politeCat(data.catName)}`,
       weight: "bold",
       size: style?.titleSize || "xl",
       color: style?.accentColor || "#5C4033",
@@ -1335,7 +1346,7 @@ export function buildPrestayFlex(data: {
 
   return {
     type: "flex",
-    altText: `เตรียมตัวก่อนเข้าพัก 🏠 ${data.catName}`,
+    altText: `เตรียมตัวก่อนเข้าพัก 🏠 ${politeCat(data.catName)}`,
     contents: bubble,
   };
 }
@@ -1432,7 +1443,7 @@ export function buildGroomInfoFlex(data: {
   const contents: Record<string, unknown>[] = [
     {
       type: "text",
-      text: `🐱 ${data.catName}`,
+      text: `🐱 ${politeCat(data.catName)}`,
       weight: "bold",
       size: st.titleSize || "lg",
       color: st.accentColor || "#5C4033",
@@ -1504,7 +1515,7 @@ export function buildGroomInfoFlex(data: {
   }
   return {
     type: "flex",
-    altText: `ประวัติน้องก่อนอาบน้ำ 🩺 ${data.catName}`,
+    altText: `ประวัติน้องก่อนอาบน้ำ 🩺 ${politeCat(data.catName)}`,
     contents: bubble,
   };
 }
@@ -1764,7 +1775,7 @@ export function buildReceiptFlex(data: {
       layout: "vertical",
       paddingAll: "18px",
       contents: [
-        flexDetailRow("🐱", t("customerLabel", "ลูกค้า"), `${data.catName} · ${politeName(data.customerName)}`),
+        flexDetailRow("🐱", t("customerLabel", "ลูกค้า"), `${politeCat(data.catName)} · ${politeName(data.customerName)}`),
         ...(show("invoiceNo") ? [flexDetailRow("🔖", t("invoiceNoLabel", "เลขที่"), data.invoiceId)] : []),
         { type: "separator", margin: "lg", color: "#EFE3D2" },
         {
@@ -2126,7 +2137,7 @@ export function buildMemberBalanceFlex(data: {
   if (show("usedToday") && data.usedToday) {
     contents.push({
       type: "text",
-      text: `${style?.texts?.usedTodayLabel?.trim() || "ใช้วันนี้"} ${data.usedToday.toLocaleString()} บาท${data.catName ? ` · ${data.catName}` : ""}`,
+      text: `${style?.texts?.usedTodayLabel?.trim() || "ใช้วันนี้"} ${data.usedToday.toLocaleString()} บาท${data.catName ? ` · ${politeCat(data.catName)}` : ""}`,
       size: "xs",
       color: "#4E3E32",
       margin: "md",

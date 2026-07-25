@@ -33,6 +33,7 @@ import {
   buildReceiptFlex,
   buildDepositThanksFlex,
   politeName,
+  politeCat,
 } from "@/lib/line";
 import { buildBookingConfirmFlex } from "@/lib/booking-line-card";
 import { groomProgramName } from "@/lib/grooming-prices";
@@ -459,7 +460,7 @@ export async function PATCH(req: NextRequest) {
               body: renderTemplate(cfg.messages.depositThanksBody, {
                 shop: cfg.business.name,
                 name: politeName(inv.customerName),
-                cat: inv.catName,
+                cat: politeCat(inv.catName),
                 amount: (inv.deposit || 0).toLocaleString(),
               }),
               terms: cfg.messages.depositTerms || [],
@@ -574,7 +575,7 @@ export async function PATCH(req: NextRequest) {
               title: cfg.messages.depositRequestTitle,
               body: renderTemplate(cfg.messages.depositRequestBody, {
                 name: String(b.customerName),
-                cat: String(b.catName),
+                cat: politeCat(String(b.catName)),
                 amount: amount.toLocaleString(),
                 pct: "",
               }),
