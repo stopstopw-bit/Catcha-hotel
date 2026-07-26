@@ -233,6 +233,13 @@ where staff_note like '%🎁%';`,
     name: "package_orders.credit_kind",
     sql: "alter table package_orders add column if not exists kind text not null default 'uses', add column if not exists credit_bonus numeric not null default 0;",
   },
+  {
+    // แจ้งเตือน "ลูกค้ารอเกิน 10 นาที" เดิมนับจากช่องว่างระหว่างข้อความล่าสุด 2 อันของลูกค้า
+    // (ผิด — ยิงทุกครั้งที่ลูกค้าทักห่างกันเกิน 10 นาที ไม่ว่าจะเคยตอบไปแล้วหรือไม่)
+    // คอลัมน์นี้ไว้จับ "เวลาที่เริ่มเงียบจริงๆ" ของแต่ละรอบสนทนา นับ 10 นาทีจากจุดนี้แทน
+    name: "chat_watch.first_unanswered_at",
+    sql: "alter table chat_watch add column if not exists first_unanswered_at timestamptz;",
+  },
 ];
 
 export type MigrateResult = {
