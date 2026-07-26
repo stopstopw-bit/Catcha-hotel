@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccount, redeemReward, addPoints } from "@/lib/points-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { pushLineMessage } from "@/lib/line";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+
+/** /api/points เปิดให้แอปลูกค้าเรียกตรงๆ ได้ (ดูแต้ม/แลกรางวัลตัวเอง) — แต่ปรับแต้มมือ (admin_add)
+ *  ต้องเป็นพนักงานหลังบ้านเท่านั้น เช็คในนี้เอง เพราะ middleware ปล่อยผ่านทั้ง path */
+async function isAdmin(req: NextRequest) {
+  return !!(await verifySession(req.cookies.get(SESSION_COOKIE)?.value));
+}
 
 export async function GET(req: NextRequest) {
   const lineUserId = req.nextUrl.searchParams.get("lineUserId");
@@ -25,7 +32,12 @@ export async function POST(req: NextRequest) {
   const { lineUserId, rewardId, displayName } = body;
 
   // เพิ่ม/ปรับแต้มด้วยมือจากหลังบ้าน (เช่น รีวิวแล้วรับแต้มฟรี) — บันทึกเหตุผลในประวัติ
+  // route นี้เปิดให้แอปลูกค้าเรียกตรงๆ ได้ (ดูแต้ม/แลกรางวัล) แต่ action นี้ปรับแต้มลูกค้าคนไหนก็ได้
+  // ตามใจ ต้องเป็นพนักงานหลังบ้านเท่านั้น ไม่งั้นใครก็เติมแต้มให้ตัวเองฟรีได้
   if (body.action === "admin_add") {
+    if (!(await isAdmin(req))) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
     const uid = String(lineUserId || "").trim();
     const amount = Math.round(Number(body.amount) || 0);
     const reason = String(body.reason || "").trim() || "แต้มพิเศษจากร้าน";
