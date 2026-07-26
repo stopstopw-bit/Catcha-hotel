@@ -137,6 +137,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+  // ดูตัวอย่างการ์ดก่อนส่งจริง — ข้ามการ push เข้า LINE + การเขียนข้อมูลที่มีผลจริง (ผูกมัดจำ)
+  const preview = body.preview === true;
 
   if (body.action === "create") {
     // หักคอร์สก่อนออกบิล — ต้องรู้ให้แน่ว่าหักได้จริงถึงจะผูกคอร์สกับบิลใบนี้
@@ -207,6 +209,28 @@ export async function POST(req: NextRequest) {
     if (!customer?.lineUserId) {
       return NextResponse.json({ error: "no_line" }, { status: 400 });
     }
+    const cfgDep = await getSiteConfig();
+    const msgs = cfgDep.messages;
+    const payment = await getPaymentConfig();
+    const catName = customer.cats[0]?.name || "น้องแมว";
+    const pctNum = Number(body.pct) || 0;
+    const depositFlex = buildDepositRequestFlex({
+      title: msgs.depositRequestTitle,
+      body: renderTemplate(msgs.depositRequestBody, {
+        name: customer.name,
+        cat: politeCat(catName),
+        amount: amount.toLocaleString(),
+        pct: pctNum > 0 ? ` ${pctNum}% ของค่าบริการ` : "",
+      }),
+      amount,
+      bankName: payment.bankName,
+      accountNumber: payment.accountNumber,
+      accountName: payment.accountName,
+      note: body.note ? String(body.note) : undefined,
+      percentNote: body.percentNote ? String(body.percentNote) : undefined,
+    }, cfgDep.cards?.depositRequest);
+    if (preview) return NextResponse.json({ ok: true, preview: [depositFlex] });
+
     // ผูกมัดจำให้ทันทีที่เรียกเก็บ ไม่ว่าจะกดจากที่ไหน:
     // - มีบิลอยู่แล้ว → ผูกเข้าบิลนั้นเลย (โผล่ปุ่ม "รับมัดจำแล้ว" + หักยอดคงเหลือถูกต้อง)
     // - ยังไม่มีบิล → พักไว้เป็นเครดิตมัดจำล่วงหน้าของลูกค้า จะหักอัตโนมัติตอนออกบิลถัดไป
@@ -216,28 +240,7 @@ export async function POST(req: NextRequest) {
     } else {
       await adjustDepositCredit(body.customerId, amount);
     }
-    const cfgDep = await getSiteConfig();
-    const msgs = cfgDep.messages;
-    const payment = await getPaymentConfig();
-    const catName = customer.cats[0]?.name || "น้องแมว";
-    const pctNum = Number(body.pct) || 0;
-    const notifyErr = await notifyCustomer(customer.lineUserId, [
-      buildDepositRequestFlex({
-        title: msgs.depositRequestTitle,
-        body: renderTemplate(msgs.depositRequestBody, {
-          name: customer.name,
-          cat: politeCat(catName),
-          amount: amount.toLocaleString(),
-          pct: pctNum > 0 ? ` ${pctNum}% ของค่าบริการ` : "",
-        }),
-        amount,
-        bankName: payment.bankName,
-        accountNumber: payment.accountNumber,
-        accountName: payment.accountName,
-        note: body.note ? String(body.note) : undefined,
-        percentNote: body.percentNote ? String(body.percentNote) : undefined,
-      }, cfgDep.cards?.depositRequest),
-    ]);
+    const notifyErr = await notifyCustomer(customer.lineUserId, [depositFlex]);
     return NextResponse.json({ ok: true, notifyError: notifyErr });
   }
 
@@ -295,6 +298,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const { id, action } = body;
+  const preview = body.preview === true;
   const inv = await getInvoice(id);
   if (!inv) return NextResponse.json({ error: "not found" }, { status: 404 });
 
@@ -313,26 +317,26 @@ export async function PATCH(req: NextRequest) {
     // ถ้ามีมัดจำแล้ว → ส่งการ์ด "ยอดคงเหลือ" (ยอดค้างจริง) ไม่ใช่ยอดเต็มซ้ำ
     if (deposit > 0) {
       const cfgRem = await getSiteConfig();
-      await pushLineMessage(inv.lineUserId, [
-        summaryFlexFromInvoice(inv, "remaining", cfgRem.billing, payment, scheduleText, cfgRem.cards?.billSummary),
-      ]);
+      const remFlex = summaryFlexFromInvoice(inv, "remaining", cfgRem.billing, payment, scheduleText, cfgRem.cards?.billSummary);
+      if (preview) return NextResponse.json({ ok: true, preview: [remFlex] });
+      await pushLineMessage(inv.lineUserId, [remFlex]);
       await markInvoiceSent(id);
       return NextResponse.json({ ok: true, kind: "remaining" });
     }
     const payUrl = `${base}/app/pay/${inv.id}`;
-    await pushLineMessage(inv.lineUserId, [
-      buildPaymentFlex({
-        invoiceId: inv.id,
-        customerName: inv.customerName,
-        catName: inv.catName,
-        total: inv.total,
-        items: inv.items,
-        payUrl,
-        bankName: payment.bankName,
-        accountNumber: payment.accountNumber,
-        accountName: payment.accountName,
-      }, (await getSiteConfig()).cards?.payment),
-    ]);
+    const payFlex = buildPaymentFlex({
+      invoiceId: inv.id,
+      customerName: inv.customerName,
+      catName: inv.catName,
+      total: inv.total,
+      items: inv.items,
+      payUrl,
+      bankName: payment.bankName,
+      accountNumber: payment.accountNumber,
+      accountName: payment.accountName,
+    }, (await getSiteConfig()).cards?.payment);
+    if (preview) return NextResponse.json({ ok: true, preview: [payFlex] });
+    await pushLineMessage(inv.lineUserId, [payFlex]);
     await markInvoiceSent(id);
     return NextResponse.json({ ok: true, payUrl });
   }
@@ -343,9 +347,9 @@ export async function PATCH(req: NextRequest) {
     }
     const mode = (body.mode as SummaryMode) || "booking";
     const cfgSum = await getSiteConfig();
-    await pushLineMessage(inv.lineUserId, [
-      summaryFlexFromInvoice(inv, mode, cfgSum.billing, payment, scheduleText, cfgSum.cards?.billSummary),
-    ]);
+    const summaryFlex = summaryFlexFromInvoice(inv, mode, cfgSum.billing, payment, scheduleText, cfgSum.cards?.billSummary);
+    if (preview) return NextResponse.json({ ok: true, preview: [summaryFlex] });
+    await pushLineMessage(inv.lineUserId, [summaryFlex]);
     await markInvoiceSent(id);
     return NextResponse.json({ ok: true, kind: mode });
   }
@@ -366,14 +370,14 @@ export async function PATCH(req: NextRequest) {
     );
     const hasRoom = (inv.items || []).some((it) => /คืน|ห้อง/.test(it.label));
     const msg = reviewMessageFor(hasGroom, hasRoom, biz.name);
-    await pushLineMessage(inv.lineUserId, [
-      buildReviewRequestFlex({
-        title: msg.title,
-        body: msg.body,
-        reviewUrl,
-        reviewLabel: biz.reviewButtonText,
-      }, cfg.cards?.review),
-    ]);
+    const reviewFlex = buildReviewRequestFlex({
+      title: msg.title,
+      body: msg.body,
+      reviewUrl,
+      reviewLabel: biz.reviewButtonText,
+    }, cfg.cards?.review);
+    if (preview) return NextResponse.json({ ok: true, preview: [reviewFlex] });
+    await pushLineMessage(inv.lineUserId, [reviewFlex]);
     return NextResponse.json({ ok: true });
   }
 
@@ -386,24 +390,24 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "no_line" }, { status: 400 });
     }
     const cfgR = await getSiteConfig();
-    await pushLineMessage(inv.lineUserId, [
-      buildReceiptFlex({
-        invoiceId: inv.id,
-        customerName: inv.customerName,
-        catName: inv.catName,
-        total: inv.total,
-        discount: inv.discount,
-        promoLabel: inv.promoLabel,
-        pointsEarned: inv.pointsEarned || 0,
-        shopName: cfgR.business.name,
-        paymentMethod:
-          inv.paymentMethod === "member_credit"
-            ? "Member Credit"
-            : inv.paymentMethod === "cash"
-              ? "เงินสด"
-              : "โอนเงิน",
-      }, cfgR.cards?.receipt),
-    ]);
+    const receiptFlex = buildReceiptFlex({
+      invoiceId: inv.id,
+      customerName: inv.customerName,
+      catName: inv.catName,
+      total: inv.total,
+      discount: inv.discount,
+      promoLabel: inv.promoLabel,
+      pointsEarned: inv.pointsEarned || 0,
+      shopName: cfgR.business.name,
+      paymentMethod:
+        inv.paymentMethod === "member_credit"
+          ? "Member Credit"
+          : inv.paymentMethod === "cash"
+            ? "เงินสด"
+            : "โอนเงิน",
+    }, cfgR.cards?.receipt);
+    if (preview) return NextResponse.json({ ok: true, preview: [receiptFlex] });
+    await pushLineMessage(inv.lineUserId, [receiptFlex]);
     return NextResponse.json({ ok: true });
   }
 
