@@ -12,11 +12,17 @@ import { uploadDataUrlToStorage } from "./supabase/storage";
  * คอร์สจะถูกสร้างตอนร้านกดยืนยันเท่านั้น (ดู confirmPackageOrder)
  */
 
+/** uses = คอร์สนับครั้ง (เดิม) · credit = เติมเครดิต Member (จ่าย price รับเพิ่มฟรี creditBonus) */
+export type PackageOfferKind = "uses" | "credit";
+
 export type PackageOffer = {
   id: string;
   name: string;
+  kind: PackageOfferKind;
   totalUses: number;
   price: number;
+  /** เฉพาะ kind==="credit" — เครดิตที่ได้เพิ่มฟรี (รวมเครดิตทั้งหมด = price + creditBonus) */
+  creditBonus: number;
   description?: string;
   /** รูปหน้าปกที่ลูกค้าเห็นในแอป — ไม่มีก็ไม่เป็นไร แอปจะโชว์แบบไม่มีรูปแทน */
   imageUrl?: string;
@@ -32,13 +38,15 @@ export type PackageOrder = {
   customerName: string;
   lineUserId?: string;
   offerId?: string;
-  /** ก๊อปชื่อ/จำนวนครั้ง/ราคา ณ ตอนสั่ง — ร้านแก้ราคาทีหลังไม่กระทบออร์เดอร์เก่า */
+  /** ก๊อปชื่อ/จำนวนครั้ง/ราคา/ประเภท ณ ตอนสั่ง — ร้านแก้ราคาทีหลังไม่กระทบออร์เดอร์เก่า */
   name: string;
+  kind: PackageOfferKind;
   totalUses: number;
   price: number;
+  creditBonus: number;
   status: PackageOrderStatus;
   slipUrl?: string;
-  /** id ของคอร์สที่สร้างให้ตอนยืนยัน — กันยืนยันซ้ำแล้วได้คอร์สสองใบ */
+  /** id ของคอร์สที่สร้างให้ตอนยืนยัน — กันยืนยันซ้ำแล้วได้คอร์สสองใบ (kind="uses" เท่านั้น) */
   packageId?: string;
   createdAt: string;
   paidAt?: string;
@@ -52,6 +60,9 @@ type OfferRow = {
   description: string | null;
   /** ยังไม่มีคอลัมน์นี้ในบางร้าน — select("*") จะได้ undefined ไม่พัง */
   image_url?: string | null;
+  /** เพิ่งเพิ่มมาทีหลัง (credit_kind migration) — ร้านเก่ายังไม่มีคอลัมน์ก็ไม่พัง */
+  kind?: string | null;
+  credit_bonus?: number | null;
   active: boolean;
   created_at: string;
 };
@@ -65,6 +76,8 @@ type OrderRow = {
   name: string | null;
   total_uses: number;
   price: number;
+  kind?: string | null;
+  credit_bonus?: number | null;
   status: string;
   slip_url: string | null;
   package_id: string | null;
@@ -79,8 +92,10 @@ function rowToOffer(r: OfferRow): PackageOffer {
   return {
     id: r.id,
     name: r.name || "",
+    kind: r.kind === "credit" ? "credit" : "uses",
     totalUses: Number(r.total_uses) || 0,
     price: Number(r.price) || 0,
+    creditBonus: Number(r.credit_bonus) || 0,
     description: r.description || undefined,
     imageUrl: r.image_url || undefined,
     active: r.active !== false,
@@ -96,8 +111,10 @@ function rowToOrder(r: OrderRow): PackageOrder {
     lineUserId: r.line_user_id || undefined,
     offerId: r.offer_id || undefined,
     name: r.name || "",
+    kind: r.kind === "credit" ? "credit" : "uses",
     totalUses: Number(r.total_uses) || 0,
     price: Number(r.price) || 0,
+    creditBonus: Number(r.credit_bonus) || 0,
     status: (r.status as PackageOrderStatus) || "pending",
     slipUrl: r.slip_url || undefined,
     packageId: r.package_id || undefined,
@@ -130,16 +147,23 @@ export async function listPackageOffers(activeOnly = false): Promise<PackageOffe
 
 export async function createPackageOffer(data: {
   name: string;
+  kind?: PackageOfferKind;
   totalUses: number;
   price: number;
+  /** เฉพาะ kind==="credit" */
+  creditBonus?: number;
   description?: string;
   /** data URL จากช่องอัปโหลด — จะถูกเก็บขึ้น Storage ให้ ไม่ยัด base64 ลง DB */
   image?: string;
 }): Promise<PackageOffer | null> {
   const name = data.name.trim();
-  const totalUses = Math.max(1, Math.round(data.totalUses) || 0);
+  const kind: PackageOfferKind = data.kind === "credit" ? "credit" : "uses";
+  // แบบเครดิตไม่มีจำนวนครั้ง — เก็บ 0 ไว้เฉยๆ กันโค้ดเก่าที่ยังอ่าน totalUses อยู่พัง
+  const totalUses = kind === "credit" ? 0 : Math.max(1, Math.round(data.totalUses) || 0);
   const price = Math.max(0, Math.round(data.price) || 0);
+  const creditBonus = kind === "credit" ? Math.max(0, Math.round(data.creditBonus || 0)) : 0;
   if (!name) return null;
+  if (kind === "credit" && price <= 0 && creditBonus <= 0) return null;
 
   const id = `POF${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -156,8 +180,10 @@ export async function createPackageOffer(data: {
   const offer: PackageOffer = {
     id,
     name,
+    kind,
     totalUses,
     price,
+    creditBonus,
     description: data.description?.trim() || undefined,
     imageUrl,
     active: true,
@@ -176,6 +202,23 @@ export async function createPackageOffer(data: {
       created_at: offer.createdAt,
     });
     // เขียนแยกเพราะร้านที่ยังไม่ได้รันคอลัมน์นี้จะ insert ไม่ผ่านทั้งแถว
+    try {
+      const { error } = await sb
+        .from("package_offers")
+        .update({ kind: offer.kind, credit_bonus: offer.creditBonus })
+        .eq("id", offer.id);
+      if (error) {
+        const { ensureMigration } = await import("./migrations");
+        if (await ensureMigration("package_offers.credit_kind")) {
+          await sb
+            .from("package_offers")
+            .update({ kind: offer.kind, credit_bonus: offer.creditBonus })
+            .eq("id", offer.id);
+        }
+      }
+    } catch {
+      /* ยังไม่มีคอลัมน์ kind/credit_bonus — คอร์สแบบครั้งยังใช้ได้ปกติ แค่แบบเครดิตจะพังตอนยืนยัน */
+    }
     if (offer.imageUrl) {
       try {
         const { error } = await sb
@@ -241,7 +284,14 @@ export async function setPackageOfferImage(id: string, image: string) {
 /** แก้ไขคอร์สที่เปิดขาย — ชื่อ/จำนวนครั้ง/ราคา/คำโปรย (รูปแยกไปที่ setPackageOfferImage) */
 export async function updatePackageOffer(
   id: string,
-  data: { name?: string; totalUses?: number; price?: number; description?: string }
+  data: {
+    name?: string;
+    kind?: PackageOfferKind;
+    totalUses?: number;
+    price?: number;
+    creditBonus?: number;
+    description?: string;
+  }
 ) {
   const patch: Record<string, unknown> = {};
   if (data.name !== undefined) {
@@ -249,20 +299,45 @@ export async function updatePackageOffer(
     if (!name) return { ok: false as const, error: "name_required" };
     patch.name = name;
   }
+  if (data.kind !== undefined) patch.kind = data.kind === "credit" ? "credit" : "uses";
   if (data.totalUses !== undefined) patch.total_uses = Math.max(1, Math.round(data.totalUses) || 0);
   if (data.price !== undefined) patch.price = Math.max(0, Math.round(data.price) || 0);
+  if (data.creditBonus !== undefined)
+    patch.credit_bonus = Math.max(0, Math.round(data.creditBonus) || 0);
   if (data.description !== undefined) patch.description = data.description.trim() || null;
   if (Object.keys(patch).length === 0) return { ok: true as const };
 
   const sb = getSupabase();
   if (sb) {
-    await sb.from("package_offers").update(patch).eq("id", id);
+    // kind/credit_bonus เพิ่งเพิ่มมาทีหลัง — แยกเขียนกันร้านที่ยังไม่รัน migration
+    const { kind, credit_bonus, ...basePatch } = patch;
+    if (Object.keys(basePatch).length > 0) {
+      await sb.from("package_offers").update(basePatch).eq("id", id);
+    }
+    if (kind !== undefined || credit_bonus !== undefined) {
+      try {
+        const creditPatch: Record<string, unknown> = {};
+        if (kind !== undefined) creditPatch.kind = kind;
+        if (credit_bonus !== undefined) creditPatch.credit_bonus = credit_bonus;
+        const { error } = await sb.from("package_offers").update(creditPatch).eq("id", id);
+        if (error) {
+          const { ensureMigration } = await import("./migrations");
+          if (await ensureMigration("package_offers.credit_kind")) {
+            await sb.from("package_offers").update(creditPatch).eq("id", id);
+          }
+        }
+      } catch {
+        /* ยังไม่มีคอลัมน์ — ชื่อ/ราคา/ครั้งยังบันทึกได้ตามปกติ */
+      }
+    }
   } else {
     const o = memOffers.find((x) => x.id === id);
     if (o) {
       if (patch.name !== undefined) o.name = patch.name as string;
+      if (patch.kind !== undefined) o.kind = patch.kind as PackageOfferKind;
       if (patch.total_uses !== undefined) o.totalUses = patch.total_uses as number;
       if (patch.price !== undefined) o.price = patch.price as number;
+      if (patch.credit_bonus !== undefined) o.creditBonus = patch.credit_bonus as number;
       if (patch.description !== undefined) o.description = (patch.description as string) || undefined;
     }
   }
@@ -358,8 +433,10 @@ export async function createPackageOrder(data: {
     lineUserId: data.lineUserId,
     offerId: data.offer.id,
     name: data.offer.name,
+    kind: data.offer.kind,
     totalUses: data.offer.totalUses,
     price: data.offer.price,
+    creditBonus: data.offer.creditBonus,
     status: "pending",
     createdAt: new Date().toISOString(),
   };
@@ -378,6 +455,24 @@ export async function createPackageOrder(data: {
       status: "pending",
       created_at: order.createdAt,
     });
+    // kind/credit_bonus เพิ่งเพิ่มมาทีหลัง — แยกเขียน กันร้านที่ยังไม่รัน migration insert ไม่ผ่าน
+    try {
+      const { error } = await sb
+        .from("package_orders")
+        .update({ kind: order.kind, credit_bonus: order.creditBonus })
+        .eq("id", order.id);
+      if (error) {
+        const { ensureMigration } = await import("./migrations");
+        if (await ensureMigration("package_orders.credit_kind")) {
+          await sb
+            .from("package_orders")
+            .update({ kind: order.kind, credit_bonus: order.creditBonus })
+            .eq("id", order.id);
+        }
+      }
+    } catch {
+      /* ยังไม่มีคอลัมน์ — คอร์สแบบครั้งยังสั่งซื้อได้ปกติ */
+    }
   } else {
     memOrders.unshift(order);
   }
@@ -441,6 +536,29 @@ export async function confirmPackageOrder(
     o.paidAt = paidAt;
   }
 
+  // เครดิต Member — เติมยอดคงเหลือให้ตรง ไม่ใช่สร้างคอร์สนับครั้ง
+  if (order.kind === "credit") {
+    const { topupMemberCredit } = await import("./customers-store");
+    const result = await topupMemberCredit(order.customerId, {
+      paidAmount: order.price,
+      bonusAmount: order.creditBonus,
+      note: `ซื้อในแอป: ${order.name}`,
+      isLegacy: opts?.isLegacy,
+    });
+    if (!result) {
+      return { ok: false as const, error: "topup_failed" };
+    }
+    return {
+      ok: true as const,
+      order: { ...order, status: "paid" as const, paidAt },
+      kind: "credit" as const,
+      credit: {
+        creditAdded: order.price + order.creditBonus,
+        balanceAfter: result.customer.memberCredit,
+      },
+    };
+  }
+
   const { sellPackage } = await import("./packages-store");
   const pkg = await sellPackage({
     customerId: order.customerId,
@@ -458,7 +576,12 @@ export async function confirmPackageOrder(
     if (o) o.packageId = pkg.id;
   }
 
-  return { ok: true as const, order: { ...order, status: "paid" as const, paidAt }, pkg };
+  return {
+    ok: true as const,
+    order: { ...order, status: "paid" as const, paidAt },
+    kind: "uses" as const,
+    pkg,
+  };
 }
 
 export async function cancelPackageOrder(id: string) {

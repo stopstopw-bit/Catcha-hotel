@@ -223,6 +223,16 @@ set staff_note = nullif(
 )
 where staff_note like '%🎁%';`,
   },
+  {
+    // คอร์สแบบ "เครดิต Member" — จ่าย X รับเพิ่มฟรี Y รวมเป็นเครดิต X+Y แทนที่จะเป็นจำนวนครั้ง
+    // kind='uses' (เดิม) ใช้ total_uses ตามปกติ, kind='credit' ใช้ credit_bonus แทน
+    name: "package_offers.credit_kind",
+    sql: "alter table package_offers add column if not exists kind text not null default 'uses', add column if not exists credit_bonus numeric not null default 0;",
+  },
+  {
+    name: "package_orders.credit_kind",
+    sql: "alter table package_orders add column if not exists kind text not null default 'uses', add column if not exists credit_bonus numeric not null default 0;",
+  },
 ];
 
 export type MigrateResult = {

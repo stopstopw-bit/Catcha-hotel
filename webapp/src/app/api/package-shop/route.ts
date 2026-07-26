@@ -17,7 +17,7 @@ import { findCustomerByLine, getCustomer } from "@/lib/customers-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import { getSiteConfig } from "@/lib/config-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
-import { pushLineMessage, buildPackageFlex } from "@/lib/line";
+import { pushLineMessage, buildPackageFlex, buildMemberBalanceFlex } from "@/lib/line";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -87,12 +87,21 @@ export async function POST(req: NextRequest) {
     });
 
     await sendTelegram(
-      formatBookingTelegram("🛒 ลูกค้าสั่งซื้อคอร์ส (รอโอน)", {
-        ลูกค้า: customer.name,
-        คอร์ส: `${offer.name} (${offer.totalUses} ครั้ง)`,
-        ยอดที่ต้องโอน: `${offer.price.toLocaleString()} บาท`,
-        หมายเหตุ: "รอลูกค้าโอน + ร้านกดยืนยันรับเงิน",
-      })
+      formatBookingTelegram(
+        offer.kind === "credit" ? "🛒 ลูกค้าสั่งซื้อเครดิต Member (รอโอน)" : "🛒 ลูกค้าสั่งซื้อคอร์ส (รอโอน)",
+        {
+          ลูกค้า: customer.name,
+          ...(offer.kind === "credit"
+            ? {
+                แพ็กเกจ: offer.name,
+                ได้เพิ่ม: `${offer.creditBonus.toLocaleString()} บาท`,
+                รวมเครดิตที่จะได้: `${(offer.price + offer.creditBonus).toLocaleString()} บาท`,
+              }
+            : { คอร์ส: `${offer.name} (${offer.totalUses} ครั้ง)` }),
+          ยอดที่ต้องโอน: `${offer.price.toLocaleString()} บาท`,
+          หมายเหตุ: "รอลูกค้าโอน + ร้านกดยืนยันรับเงิน",
+        }
+      )
     );
 
     return NextResponse.json({ ok: true, order, payment: await getPaymentConfig() });
@@ -136,8 +145,10 @@ export async function POST(req: NextRequest) {
     }
     const offer = await createPackageOffer({
       name: String(body.name || ""),
+      kind: body.kind === "credit" ? "credit" : "uses",
       totalUses: Number(body.totalUses) || 0,
       price: Number(body.price) || 0,
+      creditBonus: Number(body.creditBonus) || 0,
       description: body.description ? String(body.description) : undefined,
       image: body.image ? String(body.image) : undefined,
     });
@@ -167,35 +178,58 @@ export async function PATCH(req: NextRequest) {
     }
 
     const customer = await getCustomer(res.order.customerId);
+    const isCredit = res.kind === "credit";
     await sendTelegram(
-      formatBookingTelegram("✅ ยืนยันรับเงินค่าคอร์สแล้ว", {
-        ลูกค้า: res.order.customerName,
-        คอร์ส: `${res.order.name} (${res.order.totalUses} ครั้ง)`,
-        ยอด: `${res.order.price.toLocaleString()} บาท`,
-        ...(body.isLegacy ? { หมายเหตุ: "ยอดยกมา — ไม่นับรายรับเดือนนี้" } : {}),
-      })
+      formatBookingTelegram(
+        isCredit ? "✅ ยืนยันรับเงิน + เติมเครดิต Member แล้ว" : "✅ ยืนยันรับเงินค่าคอร์สแล้ว",
+        {
+          ลูกค้า: res.order.customerName,
+          ...(isCredit
+            ? {
+                แพ็กเกจ: res.order.name,
+                จ่าย: `${res.order.price.toLocaleString()} บาท`,
+                ได้เพิ่ม: `${res.order.creditBonus.toLocaleString()} บาท`,
+                รวมเครดิตที่เติม: `${res.credit!.creditAdded.toLocaleString()} บาท`,
+                ยอดคงเหลือ: `${res.credit!.balanceAfter.toLocaleString()} บาท`,
+              }
+            : {
+                คอร์ส: `${res.order.name} (${res.order.totalUses} ครั้ง)`,
+                ยอด: `${res.order.price.toLocaleString()} บาท`,
+              }),
+          ...(body.isLegacy ? { หมายเหตุ: "ยอดยกมา — ไม่นับรายรับเดือนนี้" } : {}),
+        }
+      )
     );
 
-    // แจ้งลูกค้าว่าคอร์สพร้อมใช้แล้ว — ส่งเสมอ เพราะลูกค้าเป็นคนจ่ายเงินและกำลังรออยู่
+    // แจ้งลูกค้าว่าคอร์ส/เครดิตพร้อมใช้แล้ว — ส่งเสมอ เพราะลูกค้าเป็นคนจ่ายเงินและกำลังรออยู่
     let notifyError: string | undefined;
     if (customer?.lineUserId) {
       const cfg = await getSiteConfig();
       try {
-        await pushLineMessage(customer.lineUserId, [
-          buildPackageFlex({
-            customerName: res.order.customerName,
-            packageName: res.pkg.name,
-            totalUses: res.pkg.totalUses,
-            usedUses: res.pkg.usedUses,
-            price: res.pkg.price,
-            shopName: cfg.business?.name,
-          }, cfg.cards?.packageCard),
-        ]);
+        const flex = isCredit
+          ? buildMemberBalanceFlex({
+              customerName: res.order.customerName,
+              memberCredit: res.credit!.balanceAfter,
+            }, cfg.cards?.memberBalance)
+          : buildPackageFlex({
+              customerName: res.order.customerName,
+              packageName: res.pkg!.name,
+              totalUses: res.pkg!.totalUses,
+              usedUses: res.pkg!.usedUses,
+              price: res.pkg!.price,
+              shopName: cfg.business?.name,
+            }, cfg.cards?.packageCard);
+        await pushLineMessage(customer.lineUserId, [flex]);
       } catch (e) {
         notifyError = e instanceof Error ? e.message : String(e);
       }
     }
-    return NextResponse.json({ ok: true, package: res.pkg, notifyError });
+    return NextResponse.json({
+      ok: true,
+      package: res.kind === "uses" ? res.pkg : undefined,
+      credit: res.kind === "credit" ? res.credit : undefined,
+      notifyError,
+    });
   }
 
   if (action === "cancel_order") {
@@ -222,8 +256,10 @@ export async function PATCH(req: NextRequest) {
   if (action === "update_offer") {
     const res = await updatePackageOffer(String(body.offerId || ""), {
       name: body.name !== undefined ? String(body.name) : undefined,
+      kind: body.kind !== undefined ? (body.kind === "credit" ? "credit" : "uses") : undefined,
       totalUses: body.totalUses !== undefined ? Number(body.totalUses) : undefined,
       price: body.price !== undefined ? Number(body.price) : undefined,
+      creditBonus: body.creditBonus !== undefined ? Number(body.creditBonus) : undefined,
       description: body.description !== undefined ? String(body.description) : undefined,
     });
     if (!res.ok) {

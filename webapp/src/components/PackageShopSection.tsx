@@ -7,8 +7,10 @@ import { toJpegDataUrl } from "@/lib/image-convert";
 type Offer = {
   id: string;
   name: string;
+  kind: "uses" | "credit";
   totalUses: number;
   price: number;
+  creditBonus: number;
   description?: string;
   imageUrl?: string;
 };
@@ -16,8 +18,10 @@ type Offer = {
 type Order = {
   id: string;
   name: string;
+  kind: "uses" | "credit";
   totalUses: number;
   price: number;
+  creditBonus: number;
   status: "pending" | "paid" | "cancelled";
   slipUrl?: string;
   createdAt: string;
@@ -73,9 +77,13 @@ export function PackageShopSection() {
 
   const buy = async (offer: Offer) => {
     if (!profile?.lineUserId) return;
+    const detail =
+      offer.kind === "credit"
+        ? `รับเครดิตรวม ${(offer.price + offer.creditBonus).toLocaleString()} บาท (จ่าย ${offer.price.toLocaleString()} รับเพิ่มฟรี ${offer.creditBonus.toLocaleString()})`
+        : `(${offer.totalUses} ครั้ง)`;
     if (
       !confirm(
-        `สั่งซื้อ "${offer.name}" (${offer.totalUses} ครั้ง)\n` +
+        `สั่งซื้อ "${offer.name}" ${detail}\n` +
           `ยอดที่ต้องโอน ${offer.price.toLocaleString()} บาท\n\n` +
           `กดตกลงแล้วจะมีเลขบัญชีให้โอน แล้วแนบสลิปได้เลยนะคะ`
       )
@@ -185,13 +193,22 @@ export function PackageShopSection() {
                     {o.name}
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold text-brown-soft">
-                    <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
-                      ใช้ได้ {o.totalUses} ครั้ง
-                    </span>
-                    {perUse > 0 && (
-                      <span className="text-brown-faint">
-                        ตกครั้งละ {perUse.toLocaleString()}฿
+                    {o.kind === "credit" ? (
+                      <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
+                        💎 รวมเครดิต {(o.price + o.creditBonus).toLocaleString()} บาท
+                        {o.creditBonus > 0 ? ` (รับเพิ่มฟรี ${o.creditBonus.toLocaleString()})` : ""}
                       </span>
+                    ) : (
+                      <>
+                        <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
+                          ใช้ได้ {o.totalUses} ครั้ง
+                        </span>
+                        {perUse > 0 && (
+                          <span className="text-brown-faint">
+                            ตกครั้งละ {perUse.toLocaleString()}฿
+                          </span>
+                        )}
+                      </>
                     )}
                   </p>
                   {o.description && (
