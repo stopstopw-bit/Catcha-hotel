@@ -321,6 +321,8 @@ export async function updateBooking(
       | "lineUserId"
       | "autoOff"
       | "groomProgram"
+      | "arrivalTime"
+      | "pickupTime"
     >
   >
 ) {
