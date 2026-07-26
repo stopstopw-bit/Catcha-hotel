@@ -33,6 +33,7 @@ import { issueCoupon, listCustomerCoupons } from "@/lib/coupons-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { resolveGroomForm } from "@/lib/groom-form";
 import { renderTemplate, DEFAULT_MESSAGES } from "@/lib/messages";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 function addDays(dateStr: string, n: number) {
   const dt = new Date(`${dateStr}T12:00:00Z`);
@@ -42,11 +43,8 @@ function addDays(dateStr: string, n: number) {
 
 /** Cron 12:00 น. ไทย (05:00 UTC) — ยืนยันนัดพรุ่งนี้ + เตือนมัดจำ 7 วัน + รายละเอียดเข้าพัก 3 วันก่อน */
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  if (secret && auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = verifyCronSecret(req);
+  if (denied) return denied;
 
   const cfg = await getSiteConfig();
   const auto = cfg.automation;

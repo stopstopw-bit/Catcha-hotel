@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exportToGoogleSheets } from "@/lib/google-sheets-export";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 /**
  * Backup อัตโนมัติทุกคืน — ยกข้อมูลทั้งร้านลง Google Sheets
  * ลูกค้า+น้องแมว · รายรับรายจ่าย · การจอง · บิล · แต้มสะสม
  */
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  if (secret && auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = verifyCronSecret(req);
+  if (denied) return denied;
 
   const result = await exportToGoogleSheets();
 

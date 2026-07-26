@@ -33,7 +33,14 @@ export async function POST(req: NextRequest) {
   const b = await getBooking(bookingId);
   if (!b) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const lineUserId = String(body.lineUserId || b.lineUserId || "").trim();
+  // ต้องส่ง lineUserId มาเอง ห้ามเดาจาก booking ให้ — เดิมถ้าไม่ส่งมาจะหยิบ b.lineUserId
+  // ของเจ้าของนัดจริงมาใช้แทนเงียบๆ เท่ากับใครก็เขียนประวัติแมวคนอื่นได้แค่รู้ bookingId
+  // (ไม่ต้องรู้ lineUserId ของเจ้าของเลยด้วยซ้ำ) ตอนนี้ต้องส่งมาตรงกับของนัดเป๊ะเท่านั้น
+  const bodyLineUserId = String(body.lineUserId || "").trim();
+  if (b.lineUserId && b.lineUserId !== bodyLineUserId) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  const lineUserId = bodyLineUserId || b.lineUserId || "";
   if (!lineUserId) {
     return NextResponse.json({ error: "no_line" }, { status: 400 });
   }

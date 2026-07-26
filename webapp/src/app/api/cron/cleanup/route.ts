@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cleanupOldBroadcastImages } from "@/lib/broadcast-cleanup";
 import { sendTelegram } from "@/lib/telegram";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 /** Cron รายเดือน — รีดพื้นที่ฐานข้อมูลคืน โดยลบรูปโปร broadcast เก่าที่ค้างเป็น base64 */
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  if (secret && auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const denied = verifyCronSecret(req);
+  if (denied) return denied;
 
   const result = await cleanupOldBroadcastImages();
 
