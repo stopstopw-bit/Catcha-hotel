@@ -46,7 +46,7 @@ import {
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
-import { listInvoices, updateInvoice } from "@/lib/invoices-store";
+import { listInvoices, updateInvoice, invoiceCatNames } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import {
   buildDepositReminderText,
@@ -523,7 +523,7 @@ export async function PATCH(req: NextRequest) {
             buildReceiptFlex({
               invoiceId: inv.id,
               customerName: inv.customerName,
-              catName: inv.catName,
+              catName: invoiceCatNames(inv),
               total: inv.total,
               discount: inv.discount,
               promoLabel: inv.promoLabel,
