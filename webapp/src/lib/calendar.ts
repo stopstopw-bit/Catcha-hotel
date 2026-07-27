@@ -8,6 +8,7 @@ import { BUSINESS } from "./business";
 
 export const CALENDAR_OWNER_EMAILS = [
   "chutchanok.than@gmail.com",
+  "chatphat.choti@gmail.com",
   "pitchapawong.pw@gmail.com",
 ];
 
