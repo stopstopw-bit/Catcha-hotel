@@ -605,24 +605,43 @@ export async function PATCH(req: NextRequest) {
           }
         }
       } else if (part === "groomInfo") {
+        // บ้านเดียวกันมาหลายตัว = ถามประวัติทั้งบ้านในการ์ดเดียว ลิงก์เดียว กรอกครบในหน้าเดียว
+        // (เหมือนปุ่มส่งเดี่ยว "สอบถามประวัติ" ไม่ใช่ถามแค่ตัวที่กดมาจากแถวนั้น)
+        const groupIds: string[] =
+          Array.isArray(body.ids) && body.ids.length > 0
+            ? body.ids.map(String)
+            : [b.id];
+        const groupBookings = (
+          await Promise.all(
+            groupIds.map((x) => (x === b.id ? Promise.resolve(b) : getBooking(x)))
+          )
+        ).filter((x): x is StoredBooking => !!x);
         // เคยกรอกประวัติไว้แล้ว → ไม่ถามซ้ำ (ประวัติผูกกับตัวแมว ข้ามนัดก็ยังจำได้)
         // ถ้าอยากถามใหม่จริง ๆ ให้ใช้ปุ่มส่งเดี่ยว "ขอประวัติ" แทน
-        const existing = to
-          ? await getCatGroomInfo(to, String(b.catName))
-          : undefined;
-        if (existing) {
-          skipped.push(`${b.catName}: เคยกรอกประวัติแล้ว ไม่ขอซ้ำ`);
-        } else {
-          const url = await getGroomInfoUrl(b.id);
+        const needInfo: StoredBooking[] = [];
+        for (const g of groupBookings) {
+          const existing = to ? await getCatGroomInfo(to, String(g.catName)) : undefined;
+          if (existing) skipped.push(`${g.catName}: เคยกรอกประวัติแล้ว ไม่ขอซ้ำ`);
+          else needInfo.push(g);
+        }
+        if (needInfo.length > 0) {
+          const url = await getGroomInfoUrl(needInfo.map((x) => x.id));
+          const catNames = needInfo.map((x) => x.catName).join(", ");
           messages.push(
             buildGroomInfoFlex({
-              catName: String(b.catName),
+              catName: catNames,
               dateText: b.date
                 ? `📅 นัดอาบน้ำ: ${b.date}${b.time ? ` ${b.time}` : ""}`
                 : undefined,
-              body: buildGroomInfoBody(b, cfg),
+              body: buildGroomInfoBody(
+                { catName: needInfo.length > 1 ? `น้องๆ ${needInfo.length} ตัว` : catNames },
+                cfg
+              ),
               url: url || undefined,
-              label: "🩺 แจ้งประวัติน้อง",
+              label:
+                needInfo.length > 1
+                  ? `🩺 แจ้งประวัติน้อง (${needInfo.length} ตัว)`
+                  : "🩺 แจ้งประวัติน้อง",
             }, cfg.cards?.groomInfo)
           );
         }
