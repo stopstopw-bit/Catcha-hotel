@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/LocaleProvider";
-import { PageHeader } from "@/components/PageHeader";
+import { BookingOnlyNotice, PageHeader } from "@/components/PageHeader";
 
 export default function ServicesPage() {
   const { locale } = useLocale();
@@ -32,7 +32,12 @@ export default function ServicesPage() {
 
   return (
     <div className="px-4 pb-6 pt-5">
-      <PageHeader title={`✨ ${m.services}`} />
+      <PageHeader
+        title={`✨ ${m.services}`}
+        back="/app"
+        backLabel={locale === "th" ? "หน้าหลัก" : "Home"}
+      />
+      <BookingOnlyNotice locale={locale} />
       <div className="grid gap-4">
         {cards.map((c) => (
           <Link
