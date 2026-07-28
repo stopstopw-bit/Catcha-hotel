@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBooking, setBookingTime } from "@/lib/bookings-store";
+import { getBooking, listBookings, setBookingTime } from "@/lib/bookings-store";
+import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+
+/** นัดของบ้านเดียวกันที่เข้าพักรอบเดียวกัน (รวมตัวที่กดลิงก์มาด้วย) */
+async function householdSiblings(b: Awaited<ReturnType<typeof getBooking>>) {
+  if (!b) return [];
+  const key = bookingGroupKey(b);
+  const all = await listBookings();
+  const same = all.filter((x) => x.status !== "cancelled" && bookingGroupKey(x) === key);
+  return same.length > 0 ? same : [b];
+}
 
 /** ดึงข้อมูลนัดสำหรับหน้าเลือกเวลา */
 export async function GET(req: NextRequest) {
@@ -8,11 +18,13 @@ export async function GET(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
   const b = await getBooking(id);
   if (!b) return NextResponse.json({ found: false });
+  // เข้าพักพร้อมกันทั้งบ้าน = เลือกเวลาครั้งเดียวใช้ทุกตัว จึงโชว์ชื่อครบ
+  const siblings = await householdSiblings(b);
   return NextResponse.json({
     found: true,
     booking: {
       id: b.id,
-      catName: b.catName,
+      catName: groupCatNames(siblings),
       service: b.service,
       checkin: b.checkin || b.date,
       checkout: b.checkout,
@@ -34,6 +46,14 @@ export async function POST(req: NextRequest) {
   }
 
   const res = await setBookingTime(bookingId, type, time, lineUserId || undefined);
+  // ลูกค้าเลือกเวลาให้ "รอบเข้าพัก" ไม่ใช่ให้แมวตัวเดียว — ตัวอื่นในบ้านต้องได้เวลาเดียวกัน
+  // ไม่งั้นพรุ่งนี้ระบบจะถามซ้ำสำหรับตัวที่เหลือ
+  if (res.ok && res.booking) {
+    for (const sib of await householdSiblings(res.booking)) {
+      if (sib.id === bookingId) continue;
+      await setBookingTime(sib.id, type, time, lineUserId || undefined);
+    }
+  }
   if (!res.ok && res.error === "not_found") {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
