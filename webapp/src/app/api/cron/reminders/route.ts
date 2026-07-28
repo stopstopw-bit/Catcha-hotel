@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
           (b) =>
             b.lineUserId &&
             b.status !== "cancelled" &&
+            b.status !== "no_show" &&
             !autoMuted(b, "confirm") &&
             (b.checkin || b.date) === confirmDate
         );
@@ -188,7 +189,13 @@ export async function GET(req: NextRequest) {
   let reviewRequests = 0;
 
   for (const b of allBookings) {
-    if (b.service !== "room" || !b.lineUserId || b.status === "cancelled") continue;
+    if (
+      b.service !== "room" ||
+      !b.lineUserId ||
+      b.status === "cancelled" ||
+      b.status === "no_show"
+    )
+      continue;
 
     // #1 — แจ้งยอดคงเหลือ N วันก่อนเข้าพัก (ถ้ามีมัดจำ + ยังค้าง)
     if (
