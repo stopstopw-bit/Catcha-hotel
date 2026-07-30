@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { rateLimit, clientKey } from "@/lib/rate-limit";
 
 /**
  * ด่านตรวจสิทธิ์ก่อนเข้าถึงหลังบ้าน
@@ -47,10 +48,40 @@ function matches(path: string, list: string[]) {
   return list.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
+/**
+ * ระบบภายนอกยิงเข้ามาเป็นชุด — LINE ส่ง webhook ทีละหลายอีเวนต์, cron ยิงรอบเดียวจบ
+ * ถ้าไปจำกัดตรงนี้ ข้อความลูกค้าจะหาย/แจ้งเตือนไม่ออก อันตรายกว่าที่ป้องกันได้
+ */
+const NO_LIMIT = ["/api/line/webhook", "/api/telegram/webhook", "/api/cron"];
+
+/** เดารหัสหลังบ้านต้องยากที่สุด — ล็อกอินจึงคุมแยกและเข้มกว่าที่อื่นมาก */
+const LOGIN_PATH = "/api/auth/login";
+
+function limitFor(pathname: string, method: string) {
+  if (matches(pathname, NO_LIMIT)) return null;
+  // ล็อกอิน: 10 ครั้ง/นาที ต่อ IP — คนพิมพ์รหัสผิดจริงไม่ถึง แต่สคริปต์เดารหัสตันทันที
+  if (pathname === LOGIN_PATH && method === "POST") return { limit: 10, windowMs: 60_000 };
+  // เขียนข้อมูล (จอง/จ่าย/แก้ไข) หนักกว่าอ่าน จึงให้โควตาน้อยกว่า
+  if (method !== "GET") return { limit: 60, windowMs: 60_000 };
+  return { limit: 240, windowMs: 60_000 };
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/api/")) {
+    const rule = limitFor(pathname, req.method);
+    if (rule) {
+      const scope = pathname === LOGIN_PATH ? LOGIN_PATH : req.method === "GET" ? "read" : "write";
+      const hit = rateLimit(`${scope}:${clientKey(req)}`, rule.limit, rule.windowMs);
+      if (!hit.ok) {
+        return NextResponse.json(
+          { error: "rate_limited", message: "ยิงคำขอถี่เกินไป รอสักครู่แล้วลองใหม่นะคะ" },
+          { status: 429, headers: { "Retry-After": String(hit.retryAfter) } }
+        );
+      }
+    }
+
     if (matches(pathname, PUBLIC_API)) return NextResponse.next();
     if (req.method === "GET" && matches(pathname, PUBLIC_GET)) {
       return NextResponse.next();

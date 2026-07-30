@@ -9,6 +9,14 @@ import {
   setFinanceExcluded,
 } from "@/lib/finance-store";
 import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
+import { logAudit } from "@/lib/audit-log";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+
+/** ใครกดปุ่มนี้ — ไว้ลงบันทึกว่าใครแตะบัญชี */
+async function actorName(req: NextRequest): Promise<string> {
+  const s = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  return s?.name || s?.role || "ไม่ทราบ";
+}
 
 /** เก็บรูปบิลขึ้น storage — ถ้าเป็น data URL อัปแล้วคืน URL สั้น, ถ้าเป็น URL อยู่แล้วคืนเดิม */
 async function storeReceipt(id: string, receipt?: string): Promise<string | undefined> {
@@ -56,6 +64,14 @@ export async function PATCH(req: NextRequest) {
   // ติ๊ก "ไม่นับเป็นรายได้" — ยอดยกมาจากระบบเก่า เก็บแถวไว้แต่ไม่เข้ายอดสรุป/เอกสารภาษี
   if (body.action === "set_excluded") {
     const res = await setFinanceExcluded(String(body.id), body.excluded === true);
+    if (res.ok) {
+      await logAudit({
+        actor: await actorName(req),
+        action: body.excluded === true ? "exclude_finance" : "include_finance",
+        resourceType: "finance",
+        resourceId: String(body.id),
+      });
+    }
     if (!res.ok) {
       return NextResponse.json(
         { error: res.error, needSql: res.error === "need_sql" },

@@ -5,11 +5,18 @@ import { pushLineMessage, buildPointsAwardFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { logAudit } from "@/lib/audit-log";
 
 /** /api/points เปิดให้แอปลูกค้าเรียกตรงๆ ได้ (ดูแต้ม/แลกรางวัลตัวเอง) — แต่ปรับแต้มมือ (admin_add)
  *  ต้องเป็นพนักงานหลังบ้านเท่านั้น เช็คในนี้เอง เพราะ middleware ปล่อยผ่านทั้ง path */
 async function isAdmin(req: NextRequest) {
   return !!(await verifySession(req.cookies.get(SESSION_COOKIE)?.value));
+}
+
+/** ใครกดปุ่มนี้ — ไว้ลงบันทึกว่าใครแตะแต้มลูกค้า */
+async function actorName(req: NextRequest): Promise<string> {
+  const s = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  return s?.name || s?.role || "ไม่ทราบ";
 }
 
 export async function GET(req: NextRequest) {
@@ -50,6 +57,13 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       return NextResponse.json({ error: res.error }, { status: 404 });
     }
+    await logAudit({
+      actor: await actorName(req),
+      action: "delete_points_history",
+      resourceType: "points",
+      resourceId: entryId,
+      detail: { แต้มคงเหลือหลังลบ: res.points },
+    });
     return NextResponse.json({ ok: true, points: res.points });
   }
 
@@ -122,6 +136,13 @@ export async function POST(req: NextRequest) {
         /* ไม่มี LINE ก็ไม่เป็นไร — แต้มถูกบันทึกแล้ว */
       }
     }
+    await logAudit({
+      actor: await actorName(req),
+      action: amount > 0 ? "add_points" : "reduce_points",
+      resourceType: "points",
+      resourceId: uid,
+      detail: { ลูกค้า: acc.displayName || uid, แต้ม: amount, เหตุผล: reason, คงเหลือ: acc.points },
+    });
     return NextResponse.json({ ok: true, points: acc.points });
   }
 
