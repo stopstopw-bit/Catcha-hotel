@@ -75,7 +75,7 @@ type Booking = {
   groomProgram?: string;
 };
 
-type ItemKind = "grooming" | "room" | "service" | "custom" | "freebie";
+type ItemKind = "grooming" | "room" | "service" | "custom" | "freebie" | "package";
 type Item = {
   kind: ItemKind;
   program: string;
@@ -233,6 +233,7 @@ const KIND_OPTIONS: { id: ItemKind; label: string }[] = [
   { id: "room", label: "🏠 ห้องพัก" },
   { id: "service", label: "✨ บริการเสริม" },
   { id: "freebie", label: "🎁 ของแถม (ฟรี)" },
+  { id: "package", label: "🎫 ขายคอร์ส/เครดิต (ไม่ได้แต้ม)" },
   { id: "custom", label: "✏️ พิมพ์เอง" },
 ];
 
@@ -1261,13 +1262,23 @@ export default function BillingPage() {
                     </select>
                   )}
 
-                  {item.kind === "custom" && (
+                  {(item.kind === "custom" || item.kind === "package") && (
                     <input
                       value={item.label}
                       onChange={(e) => updateItem(i, { label: e.target.value })}
-                      placeholder="พิมพ์ชื่อรายการ"
+                      placeholder={
+                        item.kind === "package"
+                          ? "ชื่อคอร์ส/แพ็กเกจ เช่น Member Package 10,000"
+                          : "พิมพ์ชื่อรายการ"
+                      }
                       className={sub}
                     />
+                  )}
+                  {item.kind === "package" && (
+                    <p className="text-[10px] text-brown-faint">
+                      💡 ยอดนี้ไม่นับเป็นฐานแต้ม — ลูกค้าจะได้แต้มตอนเอาคอร์สมาใช้บริการ
+                      (คอร์สแบบเครดิตได้แต้มตอนเติมอยู่แล้ว)
+                    </p>
                   )}
 
                   {item.kind === "freebie" && (
@@ -1329,7 +1340,7 @@ export default function BillingPage() {
                     <span className="min-w-0 truncate text-[11px] text-brown-faint">
                       {line.label}
                     </span>
-                    {item.kind === "service" || item.kind === "custom" ? (
+                    {item.kind === "service" || item.kind === "custom" || item.kind === "package" ? (
                       <NumField
                         value={item.amount}
                         min={0}
