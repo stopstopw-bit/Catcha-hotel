@@ -16,6 +16,8 @@ const PUBLIC_API = [
   "/api/customers/register",
   "/api/customers/link",
   "/api/customers/self",
+  // แลก ID token เป็นคุกกี้เซสชัน — ต้องเรียกได้ก่อนมีคุกกี้
+  "/api/customers/session",
   "/api/customers/line",
   "/api/customers/cat-photo",
   "/api/bookings/consent",

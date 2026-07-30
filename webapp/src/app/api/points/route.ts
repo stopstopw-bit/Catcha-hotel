@@ -4,6 +4,7 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { pushLineMessage, buildPointsAwardFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 
 /** /api/points เปิดให้แอปลูกค้าเรียกตรงๆ ได้ (ดูแต้ม/แลกรางวัลตัวเอง) — แต่ปรับแต้มมือ (admin_add)
  *  ต้องเป็นพนักงานหลังบ้านเท่านั้น เช็คในนี้เอง เพราะ middleware ปล่อยผ่านทั้ง path */
@@ -12,7 +13,11 @@ async function isAdmin(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId");
+  // ยึดตัวตนจากคุกกี้ที่ตรวจกับ LINE แล้วก่อน — ค่าที่ส่งมาใน query เป็นทางสำรองช่วงเปลี่ยนผ่าน
+  const lineUserId = await resolveCustomerLineId(
+    req,
+    req.nextUrl.searchParams.get("lineUserId")
+  );
   if (!lineUserId) {
     return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
   }
@@ -120,12 +125,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, points: acc.points });
   }
 
-  if (!lineUserId || !rewardId) {
+  // แลกแต้มเป็นการใช้ของมีค่า — ยึดตัวตนจากคุกกี้ก่อน (ค่าที่ส่งมาเป็นทางสำรองช่วงเปลี่ยนผ่าน)
+  const redeemAs = await resolveCustomerLineId(req, lineUserId);
+  if (!redeemAs || !rewardId) {
     return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
 
   const result = await redeemReward(
-    lineUserId,
+    redeemAs,
     rewardId,
     displayName || "",
     body.customerId ? String(body.customerId) : undefined
@@ -141,7 +148,7 @@ export async function POST(req: NextRequest) {
 
   await sendTelegram(
     formatBookingTelegram("🎁 ลูกค้าแลกแต้ม", {
-      ลูกค้า: result.account.displayName || lineUserId,
+      ลูกค้า: result.account.displayName || redeemAs,
       รางวัล: result.reward.reward.th,
       คูปอง: result.couponCode,
       แต้มคงเหลือ: String(result.account.points),

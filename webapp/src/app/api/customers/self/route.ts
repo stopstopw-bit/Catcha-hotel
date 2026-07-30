@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   findCustomerByLine,
   updateCustomer,
@@ -8,7 +9,10 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
 /** ลูกค้าดึงข้อมูลตัวเอง (สำหรับหน้าแก้ไขโปรไฟล์ใน LINE) — ครบทุกฟิลด์ที่กรอกตอนสมัคร */
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId")?.trim();
+  const lineUserId = await resolveCustomerLineId(
+    req,
+    req.nextUrl.searchParams.get("lineUserId")
+  );
   if (!lineUserId) {
     return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
   }
@@ -45,7 +49,7 @@ export async function GET(req: NextRequest) {
 /** ลูกค้าแก้ไขข้อมูลตัวเอง — ผู้ปกครอง + น้องแมว (ยืนยันตัวจาก lineUserId ของ LIFF) */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const lineUserId = String(body.lineUserId || "").trim();
+  const lineUserId = await resolveCustomerLineId(req, body.lineUserId);
   if (!lineUserId) {
     return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
   }

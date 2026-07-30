@@ -152,6 +152,24 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
               liff.default.login();
               return;
             }
+            // แลก ID token เป็นคุกกี้เซสชัน — จากนั้นฝั่งเซิร์ฟเวอร์จะรู้เองว่าเป็นใคร
+            // โดยไม่ต้องเชื่อ lineUserId ที่ส่งไปกับ request
+            //
+            // ล้มเหลวก็ไม่เป็นไร (LINE ล่ม/ยังไม่ได้ตั้ง channel) — ระบบยังทำงานแบบเดิมได้
+            // ระหว่างช่วงเปลี่ยนผ่าน จึงไม่บล็อกการเปิดแอปเพราะเรื่องนี้
+            try {
+              const idToken = liff.default.getIDToken();
+              if (idToken) {
+                await fetch("/api/customers/session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ idToken }),
+                });
+              }
+            } catch {
+              /* ไม่มีคุกกี้ก็ยังใช้งานได้ตามเดิม */
+            }
+
             const p = await liff.default.getProfile();
             await applyAccount({
               lineUserId: p.userId,
