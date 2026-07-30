@@ -779,7 +779,13 @@ export default function BillingPage() {
     if (!selected) return toast("เลือกลูกค้าก่อน", "error");
     if (subtotal <= 0) return toast("ใส่รายการอย่างน้อย 1 อย่าง", "error");
     setCreating(true);
-    const cat = selected.cats[0]?.name || "น้องแมว";
+    // ชื่อน้องของบิล = ตัวที่ติ๊กไว้ในรายการ (ตัวที่มาจริง)
+    // ไม่ใช่แมวตัวแรกของบ้าน — บ้านมี 3 ตัวแต่มา 2 ตัว ต้องไม่มีชื่อตัวที่ไม่ได้มา
+    const billedCatNames = Array.from(
+      new Set(items.flatMap((it) => parseCatNames(it.catName)))
+    );
+    const cat =
+      billedCatNames.join(CAT_SEP) || selected.cats[0]?.name || "น้องแมว";
     // เก็บของแถม (ฟรี) ด้วย — label มี แต่ยอด 0
     const payloadItems = items
       .map((it, i) => ({ ...lines[i], kind: it.kind }))
