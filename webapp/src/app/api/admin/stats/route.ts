@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDashboardStats, bookingsByDateMap } from "@/lib/admin-stats";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const stats = await adminDashboardStats();
+export async function GET(req: NextRequest) {
+  const from = req.nextUrl.searchParams.get("from") || undefined;
+  const to = req.nextUrl.searchParams.get("to") || undefined;
+  const stats = await adminDashboardStats(from && to ? { from, to } : undefined);
   const ym = stats.today.slice(0, 7);
   const calendar = Object.fromEntries(await bookingsByDateMap(ym));
   return NextResponse.json({ stats, calendarMonth: ym, calendar });
