@@ -5,7 +5,7 @@ import Link from "next/link";
 import { toast } from "@/components/Toast";
 import { toJpegDataUrl } from "@/lib/image-convert";
 
-type PackageKind = "uses" | "credit";
+type PackageKind = "uses" | "credit" | "nights";
 
 type Offer = {
   id: string;
@@ -54,6 +54,8 @@ function OfferRow({
   const [desc, setDesc] = useState(o.description || "");
   const [saving, setSaving] = useState(false);
   const isCredit = o.kind === "credit";
+  const isNights = o.kind === "nights";
+  const unitWord = isNights ? "คืน" : "ครั้ง";
 
   const startEdit = () => {
     setName(o.name);
@@ -66,7 +68,7 @@ function OfferRow({
 
   const save = async () => {
     if (!name.trim() || (!isCredit && Math.round(Number(uses) || 0) <= 0)) {
-      toast(isCredit ? "กรอกชื่อแพ็กเกจ" : "กรอกชื่อคอร์สและจำนวนครั้ง", "error");
+      toast(isCredit ? "กรอกชื่อแพ็กเกจ" : `กรอกชื่อคอร์สและจำนวน${unitWord}`, "error");
       return;
     }
     setSaving(true);
@@ -141,7 +143,7 @@ function OfferRow({
                 min={1}
                 value={uses}
                 onChange={(e) => setUses(e.target.value)}
-                placeholder="กี่ครั้ง"
+                placeholder={isNights ? "กี่คืน" : "กี่ครั้ง"}
                 className={field}
               />
               <input
@@ -228,7 +230,7 @@ function OfferRow({
                 ? `💎 จ่าย ${o.price.toLocaleString()} รับเพิ่ม ${o.creditBonus.toLocaleString()} · รวม ${(
                     o.price + o.creditBonus
                   ).toLocaleString()} เครดิต`
-                : `${o.totalUses} ครั้ง · ${o.price.toLocaleString()} ฿`}
+                : `${o.totalUses} ${unitWord} · ${o.price.toLocaleString()} ฿`}
               {o.description ? ` · ${o.description}` : ""}
             </p>
             <p className="text-[10px] text-brown-faint">
@@ -328,7 +330,12 @@ export default function AdminPackagesPage() {
     const n = Math.round(Number(uses) || 0);
     const bonus = Math.round(Number(creditBonus) || 0);
     if (!name.trim() || (kind === "uses" && n <= 0)) {
-      toast(kind === "credit" ? "กรอกชื่อแพ็กเกจ" : "กรอกชื่อคอร์สและจำนวนครั้ง", "error");
+      toast(
+        kind === "credit"
+          ? "กรอกชื่อแพ็กเกจ"
+          : `กรอกชื่อคอร์สและจำนวน${kind === "nights" ? "คืน" : "ครั้ง"}`,
+        "error"
+      );
       return;
     }
     if (kind === "credit" && Math.round(Number(price) || 0) <= 0 && bonus <= 0) {
@@ -451,7 +458,7 @@ export default function AdminPackagesPage() {
                         ? `💎 รับเพิ่ม ${o.creditBonus.toLocaleString()} · รวม ${(
                             o.price + o.creditBonus
                           ).toLocaleString()} เครดิต`
-                        : `${o.totalUses} ครั้ง`}{" "}
+                        : `${o.totalUses} ${o.kind === "nights" ? "คืน" : "ครั้ง"}`}{" "}
                       · {o.createdAt.slice(0, 10)}
                     </p>
                   </div>
@@ -486,7 +493,7 @@ export default function AdminPackagesPage() {
                               ? `ระบบจะเติมเครดิต Member ${(
                                   o.price + o.creditBonus
                                 ).toLocaleString()} บาท ให้ลูกค้าทันที`
-                              : `ระบบจะเพิ่มคอร์ส "${o.name}" (${o.totalUses} ครั้ง) ให้ลูกค้าทันที`)
+                              : `ระบบจะเพิ่มคอร์ส "${o.name}" (${o.totalUses} ${o.kind === "nights" ? "คืน" : "ครั้ง"}) ให้ลูกค้าทันที`)
                         )
                       )
                         return;
@@ -559,12 +566,35 @@ export default function AdminPackagesPage() {
             >
               💎 เครดิต Member
             </button>
+            <button
+              type="button"
+              onClick={() => setKind("nights")}
+              className={`flex-1 rounded-catcha-sm py-2 text-xs font-extrabold ${
+                kind === "nights" ? "bg-latte-deep text-card" : "bg-paper text-brown-soft"
+              }`}
+            >
+              🏠 ซื้อวันเข้าพัก
+            </button>
           </div>
+          {kind === "nights" && (
+            <p className="rounded-catcha-sm bg-honey/15 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
+              ลูกค้าซื้อจำนวนคืนล่วงหน้าในราคาถูกกว่า แล้วหักตามคืนที่เข้าพักจริง
+              <span className="mt-0.5 block font-normal text-brown-soft">
+                คลุมเฉพาะค่าห้อง — ค่าอาบน้ำ/ของเสริมในบิลเดียวกันยังคิดตามปกติ · ไม่มีวันหมดอายุ
+              </span>
+            </p>
+          )}
 
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={kind === "credit" ? "ชื่อแพ็กเกจ เช่น Member Package 10,000" : "ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"}
+            placeholder={
+              kind === "credit"
+                ? "ชื่อแพ็กเกจ เช่น Member Package 10,000"
+                : kind === "nights"
+                  ? "ชื่อคอร์ส เช่น แพ็กรายเดือน 30 คืน (ลด 30%)"
+                  : "ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"
+            }
             className={field}
           />
           {kind === "credit" ? (
@@ -602,7 +632,7 @@ export default function AdminPackagesPage() {
                 min={1}
                 value={uses}
                 onChange={(e) => setUses(e.target.value)}
-                placeholder="กี่ครั้ง"
+                placeholder={kind === "nights" ? "กี่คืน" : "กี่ครั้ง"}
                 className={field}
               />
               <input

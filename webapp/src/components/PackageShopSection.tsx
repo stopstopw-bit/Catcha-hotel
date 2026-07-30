@@ -7,7 +7,7 @@ import { toJpegDataUrl } from "@/lib/image-convert";
 type Offer = {
   id: string;
   name: string;
-  kind: "uses" | "credit";
+  kind: "uses" | "credit" | "nights";
   totalUses: number;
   price: number;
   creditBonus: number;
@@ -18,7 +18,7 @@ type Offer = {
 type Order = {
   id: string;
   name: string;
-  kind: "uses" | "credit";
+  kind: "uses" | "credit" | "nights";
   totalUses: number;
   price: number;
   creditBonus: number;
@@ -80,7 +80,9 @@ export function PackageShopSection() {
     const detail =
       offer.kind === "credit"
         ? `รับเครดิตรวม ${(offer.price + offer.creditBonus).toLocaleString()} บาท (จ่าย ${offer.price.toLocaleString()} รับเพิ่มฟรี ${offer.creditBonus.toLocaleString()})`
-        : `(${offer.totalUses} ครั้ง)`;
+        : offer.kind === "nights"
+          ? `(เข้าพักได้ ${offer.totalUses} คืน)`
+          : `(${offer.totalUses} ครั้ง)`;
     if (
       !confirm(
         `สั่งซื้อ "${offer.name}" ${detail}\n` +
@@ -205,6 +207,17 @@ export function PackageShopSection() {
                         💎 รวมเครดิต {(o.price + o.creditBonus).toLocaleString()} บาท
                         {o.creditBonus > 0 ? ` (รับเพิ่มฟรี ${o.creditBonus.toLocaleString()})` : ""}
                       </span>
+                    ) : o.kind === "nights" ? (
+                      <>
+                        <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
+                          🏠 เข้าพักได้ {o.totalUses} คืน
+                        </span>
+                        {o.totalUses > 0 && (
+                          <span className="text-brown-faint">
+                            ตกคืนละ {Math.round(o.price / o.totalUses).toLocaleString()}฿
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <>
                         <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">

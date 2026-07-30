@@ -12,8 +12,12 @@ import { uploadDataUrlToStorage } from "./supabase/storage";
  * คอร์สจะถูกสร้างตอนร้านกดยืนยันเท่านั้น (ดู confirmPackageOrder)
  */
 
-/** uses = คอร์สนับครั้ง (เดิม) · credit = เติมเครดิต Member (จ่าย price รับเพิ่มฟรี creditBonus) */
-export type PackageOfferKind = "uses" | "credit";
+/**
+ * uses   = คอร์สนับครั้ง (เดิม) — 1 ครั้งคลุมทั้งบิล
+ * credit = เติมเครดิต Member (จ่าย price รับเพิ่มฟรี creditBonus)
+ * nights = ซื้อวันเข้าพักล่วงหน้า — totalUses คือจำนวนคืน หักตามคืนที่พักจริง
+ */
+export type PackageOfferKind = "uses" | "credit" | "nights";
 
 export type PackageOffer = {
   id: string;
@@ -92,7 +96,7 @@ function rowToOffer(r: OfferRow): PackageOffer {
   return {
     id: r.id,
     name: r.name || "",
-    kind: r.kind === "credit" ? "credit" : "uses",
+    kind: r.kind === "credit" || r.kind === "nights" ? r.kind : "uses",
     totalUses: Number(r.total_uses) || 0,
     price: Number(r.price) || 0,
     creditBonus: Number(r.credit_bonus) || 0,
@@ -111,7 +115,7 @@ function rowToOrder(r: OrderRow): PackageOrder {
     lineUserId: r.line_user_id || undefined,
     offerId: r.offer_id || undefined,
     name: r.name || "",
-    kind: r.kind === "credit" ? "credit" : "uses",
+    kind: r.kind === "credit" || r.kind === "nights" ? r.kind : "uses",
     totalUses: Number(r.total_uses) || 0,
     price: Number(r.price) || 0,
     creditBonus: Number(r.credit_bonus) || 0,
@@ -157,7 +161,8 @@ export async function createPackageOffer(data: {
   image?: string;
 }): Promise<PackageOffer | null> {
   const name = data.name.trim();
-  const kind: PackageOfferKind = data.kind === "credit" ? "credit" : "uses";
+  const kind: PackageOfferKind =
+    data.kind === "credit" || data.kind === "nights" ? data.kind : "uses";
   // แบบเครดิตไม่มีจำนวนครั้ง — เก็บ 0 ไว้เฉยๆ กันโค้ดเก่าที่ยังอ่าน totalUses อยู่พัง
   const totalUses = kind === "credit" ? 0 : Math.max(1, Math.round(data.totalUses) || 0);
   const price = Math.max(0, Math.round(data.price) || 0);
@@ -299,7 +304,8 @@ export async function updatePackageOffer(
     if (!name) return { ok: false as const, error: "name_required" };
     patch.name = name;
   }
-  if (data.kind !== undefined) patch.kind = data.kind === "credit" ? "credit" : "uses";
+  if (data.kind !== undefined)
+    patch.kind = data.kind === "credit" || data.kind === "nights" ? data.kind : "uses";
   if (data.totalUses !== undefined) patch.total_uses = Math.max(1, Math.round(data.totalUses) || 0);
   if (data.price !== undefined) patch.price = Math.max(0, Math.round(data.price) || 0);
   if (data.creditBonus !== undefined)
@@ -566,6 +572,8 @@ export async function confirmPackageOrder(
     name: order.name,
     totalUses: order.totalUses,
     price: order.price,
+    // ซื้อวันเข้าพัก = หน่วยเป็นคืน หักตามจำนวนคืนที่พักจริงตอนคิดเงิน
+    unit: order.kind === "nights" ? "night" : "use",
     isLegacy: opts?.isLegacy,
   });
 
