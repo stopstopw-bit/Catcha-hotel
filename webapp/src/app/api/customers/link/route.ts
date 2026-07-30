@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   getCustomerLinkPreview,
   linkCustomerToLine,
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const customerId = String(body.customerId || "").trim();
-  const lineUserId = String(body.lineUserId || "").trim();
+  const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   const displayName = String(body.displayName || "").trim();
 
   if (!customerId || !lineUserId) {

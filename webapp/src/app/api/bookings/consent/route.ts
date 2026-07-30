@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import { acceptBookingConsent, getBooking } from "@/lib/bookings-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -6,7 +7,7 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const bookingId = String(body.bookingId || "").trim();
-  const lineUserId = String(body.lineUserId || "").trim();
+  const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   const careNote = String(body.careNote || "").trim();
   const signature = String(body.signature || "").trim();
   if (!bookingId) {

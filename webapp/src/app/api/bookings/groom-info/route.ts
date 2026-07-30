@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import { getBooking } from "@/lib/bookings-store";
 import { getCatGroomInfo, setCatGroomInfo } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
@@ -36,7 +37,8 @@ export async function POST(req: NextRequest) {
   // ต้องส่ง lineUserId มาเอง ห้ามเดาจาก booking ให้ — เดิมถ้าไม่ส่งมาจะหยิบ b.lineUserId
   // ของเจ้าของนัดจริงมาใช้แทนเงียบๆ เท่ากับใครก็เขียนประวัติแมวคนอื่นได้แค่รู้ bookingId
   // (ไม่ต้องรู้ lineUserId ของเจ้าของเลยด้วยซ้ำ) ตอนนี้ต้องส่งมาตรงกับของนัดเป๊ะเท่านั้น
-  const bodyLineUserId = String(body.lineUserId || "").trim();
+  // ยึดตัวตนจากคุกกี้ก่อน (ค่าที่ส่งมาเป็นทางสำรองช่วงเปลี่ยนผ่าน)
+  const bodyLineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   if (b.lineUserId && b.lineUserId !== bodyLineUserId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

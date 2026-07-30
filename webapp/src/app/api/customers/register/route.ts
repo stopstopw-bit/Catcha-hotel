@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   registerCustomerFromLine,
   findCustomerByReferralCode,
@@ -22,7 +23,7 @@ type CatBody = {
 /** ลูกค้ากรอกฟอร์มลงทะเบียน (ผู้ปกครอง + น้องแมว + ยินยอมรับข่าวสาร) */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const lineUserId = String(body.lineUserId || "").trim();
+  const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   const name = String(body.name || "").trim();
   const phone = String(body.phone || "").trim();
   const email = String(body.email || "").trim();

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   createCalendarEvent,
   updateCalendarEventConfirmed,
@@ -112,9 +113,15 @@ async function resolveGroupBooking(b: StoredBooking, ids: unknown): Promise<Stor
 }
 
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId") || undefined;
+  const staff = await isAdmin(req);
+  // ยึดตัวตนจากคุกกี้ที่ตรวจกับ LINE แล้ว — แต่เฉพาะฝั่งลูกค้า
+  // (พนักงานที่เป็นลูกค้าด้วยอาจมีคุกกี้ค้างอยู่ ถ้าเอามาใช้จะเห็นแค่นัดตัวเองแทนทั้งร้าน)
+  const claimed = req.nextUrl.searchParams.get("lineUserId");
+  const lineUserId = staff
+    ? claimed || undefined
+    : (await resolveCustomerLineId(req, claimed)) || undefined;
   // ไม่ได้ล็อกอิน = แอปลูกค้า → ดูได้เฉพาะนัดของตัวเอง ห้ามดึงทั้งร้าน
-  if (!lineUserId && !(await isAdmin(req))) {
+  if (!lineUserId && !staff) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const allCustomers = lineUserId ? [] : await listCustomers();

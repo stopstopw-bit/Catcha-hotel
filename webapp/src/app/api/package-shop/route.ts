@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   listPackageOffers,
   createPackageOffer,
@@ -32,8 +33,13 @@ async function isAdmin(req: NextRequest) {
  *       หลังบ้าน: ไม่ต้องส่ง lineUserId ได้ทุกออร์เดอร์ + รายการขายทั้งหมด (รวมที่ปิดอยู่)
  */
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId")?.trim();
   const admin = await isAdmin(req);
+  // พนักงานที่เป็นลูกค้าด้วย อาจมีคุกกี้ลูกค้าค้างในเบราว์เซอร์เดียวกัน — ตอนเปิดหลังบ้าน
+  // ต้องไม่เอาคุกกี้นั้นมาใช้ ไม่งั้นจะเห็นแค่ออร์เดอร์ตัวเองแทนทั้งร้าน
+  const claimed = req.nextUrl.searchParams.get("lineUserId");
+  const lineUserId = admin
+    ? (claimed || "").trim()
+    : (await resolveCustomerLineId(req, claimed)) || "";
 
   if (!lineUserId && !admin) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

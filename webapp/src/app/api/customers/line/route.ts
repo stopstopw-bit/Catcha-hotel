@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   findCustomerByLine,
   upsertCustomerFromLine,
@@ -18,7 +19,7 @@ function catsForCustomer(cats: CatRecord[]) {
 /** ลูกค้าเปิดแอปจาก LINE → สร้าง/ผูกบัญชีอัตโนมัติ */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const lineUserId = String(body.lineUserId || "").trim();
+  const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   const displayName = String(body.displayName || "").trim();
 
   if (!lineUserId) {
@@ -55,7 +56,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId")?.trim();
+  const lineUserId = (await resolveCustomerLineId(
+    req,
+    req.nextUrl.searchParams.get("lineUserId")
+  )) || "";
   if (!lineUserId) {
     return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
   }

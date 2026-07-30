@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import { getBooking, listBookings, setBookingTime } from "@/lib/bookings-store";
 import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   const bookingId = String(body.bookingId || "").trim();
   const type = body.type === "checkout" ? "checkout" : "checkin";
   const time = String(body.time || "").trim();
-  const lineUserId = String(body.lineUserId || "").trim();
+  const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   if (!bookingId || !time) {
     return NextResponse.json({ error: "bookingId + time required" }, { status: 400 });
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerLineId } from "@/lib/customer-session";
 import { findCustomerByLine, updateCat } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /** GET ?lineUserId= — แมวของลูกค้า (พร้อมรูป) สำหรับหน้าโปรไฟล์ในแอป */
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId") || "";
+  const lineUserId = (await resolveCustomerLineId(req, req.nextUrl.searchParams.get("lineUserId"))) || "";
   if (!lineUserId) return NextResponse.json({ cats: [] });
   const customer = await findCustomerByLine(lineUserId);
   if (!customer) return NextResponse.json({ cats: [] });
