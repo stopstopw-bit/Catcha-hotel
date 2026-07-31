@@ -84,6 +84,8 @@ export type MessagesConfig = {
   depositTerms: string[];
   /** อวยพรวันเกิดแมวอัตโนมัติ — {shop} {name} {cat} */
   birthdayGreeting: string;
+  /** วันเกิดเจ้าของ — คนละข้อความกับวันเกิดน้องแมว */
+  birthdayGreetingOwner: string;
 };
 
 /** ตั้งค่าระบบส่งอัตโนมัติ — เปิด/ปิด + กี่วันก่อน (แก้ได้ในหน้าตั้งค่า > อัตโนมัติ) */
