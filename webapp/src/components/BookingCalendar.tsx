@@ -211,6 +211,10 @@ export function BookingCalendar() {
     }[]
   >([]);
   const [groomSlots, setGroomSlots] = useState<string[]>(["09:30", "12:30", "15:30"]);
+  /** วันที่ร้านปิด — ประจำสัปดาห์ (จากตั้งค่า) และเฉพาะวัน (กดจากตารางนี้ได้เลย) */
+  const [closedWeekdays, setClosedWeekdays] = useState<number[]>([]);
+  const [closedDates, setClosedDates] = useState<{ date: string; note?: string }[]>([]);
+  const [togglingClosed, setTogglingClosed] = useState(false);
   /** การ์ดที่รอยืนยันก่อนส่งจริง พร้อมงานที่จะทำต่อเมื่อกดยืนยัน */
   const [stagePreview, setStagePreview] = useState<{
     messages: Record<string, unknown>[];
@@ -253,11 +257,52 @@ export function BookingCalendar() {
       .then((d) => {
         if (d.config?.rooms) setRooms(d.config.rooms);
         if (d.config?.groomSlots) setGroomSlots(d.config.groomSlots);
+        setClosedWeekdays(d.config?.closedWeekdays || []);
+        setClosedDates(d.config?.closedDates || []);
       });
   }, []);
 
   const today = new Date().toISOString().slice(0, 10);
   const activeDate = selectedDate || today;
+
+  /** วันนั้นร้านปิดไหม — ใช้ทั้งช่องปฏิทินและแถบวันที่ด้านล่าง */
+  const isClosedOn = useCallback(
+    (dateISO: string) =>
+      closedWeekdays.includes(new Date(`${dateISO}T00:00:00`).getDay()) ||
+      closedDates.some((c) => c.date === dateISO),
+    [closedWeekdays, closedDates]
+  );
+  const closedByWeekday = closedWeekdays.includes(
+    new Date(`${activeDate}T00:00:00`).getDay()
+  );
+  const closedByDate = closedDates.some((c) => c.date === activeDate);
+  const dayIsClosed = closedByWeekday || closedByDate;
+
+  /** ปิด/เปิดรับคิววันที่กำลังดูอยู่ — แก้เฉพาะวัน ไม่แตะวันหยุดประจำสัปดาห์
+   * (วันหยุดประจำต้องไปแก้ที่ตั้งค่า ไม่งั้นกดทีเดียวเปลี่ยนทั้งปีโดยไม่ตั้งใจ) */
+  const toggleDayClosed = async () => {
+    if (closedByWeekday) return;
+    setTogglingClosed(true);
+    const next = closedByDate
+      ? closedDates.filter((c) => c.date !== activeDate)
+      : [...closedDates, { date: activeDate, note: "ปิดจากตารางนัด" }];
+    try {
+      const res = await fetch("/api/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: { closedDates: next } }),
+      });
+      if (res.ok) {
+        setClosedDates(next);
+        toast(closedByDate ? "เปิดรับคิววันนี้แล้ว ✔️" : "ปิดรับคิววันนี้แล้ว 🚫", "success");
+      } else {
+        toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง", "error");
+      }
+    } catch {
+      toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง", "error");
+    }
+    setTogglingClosed(false);
+  };
   const [viewMonth, setViewMonth] = useState(() => today.slice(0, 7));
   /** มุมมองตาราง — เดือนดูภาพรวม, สัปดาห์วางแผน, วันทำงานหน้าร้าน, ห้องดูที่ว่าง */
   const [view, setView] = useState<"month" | "week" | "day" | "rooms">("week");
@@ -533,6 +578,7 @@ export function BookingCalendar() {
               const d = new Date(`${key}T12:00:00`);
               const isToday = key === today;
               const isSelected = key === activeDate;
+              const keyClosed = isClosedOn(key);
               return (
                 <div
                   key={key}
@@ -541,7 +587,9 @@ export function BookingCalendar() {
                       ? "bg-latte/25 ring-2 ring-latte-deep"
                       : isToday
                         ? "bg-honey/25 ring-1 ring-honey-deep"
-                        : "bg-paper/50"
+                        : keyClosed
+                          ? "bg-wait/10"
+                          : "bg-paper/50"
                   }`}
                 >
                   <button
@@ -559,6 +607,9 @@ export function BookingCalendar() {
                       <span className="text-[9px] font-bold text-brown-faint">
                         · {items.length}
                       </span>
+                    )}
+                    {keyClosed && (
+                      <span className="text-[9px] font-bold text-wait">🚫 ปิด</span>
                     )}
                   </button>
                   <div className="space-y-1">
@@ -810,6 +861,7 @@ export function BookingCalendar() {
             const appts = dayItems.length - stays;
             const isToday = key === today;
             const isSelected = key === activeDate;
+            const keyClosed = isClosedOn(key);
             return (
               <button
                 key={key}
@@ -820,12 +872,19 @@ export function BookingCalendar() {
                     ? "bg-latte/40 text-catcha-chocolate ring-2 ring-latte-deep"
                     : isToday
                       ? "bg-honey/40 text-catcha-chocolate ring-1 ring-honey-deep"
-                      : stays > 0
-                        ? "bg-sage/25 text-brown hover:bg-sage/35"
-                        : "bg-paper/60 text-brown hover:bg-paper"
+                      : keyClosed
+                        ? "bg-wait/10 text-brown-faint hover:bg-wait/15"
+                        : stays > 0
+                          ? "bg-sage/25 text-brown hover:bg-sage/35"
+                          : "bg-paper/60 text-brown hover:bg-paper"
                 }`}
               >
                 <span className="text-base font-extrabold leading-none">{day}</span>
+                {keyClosed && (
+                  <span className="rounded-full bg-wait px-1.5 py-0.5 text-[9px] font-bold leading-none text-white">
+                    🚫 ปิด
+                  </span>
+                )}
                 {stays > 0 && (
                   <span className="rounded-full bg-ok px-1.5 py-0.5 text-[9px] font-bold leading-none text-white">
                     🏠 พัก{stays > 1 ? ` ${stays}` : ""}
@@ -863,13 +922,42 @@ export function BookingCalendar() {
                   (activeDate === today ? " (วันนี้)" : "");
               })()}
             </p>
+            {dayIsClosed && (
+              <p className="mt-0.5 text-[10px] font-bold text-wait">
+                🚫 วันนี้ร้านปิด
+                {closedByWeekday
+                  ? " (วันหยุดประจำสัปดาห์)"
+                  : closedDates.find((c) => c.date === activeDate)?.note
+                    ? ` — ${closedDates.find((c) => c.date === activeDate)?.note}`
+                    : ""}
+              </p>
+            )}
           </div>
-          <Link
-            href={`/admin/bookings/new?date=${activeDate}`}
-            className="rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep px-4 py-2.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
-          >
-            ➕ จองคิววันนี้
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={togglingClosed || closedByWeekday}
+              onClick={toggleDayClosed}
+              title={
+                closedByWeekday
+                  ? "ปิดเพราะเป็นวันหยุดประจำสัปดาห์ — แก้ได้ที่ ตั้งค่า"
+                  : undefined
+              }
+              className={`rounded-catcha-sm px-3 py-2.5 text-xs font-extrabold shadow-catcha-sm transition disabled:opacity-60 ${
+                dayIsClosed
+                  ? "border border-wait bg-wait/10 text-wait"
+                  : "border border-catcha-line bg-card text-brown-soft"
+              }`}
+            >
+              {togglingClosed ? "…" : dayIsClosed ? "🚫 ปิดรับคิวอยู่" : "✅ เปิดรับคิว"}
+            </button>
+            <Link
+              href={`/admin/bookings/new?date=${activeDate}`}
+              className="rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep px-4 py-2.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
+            >
+              ➕ จองคิววันนี้
+            </Link>
+          </div>
         </div>
         {/* กรองตามสถานะ พร้อมตัวเลข — กวาดงานค้างได้เร็วโดยไม่ต้องไล่อ่านทีละใบ */}
         {dayBookings.length > 0 && (

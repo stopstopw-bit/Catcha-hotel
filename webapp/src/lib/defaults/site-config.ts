@@ -70,6 +70,8 @@ export function getDefaultSiteConfig(): SiteConfig {
       roomInventory: { ...ROOM_INVENTORY },
       rooms: ROOMS,
       groomSlots: [...GROOM_SLOTS],
+      closedWeekdays: [],
+      closedDates: [],
       transport: {
         th: [...TRANSPORT.th],
         en: [...TRANSPORT.en],

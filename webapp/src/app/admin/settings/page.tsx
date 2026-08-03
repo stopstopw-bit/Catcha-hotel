@@ -672,6 +672,12 @@ function GroomingTab({
     advance?: { poster?: string };
   };
   const [slots, setSlots] = useState(config.groomSlots.join(", "));
+  const [closedWeekdays, setClosedWeekdays] = useState<number[]>(
+    config.closedWeekdays ?? []
+  );
+  const [closedDates, setClosedDates] = useState<{ date: string; note?: string }[]>(
+    config.closedDates ?? []
+  );
   const [bathPoster, setBathPoster] = useState(menus.bath?.poster || "");
   const [advancePoster, setAdvancePoster] = useState(menus.advance?.poster || "");
   const [transportTh, setTransportTh] = useState(config.transport.th.join("\n"));
@@ -694,6 +700,9 @@ function GroomingTab({
     if (m.advance) m.advance.poster = advancePoster;
     onSave({
       groomSlots: slots.split(",").map((s) => s.trim()).filter(Boolean),
+      closedWeekdays,
+      // ทิ้งแถวที่ยังไม่ได้เลือกวัน — แถวว่างจะไปโผล่เป็น "ปิด" ในตารางนัดไม่ได้
+      closedDates: closedDates.filter((d) => d.date.trim()),
       transport: {
         th: transportTh.split("\n").filter(Boolean),
         en: transportEn.split("\n").filter(Boolean),
@@ -705,6 +714,80 @@ function GroomingTab({
   return (
     <div className="space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm">
       <Field label="รอบเวลาแนะนำ (คั่นด้วย ,)" value={slots} onChange={setSlots} />
+
+      <div>
+        <p className="mb-1 text-xs font-extrabold text-catcha-chocolate">🚫 วันที่ร้านปิด</p>
+        <p className="mb-2 text-[10px] text-brown-faint">
+          วันปิดจะขึ้นในตารางนัดให้เห็นก่อนลงนัด — น้องที่เข้าพักอยู่แล้วไม่กระทบ
+          (ปิดเฉพาะวันกดจากตารางนัดได้เลย ไม่ต้องเข้ามาหน้านี้)
+        </p>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((label, idx) => {
+            const active = closedWeekdays.includes(idx);
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() =>
+                  setClosedWeekdays(
+                    active
+                      ? closedWeekdays.filter((d) => d !== idx)
+                      : [...closedWeekdays, idx]
+                  )
+                }
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                  active
+                    ? "border-wait bg-wait/15 text-wait"
+                    : "border-catcha-line bg-paper text-brown-soft"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-2">
+          {closedDates.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="date"
+                value={row.date}
+                onChange={(e) => {
+                  const next = [...closedDates];
+                  next[i] = { ...next[i], date: e.target.value };
+                  setClosedDates(next);
+                }}
+                className="rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="หมายเหตุ เช่น ปิดปีใหม่"
+                value={row.note || ""}
+                onChange={(e) => {
+                  const next = [...closedDates];
+                  next[i] = { ...next[i], note: e.target.value };
+                  setClosedDates(next);
+                }}
+                className="flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setClosedDates(closedDates.filter((_, k) => k !== i))}
+                className="shrink-0 px-2 text-wait"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setClosedDates([...closedDates, { date: "", note: "" }])}
+            className="w-full rounded-catcha-sm border border-dashed border-catcha-line py-2 text-xs font-bold text-latte-deep"
+          >
+            + เพิ่มวันหยุด
+          </button>
+        </div>
+      </div>
 
       <PosterField
         label="รูปเมนูอาบน้ำ"

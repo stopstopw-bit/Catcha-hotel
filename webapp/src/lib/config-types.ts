@@ -201,6 +201,10 @@ export type SiteConfig = {
   };
   rooms: RoomType[];
   groomSlots: string[];
+  /** วันหยุดประจำสัปดาห์ (0=อาทิตย์ … 6=เสาร์) */
+  closedWeekdays?: number[];
+  /** วันหยุดเฉพาะวัน (ปีใหม่, ปิดพักร้อน ฯลฯ) — กดปิด/เปิดได้จากตารางนัดโดยตรง */
+  closedDates?: { date: string; note?: string }[];
   transport: LocalizedLines;
   pointsRewards: PointsRewardConfig[];
   grooming: GroomingConfig;
