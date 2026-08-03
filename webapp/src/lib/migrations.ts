@@ -51,6 +51,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "customer_packages", column: "unit", feature: "คอร์สแบบนับคืน" },
   { table: "audit_logs", column: "action", feature: "ประวัติการใช้งาน" },
   { table: "broadcast_images", column: "content_type", feature: "รูปโปร (ทางสำรอง)" },
+  { table: "birthday_greetings", column: "status", feature: "คิววันเกิดรอตรวจ" },
 ];
 
 export type SchemaCheckRow = {
@@ -321,6 +322,27 @@ where staff_note like '%🎁%';`,
         created_at timestamptz not null default now()
       );
       create index if not exists audit_logs_created_idx on audit_logs (created_at desc);
+    `,
+  },
+  {
+    // คิววันเกิดรอตรวจก่อนส่ง — cron คัดกรองแล้วจอดที่นี่ ไม่ยิง LINE เอง
+    // ต้องมีคนกดอนุมัติที่ /admin/birthdays ก่อน ถึงจะส่งจริง+แจกคูปอง
+    name: "birthday_greetings.table",
+    sql: `
+      create table if not exists birthday_greetings (
+        id text primary key,
+        customer_id text not null,
+        customer_name text not null default '',
+        kind text not null default 'cat',
+        cat_name text,
+        for_date text not null,
+        status text not null default 'pending',
+        created_at timestamptz not null default now(),
+        sent_at timestamptz
+      );
+      create index if not exists birthday_greetings_status_idx on birthday_greetings (status);
+      create unique index if not exists birthday_greetings_dedup_idx
+        on birthday_greetings (customer_id, for_date);
     `,
   },
   {
