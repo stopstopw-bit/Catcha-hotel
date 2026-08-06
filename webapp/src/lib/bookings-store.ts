@@ -16,6 +16,10 @@ export type StoredBooking = Booking & {
   careNote?: string;
   /** ลายเซ็นลูกค้าตอนกดยอมรับข้อตกลง (data URL รูป PNG) — หลักฐานยืนยันตัวตน */
   consentSignature?: string;
+  /** ภาพสมุดวัคซีนที่แนบตอนยอมรับข้อตกลง (ไม่บังคับ) */
+  vaccinePhotoUrl?: string;
+  /** ลูกค้าติ๊กยืนยันว่าหยดยาเห็บหมัดมาแล้วในช่วงเข้าพักนี้ — ไว้เป็นหลักฐานถ้าพบเห็บหมัดตอนอยู่ร้าน */
+  fleaTickTreated?: boolean;
   /** เวลาที่ลูกค้าเลือกจะมาส่งน้อง (เช็คอิน) */
   arrivalTime?: string;
   /** เวลาที่ลูกค้าเลือกจะมารับน้อง (เช็คเอาท์) */
@@ -52,6 +56,8 @@ type BookingRow = {
   consent_accepted_at?: string | null;
   care_note?: string | null;
   consent_signature?: string | null;
+  vaccine_photo_url?: string | null;
+  flea_tick_treated?: boolean | null;
   arrival_time?: string | null;
   pickup_time?: string | null;
   groom_health_info?: string | null;
@@ -95,6 +101,8 @@ function rowToStored(r: BookingRow): StoredBooking {
     consentAcceptedAt: r.consent_accepted_at || undefined,
     careNote: r.care_note || undefined,
     consentSignature: r.consent_signature || undefined,
+    vaccinePhotoUrl: r.vaccine_photo_url || undefined,
+    fleaTickTreated: r.flea_tick_treated || undefined,
     arrivalTime: r.arrival_time || undefined,
     pickupTime: r.pickup_time || undefined,
     groomHealthInfo: r.groom_health_info || undefined,
@@ -222,7 +230,9 @@ export async function acceptBookingConsent(
   id: string,
   lineUserId: string,
   careNote?: string,
-  signature?: string
+  signature?: string,
+  vaccinePhoto?: string,
+  fleaTickTreated?: boolean
 ) {
   const b = await getBooking(id);
   if (!b) return { ok: false as const, error: "not_found" };
@@ -237,6 +247,11 @@ export async function acceptBookingConsent(
   if (sig.startsWith("data:")) {
     sig = await uploadDataUrlToStorage(`consent-signatures/${id}-${Date.now()}`, sig);
   }
+  let vaccineUrl = (vaccinePhoto || "").trim();
+  if (vaccineUrl.startsWith("data:")) {
+    vaccineUrl = await uploadDataUrlToStorage(`consent-vaccine/${id}-${Date.now()}`, vaccineUrl);
+  }
+  const treated = Boolean(fleaTickTreated);
   const sb = getSupabase();
   if (sb) {
     try {
@@ -246,6 +261,8 @@ export async function acceptBookingConsent(
           consent_accepted_at: now,
           care_note: note || null,
           consent_signature: sig || null,
+          vaccine_photo_url: vaccineUrl || null,
+          flea_tick_treated: treated,
         })
         .eq("id", id);
       if (error) {
@@ -260,6 +277,8 @@ export async function acceptBookingConsent(
       mem[idx].consentAcceptedAt = now;
       mem[idx].careNote = note || undefined;
       mem[idx].consentSignature = sig || undefined;
+      mem[idx].vaccinePhotoUrl = vaccineUrl || undefined;
+      mem[idx].fleaTickTreated = treated;
     }
   }
   return { ok: true as const, acceptedAt: now };
