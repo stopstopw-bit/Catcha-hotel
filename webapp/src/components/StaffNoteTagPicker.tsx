@@ -102,7 +102,7 @@ export function StaffNoteTagPicker({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
           <div className="flex h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-catcha bg-card shadow-catcha sm:h-[80vh] sm:rounded-catcha">
             <div className="shrink-0 border-b border-catcha-line px-4 pb-3 pt-4">
               <div className="flex items-start justify-between gap-2">
