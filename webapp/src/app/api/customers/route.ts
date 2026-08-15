@@ -147,8 +147,21 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "add_cat") {
     try {
+      const gender = body.gender === "male" || body.gender === "female" ? body.gender : undefined;
+      const furLength = body.furLength === "short" || body.furLength === "long" ? body.furLength : undefined;
+      const ageValue = body.ageValue !== undefined && body.ageValue !== null && body.ageValue !== ""
+        ? Number(body.ageValue)
+        : undefined;
       const c = await addCat(id, {
         name: String(body.name || ""),
+        gender,
+        breed: body.breed ? String(body.breed) : undefined,
+        furLength,
+        color: body.color ? String(body.color) : undefined,
+        ageValue: ageValue !== undefined && !isNaN(ageValue) ? ageValue : undefined,
+        ageUnit: body.ageUnit === "month" ? "month" : "year",
+        birthday: body.birthday ? String(body.birthday) : undefined,
+        medical: body.medical ? String(body.medical) : undefined,
         staffNote: body.staffNote ? String(body.staffNote) : undefined,
       });
       if (!c) {

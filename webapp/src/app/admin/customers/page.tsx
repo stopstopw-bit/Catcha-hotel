@@ -8,7 +8,6 @@ import type { CustomerTier } from "@/lib/customer-tier";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { CatMediaGallery } from "@/components/CatMediaGallery";
 import { TIER_LABELS, tierBadgeClass } from "@/lib/customer-tier";
-import { catCurrentAgeLabel } from "@/lib/cat-age";
 import { RegistrationQrSection } from "@/components/LineSetupSection";
 import { AddCustomerModal } from "@/components/AddCustomerModal";
 import { toast } from "@/components/Toast";
@@ -19,6 +18,9 @@ import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import type { Booking } from "@/lib/business";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { BookingEditModal, type EditableBooking } from "@/components/BookingEditModal";
+import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
+import { BirthdayPicker } from "@/components/BirthdayPicker";
+import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 
 type Summary = {
   customer: CustomerRecord;
@@ -1959,9 +1961,21 @@ function MergeCustomerControl({
   );
 }
 
+type AddCatGender = "male" | "female" | "";
+type AddCatFurLength = "" | "short" | "long";
+
 function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [gender, setGender] = useState<AddCatGender>("");
+  const [breed, setBreed] = useState("");
+  const [breedOther, setBreedOther] = useState("");
+  const [furLength, setFurLength] = useState<AddCatFurLength>("");
+  const [color, setColor] = useState("");
+  const [ageValue, setAgeValue] = useState("");
+  const [ageUnit, setAgeUnit] = useState<"year" | "month">("year");
+  const [birthday, setBirthday] = useState("");
+  const [medical, setMedical] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1969,6 +1983,15 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
   const close = () => {
     setOpen(false);
     setName("");
+    setGender("");
+    setBreed("");
+    setBreedOther("");
+    setFurLength("");
+    setColor("");
+    setAgeValue("");
+    setAgeUnit("year");
+    setBirthday("");
+    setMedical("");
     setNote("");
     setError("");
   };
@@ -1985,6 +2008,14 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
         id: customerId,
         action: "add_cat",
         name: name.trim(),
+        gender: gender || undefined,
+        breed: (breed === OTHER_BREED ? breedOther.trim() : breed) || undefined,
+        furLength: furLength || undefined,
+        color: color.trim() || undefined,
+        ageValue: ageValue ? Number(ageValue) : undefined,
+        ageUnit,
+        birthday: birthday || undefined,
+        medical: medical.trim() || undefined,
         staffNote: note.trim() || undefined,
       }),
     });
@@ -1998,6 +2029,13 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
     }
   };
 
+  const toggleBtn = (active: boolean) =>
+    `flex-1 rounded-lg border py-2 text-xs font-bold ${
+      active
+        ? "border-honey-deep bg-honey/20 text-catcha-chocolate"
+        : "border-catcha-line bg-paper text-brown-soft"
+    }`;
+
   return (
     <>
       <button
@@ -2009,8 +2047,8 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-          <div className="w-full max-w-md rounded-catcha bg-card p-5 shadow-catcha">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-catcha bg-card p-5 shadow-catcha sm:rounded-catcha">
             <h2 className="mb-3 text-sm font-extrabold text-catcha-chocolate">➕ เพิ่มน้องแมว</h2>
             <form onSubmit={submit} className="space-y-3">
               <label className="block text-xs font-bold text-brown-soft">
@@ -2024,16 +2062,90 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
                   className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm font-bold"
                 />
               </label>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setGender("male")} className={toggleBtn(gender === "male")}>
+                  ♂ ผู้
+                </button>
+                <button type="button" onClick={() => setGender("female")} className={toggleBtn(gender === "female")}>
+                  ♀ เมีย
+                </button>
+              </div>
+
               <label className="block text-xs font-bold text-brown-soft">
-                โน้ตนิสัย (ถ้ามี)
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="เช่น แมวดุ อาบยาก กลัวเสียง"
-                  rows={3}
-                  className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-xs"
-                />
+                พันธุ์
+                <select
+                  value={breed}
+                  onChange={(e) => setBreed(e.target.value)}
+                  className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+                >
+                  <option value="">เลือกสายพันธุ์…</option>
+                  {BREED_OPTIONS.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
               </label>
+              {breed === OTHER_BREED && (
+                <input
+                  value={breedOther}
+                  onChange={(e) => setBreedOther(e.target.value)}
+                  placeholder="ระบุสายพันธุ์"
+                  className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+                />
+              )}
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setFurLength("short")} className={toggleBtn(furLength === "short")}>
+                  ✂️ ขนสั้น
+                </button>
+                <button type="button" onClick={() => setFurLength("long")} className={toggleBtn(furLength === "long")}>
+                  🧵 ขนยาว
+                </button>
+              </div>
+
+              <input
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                placeholder="สี/ลักษณะเด่น (ไม่บังคับ)"
+                className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+              />
+
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                  value={ageValue}
+                  onChange={(e) => setAgeValue(e.target.value)}
+                  placeholder="อายุ"
+                  className="min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+                />
+                <select
+                  value={ageUnit}
+                  onChange={(e) => setAgeUnit(e.target.value as "year" | "month")}
+                  className="w-24 shrink-0 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+                >
+                  <option value="year">ปี</option>
+                  <option value="month">เดือน</option>
+                </select>
+              </div>
+
+              <label className="block text-[10px] font-bold text-brown-soft">
+                วันเกิดน้อง <span className="font-normal text-brown-faint">(ถ้าทราบ)</span>
+                <BirthdayPicker value={birthday} onChange={setBirthday} yearsBack={25} />
+              </label>
+
+              <StaffNoteTagPicker
+                medicalValue={medical}
+                noteValue={note}
+                onChange={(m, n) => {
+                  setMedical(m);
+                  setNote(n);
+                }}
+              />
+
               {error && <p className="text-xs font-bold text-wait">{error}</p>}
               <div className="flex gap-2 pt-1">
                 <button
@@ -2164,7 +2276,19 @@ export default function CustomersPage() {
 
   const saveCat = async (
     catId: string,
-    patch: { name?: string; staffNote?: string; photoDataUrl?: string }
+    patch: {
+      name?: string;
+      staffNote?: string;
+      photoDataUrl?: string;
+      gender?: "male" | "female";
+      breed?: string;
+      furLength?: "short" | "long";
+      color?: string;
+      ageValue?: number;
+      ageUnit?: "year" | "month";
+      birthday?: string;
+      medical?: string;
+    }
   ) => {
     if (!selected) return;
     const res = await fetch("/api/customers", {
@@ -2314,42 +2438,129 @@ export default function CustomersPage() {
                       className="w-full rounded-catcha-sm border-2 border-catcha-line bg-paper px-2.5 py-2 text-sm font-bold text-brown outline-none transition focus:border-latte-deep focus:bg-card"
                     />
                   </label>
-                  {(() => {
-                    const ageLabel = catCurrentAgeLabel(cat);
-                    const meta = [
-                      cat.gender === "male"
-                        ? "♂ ผู้"
-                        : cat.gender === "female"
-                          ? "♀ เมีย"
-                          : "",
-                      cat.breed,
-                      ageLabel !== "—" ? `อายุ ${ageLabel}` : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ");
-                    if (!meta && !cat.birthday && !cat.medical) return null;
-                    return (
-                      <div className="mt-2 space-y-1 rounded-catcha-sm bg-paper/60 px-2 py-1.5 text-[10px] text-brown-soft">
-                        {meta && <p>{meta}</p>}
-                        {cat.birthday && <p>🎂 วันเกิด {cat.birthday}</p>}
-                        {cat.medical && (
-                          <p className="font-bold text-wait">
-                            🩺 โรคประจำตัว: {cat.medical}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => saveCat(cat.id, { gender: "male" })}
+                      className={`flex-1 rounded-lg border py-1.5 text-[11px] font-bold ${
+                        cat.gender === "male"
+                          ? "border-honey-deep bg-honey/20 text-catcha-chocolate"
+                          : "border-catcha-line bg-paper text-brown-soft"
+                      }`}
+                    >
+                      ♂ ผู้
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveCat(cat.id, { gender: "female" })}
+                      className={`flex-1 rounded-lg border py-1.5 text-[11px] font-bold ${
+                        cat.gender === "female"
+                          ? "border-honey-deep bg-honey/20 text-catcha-chocolate"
+                          : "border-catcha-line bg-paper text-brown-soft"
+                      }`}
+                    >
+                      ♀ เมีย
+                    </button>
+                  </div>
                   <label className="mt-2 block text-[10px] font-bold text-brown-soft">
-                    โน้ตนิสัย (เฉพาะตัวนี้)
-                    <textarea
-                      defaultValue={cat.staffNote}
-                      placeholder="เช่น แมวดุ อาบยาก ชอบให้ใส่ตะกร้า"
+                    พันธุ์
+                    <input
+                      defaultValue={cat.breed}
+                      placeholder="เช่น เปอร์เซีย"
                       className="mt-0.5 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
-                      rows={2}
-                      onBlur={(e) => saveCatNote(cat.id, e.target.value, cat.photoDataUrl)}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v !== (cat.breed || "")) saveCat(cat.id, { breed: v });
+                      }}
                     />
                   </label>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => saveCat(cat.id, { furLength: "short" })}
+                      className={`flex-1 rounded-lg border py-1.5 text-[11px] font-bold ${
+                        cat.furLength === "short"
+                          ? "border-honey-deep bg-honey/20 text-catcha-chocolate"
+                          : "border-catcha-line bg-paper text-brown-soft"
+                      }`}
+                    >
+                      ✂️ ขนสั้น
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveCat(cat.id, { furLength: "long" })}
+                      className={`flex-1 rounded-lg border py-1.5 text-[11px] font-bold ${
+                        cat.furLength === "long"
+                          ? "border-honey-deep bg-honey/20 text-catcha-chocolate"
+                          : "border-catcha-line bg-paper text-brown-soft"
+                      }`}
+                    >
+                      🧵 ขนยาว
+                    </button>
+                  </div>
+                  <label className="mt-2 block text-[10px] font-bold text-brown-soft">
+                    สี/ลักษณะเด่น
+                    <input
+                      defaultValue={cat.color}
+                      placeholder="เช่น สีขาวสลับดำ มีจุดที่หู"
+                      className="mt-0.5 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v !== (cat.color || "")) saveCat(cat.id, { color: v });
+                      }}
+                    />
+                  </label>
+                  <div className="mt-2 flex gap-2">
+                    <label className="block flex-1 text-[10px] font-bold text-brown-soft">
+                      อายุ
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="numeric"
+                        defaultValue={cat.ageValue}
+                        className="mt-0.5 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
+                        onBlur={(e) => {
+                          const v = e.target.value ? Number(e.target.value) : undefined;
+                          if (v !== undefined && v !== cat.ageValue) {
+                            saveCat(cat.id, { ageValue: v, ageUnit: cat.ageUnit || "year" });
+                          }
+                        }}
+                      />
+                    </label>
+                    <label className="block w-24 shrink-0 text-[10px] font-bold text-brown-soft">
+                      หน่วย
+                      <select
+                        defaultValue={cat.ageUnit || "year"}
+                        className="mt-0.5 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
+                        onChange={(e) =>
+                          saveCat(cat.id, {
+                            ageUnit: e.target.value as "year" | "month",
+                            ageValue: cat.ageValue ?? 0,
+                          })
+                        }
+                      >
+                        <option value="year">ปี</option>
+                        <option value="month">เดือน</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="mt-2 block text-[10px] font-bold text-brown-soft">
+                    วันเกิดน้อง <span className="font-normal text-brown-faint">(ถ้าทราบ)</span>
+                    <BirthdayPicker
+                      value={cat.birthday || ""}
+                      onChange={(iso) => {
+                        if (iso && iso !== cat.birthday) saveCat(cat.id, { birthday: iso });
+                      }}
+                      yearsBack={25}
+                    />
+                  </label>
+                  <div className="mt-2">
+                    <StaffNoteTagPicker
+                      medicalValue={cat.medical || ""}
+                      noteValue={cat.staffNote || ""}
+                      onChange={(medical, staffNote) => saveCat(cat.id, { medical, staffNote })}
+                    />
+                  </div>
                   <label className="mt-2 block rounded-catcha-sm border border-wait/40 bg-wait/5 px-2 py-1.5 text-[10px] font-bold text-wait">
                     🔒 โน้ตลับร้าน (ลูกค้าไม่เห็น)
                     <textarea
