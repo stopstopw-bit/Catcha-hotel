@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "update_cat") {
-    const c = await updateCat(id, body.catId, body.patch);
+    const c = await updateCat(id, body.catId, body.patch, { source: "staff" });
     if (!c) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ ok: true, customer: c });
   }
@@ -163,7 +163,7 @@ export async function PATCH(req: NextRequest) {
         birthday: body.birthday ? String(body.birthday) : undefined,
         medical: body.medical ? String(body.medical) : undefined,
         staffNote: body.staffNote ? String(body.staffNote) : undefined,
-      });
+      }, { source: "staff" });
       if (!c) {
         return NextResponse.json({ error: "กรอกชื่อน้องแมว" }, { status: 400 });
       }

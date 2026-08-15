@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
         birthday: x.birthday || "",
         medical: x.medical || "",
         note: x.staffNote || "",
+        needsConfirm: Boolean(x.needsOwnerConfirm),
       })),
     },
   });
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
         birthday: cat.birthday ? String(cat.birthday) : undefined,
         medical: cat.medical ? String(cat.medical).trim() : undefined,
         staffNote: cat.note ? String(cat.note).trim() : undefined,
-      });
+      }, { source: "customer" });
     }
   }
 

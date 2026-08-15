@@ -35,6 +35,12 @@ export type CatRecord = {
   staffNote?: string;
   /** โน้ตลับของร้าน — ซ่อนจากลูกค้า (ต้องรัน OVERNIGHT_SQL.md ก่อนถึงจะเซฟได้) */
   staffPrivateNote?: string;
+  /**
+   * พนักงานเป็นคนกรอก/แก้ข้อมูลตัวนี้เอง ลูกค้ายังไม่เคยยืนยัน — ใช้เตือนลูกค้าให้เข้ามา
+   * ตรวจสอบ/แก้ไขก่อนนัดครั้งถัดไป กันข้อมูลที่พนักงานเดา/จดจากที่คุยหน้าร้านผิดเพี้ยน
+   * true = ลูกค้าเป็นคนกรอกเอง (register/self ตั้งเป็น false เสมอ)
+   */
+  needsOwnerConfirm?: boolean;
   /** ประวัติน้องก่อนอาบน้ำ (JSON) — เก็บถาวรที่แมว ถามครั้งแรกครั้งเดียว */
   groomHealthInfo?: string;
   /** อัลบั้มรูป/วิดีโออ้างอิงหน้าตา-นิสัยแมว — เก็บหลังบ้านเท่านั้น ลูกค้าไม่เห็น (ต้องรัน migration cats.media ก่อน) */
@@ -148,6 +154,7 @@ type CatRow = {
   staff_private_note?: string | null;
   groom_health_info?: string | null;
   media?: CatMediaItem[] | null;
+  needs_owner_confirm?: boolean | null;
 };
 
 type CustomerRow = {
@@ -269,6 +276,7 @@ function mapCustomer(row: CustomerRow): CustomerRecord {
       staffPrivateNote: c.staff_private_note ?? undefined,
       groomHealthInfo: c.groom_health_info ?? undefined,
       media: Array.isArray(c.media) ? c.media : undefined,
+      needsOwnerConfirm: c.needs_owner_confirm ?? undefined,
     })),
   };
 }
@@ -1059,6 +1067,18 @@ export async function adjustDepositCredit(customerId: string, delta: number) {
   return { ok: true as const, balance: next };
 }
 
+/** ฟิลด์ที่ทั้งพนักงานและลูกค้าแก้ได้เอง — ถ้าพนักงานแตะตัวใดตัวหนึ่ง ต้องให้ลูกค้ามายืนยัน */
+const SHARED_PROFILE_FIELDS = [
+  "gender",
+  "breed",
+  "ageValue",
+  "ageUnit",
+  "birthday",
+  "medical",
+  "furLength",
+  "color",
+] as const;
+
 export async function updateCat(
   customerId: string,
   catId: string,
@@ -1077,7 +1097,8 @@ export async function updateCat(
       | "furLength"
       | "color"
     >
-  >
+  >,
+  opts: { source?: "staff" | "customer" } = {}
 ) {
   const c = await getCustomer(customerId);
   if (!c) return null;
@@ -1093,6 +1114,13 @@ export async function updateCat(
         patch.photoDataUrl
       ),
     };
+  }
+
+  // พนักงานแก้ข้อมูลที่ลูกค้าก็กรอกเองได้ (พันธุ์/อายุ/ขน ฯลฯ) → ยังไม่ผ่านการยืนยันจากเจ้าของ
+  // ลูกค้าแก้เอง (จากแอป) → ถือว่ายืนยันแล้วเสมอ ล้างธงทิ้ง แม้ตัวเลขจะเหมือนเดิมก็ตาม
+  const touchesSharedField = SHARED_PROFILE_FIELDS.some((k) => k in patch);
+  if (touchesSharedField) {
+    cat.needsOwnerConfirm = opts.source === "customer" ? false : true;
   }
 
   Object.assign(cat, patch);
@@ -1126,6 +1154,7 @@ export async function updateCat(
           medical: cat.medical || null,
           fur_length: cat.furLength || null,
           color: cat.color || null,
+          ...(touchesSharedField ? { needs_owner_confirm: cat.needsOwnerConfirm } : {}),
         })
         .eq("id", catId);
     } catch {
@@ -1207,7 +1236,8 @@ export async function addCat(
     furLength?: "short" | "long";
     color?: string;
     staffNote?: string;
-  }
+  },
+  opts: { source?: "staff" | "customer" } = {}
 ) {
   const name = data.name.trim();
   if (!name) return null;
@@ -1232,6 +1262,8 @@ export async function addCat(
     furLength: data.furLength,
     color: data.color?.trim() || undefined,
     staffNote: data.staffNote?.trim() || undefined,
+    // พนักงานสร้างเรคคอร์ดนี้เอง → ยังไม่มีลูกค้ายืนยันข้อมูล ต่างจากลูกค้าสมัครเอง
+    needsOwnerConfirm: opts.source === "staff",
   };
 
   c.cats.push(cat);
@@ -1253,11 +1285,15 @@ export async function addCat(
       staff_note: cat.staffNote || null,
     });
     if (error) throw new Error(error.message);
-    if (cat.furLength || cat.color) {
+    if (cat.furLength || cat.color || cat.needsOwnerConfirm) {
       // คอลัมน์ใหม่ — best-effort เผื่อยังไม่ได้รัน migration
       await sb
         .from("cats")
-        .update({ fur_length: cat.furLength || null, color: cat.color || null })
+        .update({
+          fur_length: cat.furLength || null,
+          color: cat.color || null,
+          needs_owner_confirm: cat.needsOwnerConfirm || false,
+        })
         .eq("id", catId)
         .then(
           () => {},
@@ -2182,7 +2218,7 @@ export async function registerCustomerFromLine(data: {
       (x) => x.name.toLowerCase() === cat.name.toLowerCase()
     );
     if (exists) continue;
-    await addCat(customer.id, cat);
+    await addCat(customer.id, cat, { source: "customer" });
   }
 
   const refreshed = await getCustomer(customer.id);

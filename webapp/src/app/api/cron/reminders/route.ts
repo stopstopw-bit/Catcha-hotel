@@ -35,6 +35,7 @@ import { groupBookings, groupCatNames } from "@/lib/booking-group";
 import { findBirthdayMatch } from "@/lib/birthday-greeting";
 import { queueBirthdayGreeting } from "@/lib/birthday-queue";
 import { getAppUrlFromEnv } from "@/lib/telegram-config";
+import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 
 function addDays(dateStr: string, n: number) {
   const dt = new Date(`${dateStr}T12:00:00Z`);
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const allBookings = await listBookings();
   const allInvoices = await listInvoices();
+  const allCustomers = await listCustomers();
 
   // ── ยืนยันนัด ล่วงหน้า N วัน (ตั้งค่าได้ · เปิด/ปิดได้) ──
   const confirmDate = addDays(todayStr, auto?.confirmDaysBefore ?? 1);
@@ -95,6 +97,27 @@ export async function GET(req: NextRequest) {
           groomProgram: primary.groomProgram,
         }),
       ];
+
+      // พนักงานเคยกรอก/แก้ข้อมูลน้องตัวไหนในกลุ่มนี้แทนลูกค้าไว้ ยังไม่เคยให้ลูกค้ายืนยัน —
+      // ถือโอกาสตอนใกล้ถึงนัดถามให้ทีเดียว กันข้อมูลที่พนักงานจำ/เดาตอนคุยหน้าร้านผิดเพี้ยน
+      // ค้างอยู่ในระบบโดยไม่มีใครทักท้วง (เตือนซ้ำทุกนัดจนกว่าลูกค้าจะเข้าไปแก้เอง)
+      const custForGroup = allCustomers.find((c) => bookingMatchesCustomer(primary, c));
+      const catsNeedConfirm = custForGroup
+        ? group
+            .map((b) => custForGroup.cats.find((cat) => cat.name === b.catName))
+            .filter((cat): cat is NonNullable<typeof cat> => Boolean(cat?.needsOwnerConfirm))
+        : [];
+      if (catsNeedConfirm.length > 0) {
+        const names = catsNeedConfirm.map((cat) => cat.name).join(", ");
+        const base = getAppUrlFromEnv();
+        dayMessages.push({
+          type: "text",
+          text:
+            `📋 ก่อนนัดครั้งนี้ รบกวนช่วยตรวจสอบ/แก้ไขข้อมูลของ ${names} ให้ล่าสุดหน่อยนะคะ ` +
+            `(พันธุ์ / อายุ / วันเกิด / โรคประจำตัว) — ตอนนี้เป็นข้อมูลที่ทางร้านกรอกแทนไว้ อาจไม่ครบถ้วน 🙏` +
+            (base ? `\n\nแก้ไขได้ที่: ${base}/app/profile` : ""),
+        });
+      }
 
       // นัดอาบน้ำ: เช็คทีละตัวในกลุ่ม — ตัวที่เคยกรอกประวัติแล้วบรีฟให้ร้านทาง Telegram
       // ตัวที่ยังไม่เคย รวมขอในการ์ดเดียว (ลิงก์เดียวกรอกได้ครบทุกตัว เหมือนปุ่มขอประวัติรวม)
@@ -339,7 +362,6 @@ export async function GET(req: NextRequest) {
   const mmdd = todayStr.slice(5); // "MM-DD"
   try {
     if (auto?.birthdayEnabled !== false) {
-      const allCustomers = await listCustomers();
       for (const c of allCustomers) {
         if (!c.lineUserId || c.marketingConsent === false) continue;
         const hit = findBirthdayMatch(c, mmdd);

@@ -28,6 +28,7 @@ type CatForm = {
   birthday: string;
   medical: string;
   note: string;
+  needsConfirm: boolean;
 };
 
 export default function ProfilePage() {
@@ -85,6 +86,7 @@ export default function ProfilePage() {
               birthday: String(x.birthday || ""),
               medical: String(x.medical || ""),
               note: String(x.note || ""),
+              needsConfirm: Boolean(x.needsConfirm),
             };
           })
         );
@@ -220,6 +222,12 @@ export default function ProfilePage() {
             <p className="text-xs font-extrabold text-catcha-chocolate">🐱 น้องแมวของฉัน</p>
             {cats.map((cat, idx) => (
               <div key={cat.id} className="space-y-2 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
+                {cat.needsConfirm && (
+                  <p className="rounded-catcha-sm bg-honey/20 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
+                    📋 ตอนนี้เป็นข้อมูลที่ทางร้านกรอกแทนไว้ — ช่วยตรวจสอบ/แก้ไขให้ล่าสุด
+                    แล้วกดบันทึกด้านล่างด้วยนะคะ 🙏
+                  </p>
+                )}
                 <label className="block text-xs font-bold text-brown-soft">
                   ชื่อน้อง
                   <input value={cat.name} onChange={(e) => updateCat(idx, { name: e.target.value })} className={`${sub} mt-1 font-bold text-brown`} />

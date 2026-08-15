@@ -53,6 +53,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "broadcast_images", column: "content_type", feature: "รูปโปร (ทางสำรอง)" },
   { table: "birthday_greetings", column: "status", feature: "คิววันเกิดรอตรวจ" },
   { table: "bookings", column: "flea_tick_treated", feature: "หลักฐานหยดยาเห็บหมัด" },
+  { table: "cats", column: "needs_owner_confirm", feature: "เตือนลูกค้ายืนยันข้อมูลแมว" },
 ];
 
 export type SchemaCheckRow = {
@@ -187,6 +188,12 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
   {
     name: "cats.fur_length",
     sql: "alter table cats add column if not exists fur_length text;",
+  },
+  {
+    // เตือนลูกค้าให้เข้ามายืนยัน/แก้ไขข้อมูลแมวที่พนักงานกรอกแทนไว้ — กันข้อมูลที่จำ/เดา
+    // ตอนคุยหน้าร้านผิดเพี้ยนติดไปในระบบถาวร โดยไม่มีใครทักท้วง
+    name: "cats.needs_owner_confirm",
+    sql: "alter table cats add column if not exists needs_owner_confirm boolean not null default false;",
   },
   {
     name: "customers.address",
