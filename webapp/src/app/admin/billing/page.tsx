@@ -12,6 +12,7 @@ import {
   groomPrice,
   groomProgram,
   groomSizeLabel,
+  groomBreedCategoryFor,
   type GroomSize,
 } from "@/lib/grooming-prices";
 import { priceSignature, findLastPrice } from "@/lib/special-price";
@@ -21,7 +22,7 @@ type Customer = {
   name: string;
   phone?: string;
   lineUserId?: string;
-  cats: { id?: string; name: string }[];
+  cats: { id?: string; name: string; breed?: string; furLength?: "short" | "long" }[];
   isMember: boolean;
   memberCredit: number;
   /** มัดจำล่วงหน้าคงเหลือ — หักบิลนี้อัตโนมัติ */
@@ -655,6 +656,22 @@ export default function BillingPage() {
     setShowList(false);
     setPromoId("");
     setAutoPromoLabel("");
+    // บ้านมีแมวตัวเดียว — ไม่มีตัวเลือก "ของน้องตัวไหน" ให้กด (โผล่เฉพาะบ้านที่มีหลายตัว)
+    // จึงเดาราคาให้ทันทีสำหรับรายการอาบน้ำที่ยังไม่ได้ระบุน้อง แทนรอให้พนักงานกดเลือกเอง
+    if (c.cats.length === 1) {
+      const category = groomBreedCategoryFor(c.cats[0].breed, c.cats[0].furLength);
+      if (category) {
+        setItems((prev) =>
+          prev.map((it) => {
+            if (it.kind !== "grooming" || it.catName) return it;
+            const prog = groomProgram(it.program);
+            return prog?.breeds.some((b) => b.breed === category)
+              ? { ...it, breed: category }
+              : it;
+          })
+        );
+      }
+    }
     try {
       const res = await fetch(`/api/promos?autoFor=${c.id}&subtotal=${subtotal}`);
       const { promo } = await res.json();
@@ -1271,15 +1288,24 @@ export default function BillingPage() {
                             <button
                               key={c.id || c.name}
                               type="button"
-                              onClick={() =>
-                                updateItem(i, {
-                                  catName: joinCatNames(
-                                    on
-                                      ? picked.filter((n) => catKey(n) !== key)
-                                      : [...picked, c.name]
-                                  ),
-                                })
-                              }
+                              onClick={() => {
+                                const nextNames = on
+                                  ? picked.filter((n) => catKey(n) !== key)
+                                  : [...picked, c.name];
+                                updateItem(i, { catName: joinCatNames(nextNames) });
+                                // เดาราคาจากพันธุ์/ลักษณะขนของน้องให้อัตโนมัติ — ทำได้แค่ตอน
+                                // ระบุน้องชัดเจนตัวเดียว (หลายตัวพันธุ์อาจไม่เหมือนกัน เดาไม่ได้)
+                                if (item.kind === "grooming" && nextNames.length === 1) {
+                                  const catRec = selected?.cats.find(
+                                    (x) => catKey(x.name) === catKey(nextNames[0])
+                                  );
+                                  const category = groomBreedCategoryFor(catRec?.breed, catRec?.furLength);
+                                  const prog = groomProgram(item.program);
+                                  if (category && prog?.breeds.some((b) => b.breed === category)) {
+                                    updateItem(i, { breed: category });
+                                  }
+                                }
+                              }}
                               className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
                                 on
                                   ? "bg-latte-deep text-white"

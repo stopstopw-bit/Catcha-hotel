@@ -177,6 +177,7 @@ function MemberTopupSection({
   const [isLegacy, setIsLegacy] = useState(false);
   /** ค่าเริ่มต้น = ไม่แจ้ง — ยกยอดเก่าเข้าระบบทีละหลายคนไม่ควรไปกวนลูกค้า */
   const [notify, setNotify] = useState(false);
+  const [topupPreview, setTopupPreview] = useState<Record<string, unknown>[] | null>(null);
 
   const paidNum = Math.max(0, Number(paid) || 0);
   const bonusNum = Math.max(0, Number(bonus) || 0);
@@ -188,6 +189,16 @@ function MemberTopupSection({
     setMsg("");
   };
 
+  const topupPayload = () => ({
+    id: customerId,
+    action: "topup_member",
+    paidAmount: paidNum,
+    bonusAmount: bonusNum,
+    note: note.trim() || undefined,
+    isLegacy,
+    notify,
+  });
+
   const submit = async () => {
     if (total <= 0) {
       setMsg("กรอกยอดรับเงินหรือแถมอย่างน้อย 1 บาท");
@@ -198,18 +209,11 @@ function MemberTopupSection({
     const res = await fetch("/api/customers", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: customerId,
-        action: "topup_member",
-        paidAmount: paidNum,
-        bonusAmount: bonusNum,
-        note: note.trim() || undefined,
-        isLegacy,
-        notify,
-      }),
+      body: JSON.stringify(topupPayload()),
     });
     const data = await res.json();
     setSaving(false);
+    setTopupPreview(null);
     if (res.ok) {
       setPaid("");
       setBonus("");
@@ -229,6 +233,30 @@ function MemberTopupSection({
       onDone();
     } else {
       setMsg("❌ บันทึกไม่สำเร็จ");
+    }
+  };
+
+  const previewTopup = async () => {
+    if (total <= 0) {
+      setMsg("กรอกยอดรับเงินหรือแถมอย่างน้อย 1 บาท");
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/customers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...topupPayload(), preview: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.preview)) {
+        setTopupPreview(data.preview);
+      } else {
+        setMsg("❌ ดูตัวอย่างการ์ดไม่สำเร็จ");
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -329,15 +357,26 @@ function MemberTopupSection({
       <button
         type="button"
         disabled={saving || total <= 0}
-        onClick={submit}
+        onClick={notify ? previewTopup : submit}
         className="w-full rounded-catcha-sm bg-latte/30 py-2.5 text-sm font-extrabold text-catcha-chocolate disabled:opacity-40"
       >
         {saving
           ? "กำลังบันทึก…"
-          : isLegacy
-            ? `บันทึกยอดยกมา +${total > 0 ? total.toLocaleString() : "—"} บาท (ไม่นับรายรับ)`
-            : `บันทึกเติม Member +${total > 0 ? total.toLocaleString() : "—"} บาท`}
+          : notify
+            ? "🔍 ดูการ์ดก่อนเติม"
+            : isLegacy
+              ? `บันทึกยอดยกมา +${total > 0 ? total.toLocaleString() : "—"} บาท (ไม่นับรายรับ)`
+              : `บันทึกเติม Member +${total > 0 ? total.toLocaleString() : "—"} บาท`}
       </button>
+
+      {topupPreview && (
+        <PreviewSendModal
+          messages={topupPreview}
+          sending={saving}
+          onConfirm={submit}
+          onCancel={() => setTopupPreview(null)}
+        />
+      )}
 
       {msg && (
         <p className="mt-2 text-center text-[10px] font-bold text-brown">{msg}</p>
@@ -1009,6 +1048,7 @@ function CustomerSummaryCard({
   /** ค่าเริ่มต้น = ไม่แจ้ง / ไม่ใช่ยอดยกมา — เหมือนฝั่งเติมเครดิต Member */
   const [pkgNotify, setPkgNotify] = useState(false);
   const [pkgLegacy, setPkgLegacy] = useState(false);
+  const [pkgPreview, setPkgPreview] = useState<Record<string, unknown>[] | null>(null);
 
   /** ครั้งที่ยังใช้ได้รวมทุกคอร์ส (ไม่นับที่ยกเลิก/ใช้หมดแล้ว) */
   const packageUsesLeft = packages
@@ -1025,25 +1065,31 @@ function CustomerSummaryCard({
     loadPackages();
   }, [loadPackages]);
 
-  const sellPackage = async () => {
+  const packagePayload = () => {
     const uses = Math.round(Number(pkgUses) || 0);
     const price = Math.round(Number(pkgPrice) || 0);
+    return {
+      customerId: customer.id,
+      name: pkgName.trim(),
+      totalUses: uses,
+      price,
+      isLegacy: pkgLegacy,
+      notify: pkgNotify,
+    };
+  };
+
+  const sellPackage = async () => {
+    const uses = Math.round(Number(pkgUses) || 0);
     if (!pkgName.trim() || uses <= 0) return;
     setPkgBusy(true);
     try {
       const res = await fetch("/api/packages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: customer.id,
-          name: pkgName.trim(),
-          totalUses: uses,
-          price,
-          isLegacy: pkgLegacy,
-          notify: pkgNotify,
-        }),
+        body: JSON.stringify(packagePayload()),
       });
       const pkgData = await res.json().catch(() => ({}));
+      setPkgPreview(null);
       if (res.ok) {
         setMsg(
           `✅ ${pkgLegacy ? "ยกคอร์ส" : "ขายคอร์ส"} "${pkgName.trim()}" แล้ว` +
@@ -1061,6 +1107,27 @@ function CustomerSummaryCard({
         setPkgNotify(false);
         loadPackages();
         setTimeout(() => setMsg(""), 2500);
+      }
+    } finally {
+      setPkgBusy(false);
+    }
+  };
+
+  const previewPackage = async () => {
+    const uses = Math.round(Number(pkgUses) || 0);
+    if (!pkgName.trim() || uses <= 0) return;
+    setPkgBusy(true);
+    try {
+      const res = await fetch("/api/packages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...packagePayload(), preview: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.preview)) {
+        setPkgPreview(data.preview);
+      } else {
+        setMsg("❌ ดูตัวอย่างการ์ดไม่สำเร็จ");
       }
     } finally {
       setPkgBusy(false);
@@ -1394,12 +1461,21 @@ function CustomerSummaryCard({
           <button
             type="button"
             disabled={pkgBusy || !pkgName.trim() || !pkgUses}
-            onClick={sellPackage}
+            onClick={pkgNotify ? previewPackage : sellPackage}
             className="shrink-0 rounded-catcha-sm bg-sage px-3 py-2 text-sm font-extrabold text-card disabled:opacity-40"
           >
-            {pkgLegacy ? "ยกคอร์สมา" : "ขายคอร์ส"}
+            {pkgNotify ? "🔍 ดูการ์ด" : pkgLegacy ? "ยกคอร์สมา" : "ขายคอร์ส"}
           </button>
         </div>
+
+        {pkgPreview && (
+          <PreviewSendModal
+            messages={pkgPreview}
+            sending={pkgBusy}
+            onConfirm={sellPackage}
+            onCancel={() => setPkgPreview(null)}
+          />
+        )}
 
         <label className="mt-2 flex items-start gap-2 text-[11px] font-bold text-brown-soft">
           <input
@@ -1964,6 +2040,66 @@ function MergeCustomerControl({
 type AddCatGender = "male" | "female" | "";
 type AddCatFurLength = "" | "short" | "long";
 
+/**
+ * เลือกสายพันธุ์แบบ dropdown (เหมือนหน้าสมัครสมาชิกลูกค้า) — พิมพ์เองไม่ได้แล้ว
+ * ยกเว้นเลือก "อื่นๆ" ถึงพิมพ์ชื่อพันธุ์เองได้ ป้องกันพันธุ์สะกดไม่ตรงกัน ใช้จับคู่ราคา
+ * อาบน้ำอัตโนมัติที่หน้าคิดเงินไม่ได้ (ดู groomBreedCategoryFor)
+ */
+function CatBreedField({
+  breed,
+  onSave,
+}: {
+  breed?: string;
+  onSave: (breed: string) => void;
+}) {
+  const isCustom = !!breed && !BREED_OPTIONS.includes(breed);
+  const [otherMode, setOtherMode] = useState(isCustom);
+  const [otherText, setOtherText] = useState(isCustom ? breed || "" : "");
+
+  useEffect(() => {
+    const nowCustom = !!breed && !BREED_OPTIONS.includes(breed);
+    setOtherMode(nowCustom);
+    setOtherText(nowCustom ? breed || "" : "");
+  }, [breed]);
+
+  return (
+    <div>
+      <select
+        value={otherMode ? OTHER_BREED : breed || ""}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === OTHER_BREED) {
+            setOtherMode(true);
+            return;
+          }
+          setOtherMode(false);
+          onSave(v);
+        }}
+        className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
+      >
+        <option value="">เลือกสายพันธุ์…</option>
+        {BREED_OPTIONS.map((b) => (
+          <option key={b} value={b}>
+            {b}
+          </option>
+        ))}
+        <option value={OTHER_BREED}>{OTHER_BREED}</option>
+      </select>
+      {otherMode && (
+        <input
+          value={otherText}
+          onChange={(e) => setOtherText(e.target.value)}
+          onBlur={() => {
+            if (otherText.trim()) onSave(otherText.trim());
+          }}
+          placeholder="ระบุสายพันธุ์"
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
+        />
+      )}
+    </div>
+  );
+}
+
 function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -2085,6 +2221,7 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
                       {b}
                     </option>
                   ))}
+                  <option value={OTHER_BREED}>{OTHER_BREED}</option>
                 </select>
               </label>
               {breed === OTHER_BREED && (
@@ -2464,15 +2601,12 @@ export default function CustomersPage() {
                   </div>
                   <label className="mt-2 block text-[10px] font-bold text-brown-soft">
                     พันธุ์
-                    <input
-                      defaultValue={cat.breed}
-                      placeholder="เช่น เปอร์เซีย"
-                      className="mt-0.5 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs"
-                      onBlur={(e) => {
-                        const v = e.target.value.trim();
-                        if (v !== (cat.breed || "")) saveCat(cat.id, { breed: v });
-                      }}
-                    />
+                    <div className="mt-0.5">
+                      <CatBreedField
+                        breed={cat.breed}
+                        onSave={(breed) => saveCat(cat.id, { breed })}
+                      />
+                    </div>
                   </label>
                   <div className="mt-2 flex gap-2">
                     <button

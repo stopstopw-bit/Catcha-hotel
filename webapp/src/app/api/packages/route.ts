@@ -68,11 +68,31 @@ export async function POST(req: NextRequest) {
   const price = Math.round(Number(body.price) || 0);
   const isLegacy = Boolean(body.isLegacy);
   const notify = body.notify === true;
+  const preview = body.preview === true;
   if (!customerId || !name || totalUses <= 0) {
     return NextResponse.json({ error: "customerId + name + totalUses required" }, { status: 400 });
   }
   const cust = await getCustomer(customerId);
   if (!cust) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  // ดูตัวอย่างการ์ดก่อนขายจริง — ยังไม่สร้างคอร์ส ไม่ส่งอะไรทั้งนั้น
+  if (preview) {
+    if (!notify || !cust.lineUserId) return NextResponse.json({ ok: true, preview: [] });
+    const cfg = await getSiteConfig();
+    return NextResponse.json({
+      ok: true,
+      preview: [
+        buildPackageFlex({
+          customerName: cust.name,
+          packageName: name,
+          totalUses,
+          usedUses: 0,
+          price,
+          shopName: cfg.business?.name,
+        }, cfg.cards?.packageCard),
+      ],
+    });
+  }
 
   const pkg = await sellPackage({
     customerId,

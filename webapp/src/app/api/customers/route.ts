@@ -265,6 +265,24 @@ export async function PATCH(req: NextRequest) {
         ? Number(body.paidAmount)
         : Number(body.amount) || 0;
     const bonusAmount = Number(body.bonusAmount) || 0;
+
+    // ดูตัวอย่างการ์ดก่อนเติมจริง — ยังไม่แตะเครดิตลูกค้า ไม่ส่งอะไรทั้งนั้น
+    if (body.preview === true) {
+      if (!body.notify) return NextResponse.json({ ok: true, preview: [] });
+      const cust = await getCustomer(id);
+      if (!cust?.lineUserId) return NextResponse.json({ ok: true, preview: [] });
+      const cfg = await getSiteConfig();
+      return NextResponse.json({
+        ok: true,
+        preview: [
+          buildMemberBalanceFlex({
+            customerName: cust.name,
+            memberCredit: cust.memberCredit + Math.max(0, paidAmount) + Math.max(0, bonusAmount),
+          }, cfg.cards?.memberBalance),
+        ],
+      });
+    }
+
     const result = await topupMemberCredit(id, {
       paidAmount,
       bonusAmount,
