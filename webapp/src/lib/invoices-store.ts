@@ -562,7 +562,8 @@ export async function deleteInvoice(id: string) {
         -(inv.pointsEarned || 0),
         `ลบบิล ${inv.id}`,
         `Deleted invoice ${inv.id}`,
-        inv.customerName
+        inv.customerName,
+        inv.customerId
       );
     }
   }
@@ -699,7 +700,8 @@ async function markInvoicePaidInner(
       inv.pointsEarned,
       `ใช้บริการ ${inv.total} บาท`,
       `Service payment ${inv.total} THB`,
-      inv.customerName
+      inv.customerName,
+      inv.customerId
     );
   }
 
@@ -785,7 +787,8 @@ export async function revertInvoicePaid(id: string) {
       -(inv.pointsEarned || 0),
       "ยกเลิกการชำระ (แก้ไข)",
       "Reverse payment",
-      inv.customerName
+      inv.customerName,
+      inv.customerId
     );
   }
 

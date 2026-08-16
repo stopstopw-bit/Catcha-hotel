@@ -314,9 +314,13 @@ export async function addPoints(
   amount: number,
   labelTh: string,
   labelEn: string,
-  displayName = ""
+  displayName = "",
+  // ระบุ customerId ตรงๆ เมื่อรู้อยู่แล้ว (ทุกจุดที่เรียกมาจากบิล/ลูกค้าที่เปิดหน้าอยู่มีอยู่แล้ว) —
+  // กันแต้มไปตกคนละคีย์กับที่หน้าโปรไฟล์ลูกค้าอ่าน ถ้า LINE ID เดียวกันดันจับคู่กับลูกค้าคนละ
+  // record กัน (เช่น มีบัญชีซ้ำที่ยังไม่ได้รวม) — resolvePointsKey เดายังไงก็ไม่แม่นเท่ารู้ตรงๆ
+  customerId?: string
 ) {
-  const acc = await getAccount(lineUserId, displayName);
+  const acc = await getAccount(lineUserId, displayName, customerId);
   // ยอดแต้มติดลบไม่มีความหมาย — ปรับลดได้มากสุดเท่าที่มีอยู่
   // (พิมพ์ผิดตอนปรับแต้มมือ เคยทำให้ยอดลูกค้าติดลบแล้วต้องมานั่งไล่แก้)
   const applied = Math.max(amount, -acc.points);

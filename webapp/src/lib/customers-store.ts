@@ -1766,7 +1766,8 @@ export async function topupMemberCredit(
           pointsEarned,
           `เติมเครดิต Member ${paid.toLocaleString()} บาท`,
           `Member top-up ${paid} THB`,
-          updated.name
+          updated.name,
+          customerId
         );
       }
     }

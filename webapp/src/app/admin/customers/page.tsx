@@ -222,7 +222,13 @@ function MemberTopupSection({
       setNotify(false);
       setMsg(
         `✅ เติมสำเร็จ +${total.toLocaleString()} บาท (คงเหลือ ${data.customer.memberCredit.toLocaleString()} บาท)` +
-          (isLegacy ? " · ยอดยกมา ไม่นับรายรับเดือนนี้" : "") +
+          (isLegacy
+            ? " · ยอดยกมา ไม่นับรายรับเดือนนี้ · ไม่ได้แต้ม (ไม่ใช่เงินรอบนี้)"
+            // บอกชัดว่าได้แต้มเท่าไหร่ — ไม่งั้นพนักงานเดาไม่ออกว่าระบบให้แต้มจริงไหม
+            // ตอนลูกค้าถามว่าทำไมไม่ได้แต้ม (เช่น ปิดสวิตช์ไว้ หรือจ่ายเป็นยอดแถมล้วนไม่มีเงินจ่ายจริง)
+            : data.pointsEarned > 0
+              ? ` · ได้แต้ม +${data.pointsEarned} 🎁`
+              : " · ไม่ได้แต้ม (เช็คตั้งค่า > แต้มสะสม ว่าเปิดให้แต้มตอนเติมไว้ไหม)") +
           // เงินลงเรียบร้อยเสมอ — ถ้าส่ง LINE ไม่ได้ต้องบอกตรงๆ ไม่ใช่บอกว่าแจ้งแล้ว
           (notify
             ? data.notifyError
@@ -984,6 +990,7 @@ function CustomerSummaryCard({
   const pointsPayload = () => ({
     action: "admin_add",
     lineUserId: customer.lineUserId,
+    customerId: customer.id,
     amount: Math.round(Number(addAmt) || 0),
     reason: addReason.trim() || "แต้มพิเศษจากร้าน",
     displayName: customer.name,

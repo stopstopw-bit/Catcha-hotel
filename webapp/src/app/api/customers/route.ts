@@ -314,6 +314,7 @@ export async function PATCH(req: NextRequest) {
       ok: true,
       customer: result.customer,
       topup: result.topup,
+      pointsEarned: result.pointsEarned,
       notifyError,
     });
   }

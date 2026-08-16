@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     // ดูตัวอย่างการ์ดก่อนส่งจริง — ยังไม่เติมแต้ม ไม่ส่งอะไรทั้งนั้น
     if (body.preview === true) {
       const cfg = await getSiteConfig();
-      const cur = await getAccount(uid, displayName || "");
+      const cur = await getAccount(uid, displayName || "", body.customerId ? String(body.customerId) : undefined);
       return NextResponse.json({
         ok: true,
         preview: [
@@ -103,7 +103,14 @@ export async function POST(req: NextRequest) {
     }
 
     const label = amount > 0 ? `🎁 ${reason}` : `ปรับแต้ม: ${reason}`;
-    const acc = await addPoints(uid, amount, label, label, displayName || "");
+    const acc = await addPoints(
+      uid,
+      amount,
+      label,
+      label,
+      displayName || "",
+      body.customerId ? String(body.customerId) : undefined
+    );
     await sendTelegram(
       formatBookingTelegram(
         amount > 0 ? "🎁 เพิ่มแต้มให้ลูกค้า (มือ)" : "➖ ปรับลดแต้มลูกค้า (มือ)",

@@ -544,7 +544,8 @@ export async function claimCustomerPromo(
       pointsAwarded,
       `โปร: ${promo.title.th}`,
       `Promo: ${promo.title.en}`,
-      customer.name
+      customer.name,
+      customer.id
     );
     newPoints = acc.points;
   }
