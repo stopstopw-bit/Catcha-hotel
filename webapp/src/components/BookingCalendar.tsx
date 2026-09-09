@@ -1035,7 +1035,10 @@ export function BookingCalendar() {
                       </span>
                     </p>
                     <p className="text-xs text-brown-soft break-words">
-                      {b.service === "room" ? "🏠 ห้องพัก" : "🛁 อาบน้ำ"} · {bookingWhen(b)}
+                      {b.service === "room"
+                        ? `🏠 ${rooms.find((r) => r.id === b.room)?.name || b.room || "ห้องพัก"}`
+                        : "🛁 อาบน้ำ"}{" "}
+                      · {bookingWhen(b)}
                     </p>
                     <CatTags group={group} />
                     {b.service === "room" &&
