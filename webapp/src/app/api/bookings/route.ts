@@ -147,6 +147,7 @@ export async function GET(req: NextRequest) {
       pickupTime: b.pickupTime,
       groomHealthInfo: b.groomHealthInfo,
       groomProgram: b.groomProgram,
+      roomUnit: b.roomUnit,
       autoOff: b.autoOff || [],
       customerId: customer?.id,
       catMedical: cat?.medical || undefined,
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
     checkout: body.checkout,
     checkin: body.checkin,
     room: body.room,
+    roomUnit: body.roomUnit ? Number(body.roomUnit) || undefined : undefined,
     lineUserId: customer.lineUserId,
     notes: body.notes,
     groomProgram,
@@ -877,6 +879,9 @@ export async function PATCH(req: NextRequest) {
     if (body.checkin != null) patch.checkin = String(body.checkin) || undefined;
     if (body.checkout != null) patch.checkout = String(body.checkout) || undefined;
     if (body.room != null) patch.room = String(body.room) || undefined;
+    // ห้องจริงที่ปักหมุด — ส่ง 0 มาคือ "ให้ระบบเดาเอง" (ล้างการปักหมุด) ต้องเก็บเป็น 0 ไม่ใช่
+    // undefined ไม่งั้นแยกไม่ออกว่า "ไม่ได้ส่งฟิลด์นี้มา" กับ "ตั้งใจถอนหมุด" แล้วถอนไม่ได้ผล
+    if (body.roomUnit != null) patch.roomUnit = Number(body.roomUnit) || 0;
     if (body.notes != null) patch.notes = String(body.notes) || undefined;
     if (body.status != null) patch.status = body.status;
     // เวลาส่ง/รับน้อง — ปกติลูกค้าเลือกเองผ่านการ์ด LINE แต่ร้านรู้เวลาอยู่แล้ว

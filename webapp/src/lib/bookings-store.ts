@@ -28,6 +28,8 @@ export type StoredBooking = Booking & {
   groomHealthInfo?: string;
   /** โปรแกรมอาบน้ำที่เลือกไว้ตอนจอง (เก็บเป็น id ของ GROOM_PROGRAMS) — โชว์ในการ์ด + prefill บิล */
   groomProgram?: string;
+  /** ห้องจริงที่ปักหมุดไว้ (เลข 1..จำนวนห้องของ room ประเภทนี้) — ไม่ระบุ = ให้ผังห้องเดารายวัน */
+  roomUnit?: number;
   /**
    * ข้อความอัตโนมัติที่ "นัดนี้" ไม่ต้องส่ง (ปิดเป็นรายเคส คนละเรื่องกับปิดทั้งร้านในตั้งค่า)
    * ค่าที่ใช้ได้: ดู AUTO_MESSAGE_TOPICS
@@ -63,6 +65,7 @@ type BookingRow = {
   groom_health_info?: string | null;
   groom_program?: string | null;
   auto_off?: string[] | null;
+  room_unit?: number | null;
 };
 
 const mem: StoredBooking[] = seedEnabled()
@@ -108,6 +111,7 @@ function rowToStored(r: BookingRow): StoredBooking {
     groomHealthInfo: r.groom_health_info || undefined,
     groomProgram: r.groom_program || undefined,
     autoOff: r.auto_off || undefined,
+    roomUnit: r.room_unit ?? undefined,
   };
 }
 
@@ -313,6 +317,13 @@ export async function addBooking(
         /* ยังไม่มีคอลัมน์ groom_program */
       }
     }
+    if (booking.roomUnit != null) {
+      try {
+        await sb.from("bookings").update({ room_unit: booking.roomUnit }).eq("id", booking.id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ room_unit */
+      }
+    }
     return booking;
   }
 
@@ -342,6 +353,7 @@ export async function updateBooking(
       | "groomProgram"
       | "arrivalTime"
       | "pickupTime"
+      | "roomUnit"
     >
   >
 ) {
@@ -391,6 +403,18 @@ export async function updateBooking(
           .eq("id", id);
       } catch {
         /* ยังไม่มีคอลัมน์ groom_program */
+      }
+    }
+    // ห้องจริงที่ปักหมุด — คอลัมน์ room_unit เพิ่มมาทีหลัง เขียนแยกเช่นกัน
+    // 0 = ถอนหมุด (ให้ระบบเดาเอง) เก็บเป็น null ในฐานข้อมูล ไม่ใช่ 0 (ไม่ใช่เลขห้องจริง)
+    if (patch.roomUnit !== undefined) {
+      try {
+        await sb
+          .from("bookings")
+          .update({ room_unit: merged.roomUnit || null })
+          .eq("id", id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ room_unit */
       }
     }
     return getBooking(id);

@@ -12,6 +12,7 @@ import {
   typeAvailability,
   compositionOf,
   roomCapacity,
+  freeUnitsForRange,
   type BoardBooking,
 } from "@/lib/room-board";
 
@@ -281,6 +282,8 @@ export default function NewBookingPage() {
   }, []);
 
   const [roomId, setRoomId] = useState("");
+  // ห้องจริงที่ปักหมุด (เลขห้อง) — เฉพาะห้องเดี่ยว ไม่ใช่ห้องเชื่อม (ห้องเชื่อมจัดให้อัตโนมัติเหมือนเดิม)
+  const [roomUnit, setRoomUnit] = useState<number | null>(null);
   const boardRooms = rooms.map((r) => ({
     id: r.id,
     name: r.name,
@@ -318,6 +321,25 @@ export default function NewBookingPage() {
     else if (!roomId && rooms[0]) setRoomId(rooms[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availability, service, rooms]);
+
+  /** เลขห้องจริงของประเภทที่เลือกที่ว่างตลอดช่วง — เฉพาะห้องเดี่ยว (ห้องเชื่อมไม่มีเลขห้อง) */
+  const freeUnits = useMemo(() => {
+    if (service !== "room" || !roomId || !appointmentDate || rooms.length === 0) return [];
+    if (compositionOf(roomId)) return [];
+    return freeUnitsForRange(
+      boardRooms,
+      existing,
+      roomId,
+      appointmentDate,
+      checkoutDate || appointmentDate
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service, roomId, appointmentDate, checkoutDate, rooms, existing]);
+
+  // เปลี่ยนห้อง/วัน แล้วเลขที่เคยเลือกไว้ไม่ว่างแล้ว → เคลียร์ทิ้ง (ให้ระบบเดาเองแทน)
+  useEffect(() => {
+    if (roomUnit != null && !freeUnits.includes(roomUnit)) setRoomUnit(null);
+  }, [freeUnits, roomUnit]);
 
   const addCatFromInput = () => {
     const name = catInput.trim();
@@ -369,6 +391,10 @@ export default function NewBookingPage() {
       groomProgram:
         service === "groom" ? String(fd.get("groomProgram") || "") || undefined : undefined,
       room: service === "room" ? String(fd.get("room") || "") : undefined,
+      roomUnit:
+        service === "room" && fd.get("roomUnit")
+          ? Number(fd.get("roomUnit")) || undefined
+          : undefined,
       checkin: service === "room" ? String(fd.get("checkin") || "") : undefined,
       checkout: service === "room" ? String(fd.get("checkout") || "") : undefined,
       notes,
@@ -414,6 +440,7 @@ export default function NewBookingPage() {
       setCatInput("");
       setLineUserId("");
       setFreebies([]);
+      setRoomUnit(null);
       form.reset();
       setTimeout(() => setSaved(false), 2500);
     }
@@ -694,6 +721,39 @@ export default function NewBookingPage() {
                 <p className="mt-2 rounded-catcha-sm bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700">
                   🔴 ช่วงวันนี้ห้องเต็มทุกแบบ — ต้องเลื่อนวันหรือเช็คห้องที่จะเช็คเอาท์ก่อน
                 </p>
+              )}
+
+              {/* เลือกเลขห้องจริงตรงๆ — เฉพาะห้องเดี่ยว ห้องเชื่อมจัด 2 ห้องติดกันให้อัตโนมัติเหมือนเดิม */}
+              {roomId && !compositionOf(roomId) && (
+                <div className="mt-3 rounded-catcha-sm border border-catcha-line bg-paper/50 p-3">
+                  <input type="hidden" name="roomUnit" value={roomUnit ?? ""} />
+                  <p className="text-xs font-bold text-brown-soft">
+                    🗺️ เลือกห้องจริง (ไม่บังคับ)
+                  </p>
+                  <p className="mb-2 text-[10px] text-brown-faint">
+                    ไม่เลือก = ให้ระบบจัดห้องให้อัตโนมัติตอนถึงวันจริง
+                  </p>
+                  {freeUnits.length === 0 ? (
+                    <p className="text-[10px] text-brown-faint">ไม่มีห้องว่างให้เลือกช่วงนี้</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {freeUnits.map((u) => (
+                        <button
+                          key={u}
+                          type="button"
+                          onClick={() => setRoomUnit(roomUnit === u ? null : u)}
+                          className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                            roomUnit === u
+                              ? "bg-honey-deep text-white"
+                              : "bg-card text-brown-soft hover:bg-honey/20"
+                          }`}
+                        >
+                          {roomUnit === u ? "✓ " : ""}ห้อง {u}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <Field
