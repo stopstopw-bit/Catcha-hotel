@@ -38,7 +38,7 @@ import {
   politeCat,
 } from "@/lib/line";
 import { buildBookingConfirmFlex } from "@/lib/booking-line-card";
-import { groomProgramName } from "@/lib/grooming-prices";
+import { groomProgramName, resolveGroomPrograms } from "@/lib/grooming-prices";
 import {
   findCustomerForBooking,
   recalculateCustomerTier,
@@ -171,9 +171,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "cat_name_required" }, { status: 400 });
   }
 
-  // โปรแกรมอาบน้ำ — เก็บเฉพาะนัดอาบน้ำ และเฉพาะ id ที่มีจริงในตารางราคา
+  // โปรแกรมอาบน้ำ — เก็บเฉพาะนัดอาบน้ำ และเฉพาะ id ที่มีจริงในตารางราคา (รวมโปรแกรมที่ร้านเพิ่มเอง)
+  const groomPrograms = resolveGroomPrograms((await getSiteConfig()).groomPricePrograms);
   const groomProgram =
-    body.service === "groom" && body.groomProgram && groomProgramName(String(body.groomProgram))
+    body.service === "groom" &&
+    body.groomProgram &&
+    groomProgramName(String(body.groomProgram), groomPrograms)
       ? String(body.groomProgram)
       : undefined;
 
@@ -212,7 +215,7 @@ export async function POST(req: NextRequest) {
       ลูกค้า: customer.name,
       น้องแมว: body.catName,
       บริการ: body.service === "room" ? "ห้องพัก" : "อาบน้ำ",
-      ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram) } : {}),
+      ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram, groomPrograms) } : {}),
       วันที่: `${body.date || body.checkin}${body.time ? ` ${body.time}` : ""}`,
       ปฏิทิน: cal.googleUrl || icsUrl,
     })
@@ -880,10 +883,11 @@ export async function PATCH(req: NextRequest) {
     // (คุยทางโทรศัพท์/แชทตรง) ก็กรอกแทนให้ลูกค้าได้เลย ไม่ต้องรอลูกค้ากดเลือก
     if (body.arrivalTime != null) patch.arrivalTime = String(body.arrivalTime) || undefined;
     if (body.pickupTime != null) patch.pickupTime = String(body.pickupTime) || undefined;
-    // โปรแกรมอาบน้ำ — รับได้เฉพาะ id ที่มีจริง (ค่าว่าง = ล้างโปรแกรมออก)
+    // โปรแกรมอาบน้ำ — รับได้เฉพาะ id ที่มีจริง (รวมโปรแกรมที่ร้านเพิ่มเอง, ค่าว่าง = ล้างโปรแกรมออก)
     if (body.groomProgram != null) {
       const pid = String(body.groomProgram);
-      patch.groomProgram = pid && groomProgramName(pid) ? pid : "";
+      const programs = resolveGroomPrograms((await getSiteConfig()).groomPricePrograms);
+      patch.groomProgram = pid && groomProgramName(pid, programs) ? pid : "";
     }
     // หัวข้อข้อความอัตโนมัติที่นัดนี้ไม่ต้องส่ง
     if (Array.isArray(body.autoOff)) {

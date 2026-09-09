@@ -12,6 +12,7 @@ import { groupBookings } from "@/lib/booking-group";
 import { buildRoomBoard, roomCapacity } from "@/lib/room-board";
 import { BOOKING_STATUS_LABELS, type BookingStatus } from "@/lib/business";
 import { effectiveBookingStatus } from "@/lib/booking-status";
+import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 
 type CalendarDay = EditableBooking & {
   customerId?: string;
@@ -215,6 +216,7 @@ export function BookingCalendar() {
     }[]
   >([]);
   const [groomSlots, setGroomSlots] = useState<string[]>(["09:30", "12:30", "15:30"]);
+  const [groomPrograms, setGroomPrograms] = useState<GroomProgram[]>(GROOM_PROGRAMS);
   /** วันที่ร้านปิด — ประจำสัปดาห์ (จากตั้งค่า) และเฉพาะวัน (กดจากตารางนี้ได้เลย) */
   const [closedWeekdays, setClosedWeekdays] = useState<number[]>([]);
   const [closedDates, setClosedDates] = useState<{ date: string; note?: string }[]>([]);
@@ -261,6 +263,7 @@ export function BookingCalendar() {
       .then((d) => {
         if (d.config?.rooms) setRooms(d.config.rooms);
         if (d.config?.groomSlots) setGroomSlots(d.config.groomSlots);
+        setGroomPrograms(resolveGroomPrograms(d.config?.groomPricePrograms));
         setClosedWeekdays(d.config?.closedWeekdays || []);
         setClosedDates(d.config?.closedDates || []);
       });
@@ -513,6 +516,7 @@ export function BookingCalendar() {
             .map((x) => ({ id: x.id, catName: x.catName }))}
           rooms={rooms}
           groomSlots={groomSlots}
+          groomPrograms={groomPrograms}
           onClose={() => setEditing(null)}
           onSaved={load}
         />

@@ -75,14 +75,22 @@ export const GROOM_PROGRAMS: GroomProgram[] = [
   },
 ];
 
-export function groomProgram(id: string) {
-  return GROOM_PROGRAMS.find((p) => p.id === id);
+/**
+ * รวม "ค่าเริ่มต้นของระบบ" กับ "ตารางที่ร้านตั้งเองในหลังบ้าน" — ร้านตั้งไว้ (ไม่ว่าง) ใช้ของร้าน
+ * ทั้งชุดแทนที่ค่าเริ่มต้นไปเลย (เหมือน rooms) ไม่ตั้งเลย = ใช้ค่าเริ่มต้น GROOM_PROGRAMS
+ */
+export function resolveGroomPrograms(config?: GroomProgram[]): GroomProgram[] {
+  return config && config.length > 0 ? config : GROOM_PROGRAMS;
+}
+
+export function groomProgram(id: string, programs: GroomProgram[] = GROOM_PROGRAMS) {
+  return programs.find((p) => p.id === id);
 }
 
 /** ชื่อโปรแกรมจาก id — "" ถ้าไม่เจอ (ใช้โชว์ในนัด/การ์ด/บิล) */
-export function groomProgramName(id?: string) {
+export function groomProgramName(id?: string, programs: GroomProgram[] = GROOM_PROGRAMS) {
   if (!id) return "";
-  return GROOM_PROGRAMS.find((p) => p.id === id)?.name || "";
+  return programs.find((p) => p.id === id)?.name || "";
 }
 
 export function groomSizeLabel(size: GroomSize) {
@@ -93,9 +101,10 @@ export function groomSizeLabel(size: GroomSize) {
 export function groomPrice(
   programId: string,
   breed: string,
-  size: GroomSize
+  size: GroomSize,
+  programs: GroomProgram[] = GROOM_PROGRAMS
 ): number {
-  const prog = groomProgram(programId);
+  const prog = groomProgram(programId, programs);
   const b = prog?.breeds.find((x) => x.breed === breed);
   return b ? b.prices[size] : 0;
 }

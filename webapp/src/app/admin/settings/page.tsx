@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import type { SiteConfig } from "@/lib/config-types";
+import type { SiteConfig, BoardingRuleBlock } from "@/lib/config-types";
 import type { RoomType } from "@/lib/business";
+import { GROOM_SIZES, resolveGroomPrograms, type GroomProgram, type GroomSize } from "@/lib/grooming-prices";
 import { adminJson } from "@/lib/admin-fetch";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
@@ -16,6 +17,8 @@ type Tab =
   | "automation"
   | "lists"
   | "rooms"
+  | "groomPrograms"
+  | "boardingRules"
   | "grooming"
   | "points"
   | "crm"
@@ -28,6 +31,8 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "automation", label: "อัตโนมัติ", icon: "⏰" },
   { id: "lists", label: "รายการ", icon: "📋" },
   { id: "rooms", label: "ห้อง", icon: "🛏️" },
+  { id: "groomPrograms", label: "โปรแกรมอาบน้ำ", icon: "🧴" },
+  { id: "boardingRules", label: "กฎระเบียบ", icon: "📜" },
   { id: "grooming", label: "อาบน้ำ", icon: "🛁" },
   { id: "points", label: "แต้ม", icon: "🎁" },
   { id: "crm", label: "ลูกค้า", icon: "👥" },
@@ -172,6 +177,12 @@ export default function SettingsPage() {
       )}
       {tab === "rooms" && (
         <RoomsTab config={config} saving={saving} onSave={save} />
+      )}
+      {tab === "groomPrograms" && (
+        <GroomProgramsTab config={config} saving={saving} onSave={save} />
+      )}
+      {tab === "boardingRules" && (
+        <BoardingRulesTab config={config} saving={saving} onSave={save} />
       )}
       {tab === "grooming" && (
         <GroomingTab config={config} saving={saving} onSave={save} />
@@ -590,11 +601,51 @@ function RoomsTab({
     reader.readAsDataURL(file);
   };
 
+  // เพิ่มห้อง/แพ็กเกจใหม่ — ห้องจริง (นับเป็นความจุเพิ่ม ตั้ง count) หรือแพ็กเกจรวมห้องเดิม
+  // (size แบบ S+S/M+M ไม่เพิ่มความจุ แค่จัดแสดง/คิดราคาเป็นชุด) แล้วแต่ร้านตั้งเอง
+  const addRoom = () => {
+    const id = `room-${Date.now()}`;
+    setRooms((prev) => [
+      ...prev,
+      {
+        id,
+        name: "ห้องใหม่",
+        size: "S" as RoomType["size"],
+        count: 1,
+        price: 0,
+        cats: { th: "", en: "" },
+        extra: { th: "", en: "" },
+        note: { th: "", en: "" },
+        image: "",
+        amenities: { th: [], en: [] },
+      },
+    ]);
+  };
+
+  const removeRoom = (idx: number) => {
+    if (!confirm(`ลบ "${rooms[idx].name}" ออกจากรายการห้องเลยไหม?`)) return;
+    setRooms((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   return (
     <div className="space-y-4">
       {rooms.map((room, idx) => (
         <div key={room.id} className="rounded-catcha border border-catcha-line bg-card p-4">
-          <p className="mb-2 font-bold text-brown">{room.name}</p>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <input
+              value={room.name}
+              onChange={(e) => updateRoom(idx, { name: e.target.value })}
+              className="min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-2.5 py-1.5 text-sm font-bold text-brown"
+              placeholder="ชื่อห้อง"
+            />
+            <button
+              type="button"
+              onClick={() => removeRoom(idx)}
+              className="shrink-0 rounded-full bg-wait/10 px-2.5 py-1 text-[10px] font-bold text-wait"
+            >
+              🗑️ ลบ
+            </button>
+          </div>
           <div className="mb-3 flex gap-3">
             {room.image.startsWith("data:") || room.image.startsWith("http") ? (
               <Image
@@ -611,6 +662,33 @@ function RoomsTab({
               </div>
             )}
             <div className="flex-1 space-y-2">
+              <div className="flex gap-2">
+                <label className="flex-1 text-[10px] font-bold text-brown-soft">
+                  ขนาด/ประเภท
+                  <select
+                    value={room.size}
+                    onChange={(e) => updateRoom(idx, { size: e.target.value as RoomType["size"] })}
+                    className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-2 text-xs"
+                  >
+                    <option value="S">S (ห้องเดี่ยว เล็ก)</option>
+                    <option value="M">M (ห้องเดี่ยว ใหญ่)</option>
+                    <option value="S+S">S+S (จับคู่ห้องเล็ก 2 ห้อง)</option>
+                    <option value="M+M">M+M (จับคู่ห้องใหญ่ 2 ห้อง)</option>
+                    <option value="S+M">S+M (จับคู่ห้องเล็ก+ใหญ่)</option>
+                  </select>
+                </label>
+                <label className="w-24 text-[10px] font-bold text-brown-soft">
+                  จำนวนยูนิต
+                  <input
+                    type="number"
+                    min={0}
+                    value={room.count ?? ""}
+                    onChange={(e) => updateRoom(idx, { count: Number(e.target.value) || undefined })}
+                    placeholder="เฉพาะห้องเดี่ยว"
+                    className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-2 text-xs"
+                  />
+                </label>
+              </div>
               <Field
                 label="ราคา/คืน (บาท)"
                 type="number"
@@ -638,6 +716,18 @@ function RoomsTab({
             </div>
           </div>
           <Field
+            label="รับกี่ตัว (โชว์ในการ์ดห้อง)"
+            value={room.cats?.th || ""}
+            onChange={(v) => updateRoom(idx, { cats: { th: v, en: room.cats?.en || v } })}
+            placeholder="เช่น รับสูงสุด 2 ตัว"
+          />
+          <Field
+            label="สิ่งที่ได้เพิ่ม (โชว์ในการ์ดห้อง)"
+            value={room.extra?.th || ""}
+            onChange={(v) => updateRoom(idx, { extra: { th: v, en: room.extra?.en || v } })}
+            placeholder="เช่น พื้นที่กว้างเป็นพิเศษ"
+          />
+          <Field
             label="โน้ต (ไทย)"
             value={room.note?.th || ""}
             onChange={(v) =>
@@ -648,11 +738,316 @@ function RoomsTab({
       ))}
       <button
         type="button"
+        onClick={addRoom}
+        className="w-full rounded-catcha-sm border-2 border-dashed border-latte/60 bg-latte/10 py-2.5 text-xs font-extrabold text-latte-deep"
+      >
+        ➕ เพิ่มห้อง/แพ็กเกจใหม่
+      </button>
+      <button
+        type="button"
         disabled={saving}
         onClick={() => onSave({ rooms })}
         className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
       >
         {saving ? "กำลังบันทึก…" : "💾 บันทึกห้องทั้งหมด"}
+      </button>
+    </div>
+  );
+}
+
+function GroomProgramsTab({
+  config,
+  saving,
+  onSave,
+}: {
+  config: SiteConfig;
+  saving: boolean;
+  onSave: (p: Partial<SiteConfig>) => void;
+}) {
+  const [programs, setPrograms] = useState<GroomProgram[]>(
+    resolveGroomPrograms(config.groomPricePrograms)
+  );
+  useEffect(
+    () => setPrograms(resolveGroomPrograms(config.groomPricePrograms)),
+    [config.groomPricePrograms]
+  );
+
+  const updateProgram = (idx: number, patch: Partial<GroomProgram>) =>
+    setPrograms((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+
+  const addProgram = () => {
+    setPrograms((prev) => [
+      ...prev,
+      {
+        id: `program-${Date.now()}`,
+        name: "โปรแกรมใหม่",
+        breeds: [{ breed: "แมวไทย", prices: { kitten: 0, m: 0, l: 0 } }],
+      },
+    ]);
+  };
+
+  const removeProgram = (idx: number) => {
+    if (!confirm(`ลบโปรแกรม "${programs[idx].name}" เลยไหม?`)) return;
+    setPrograms((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const addBreedRow = (progIdx: number) => {
+    setPrograms((prev) =>
+      prev.map((p, i) =>
+        i === progIdx
+          ? { ...p, breeds: [...p.breeds, { breed: "", prices: { kitten: 0, m: 0, l: 0 } }] }
+          : p
+      )
+    );
+  };
+
+  const updateBreedRow = (
+    progIdx: number,
+    breedIdx: number,
+    patch: Partial<GroomProgram["breeds"][number]>
+  ) =>
+    setPrograms((prev) =>
+      prev.map((p, i) =>
+        i === progIdx
+          ? {
+              ...p,
+              breeds: p.breeds.map((b, j) => (j === breedIdx ? { ...b, ...patch } : b)),
+            }
+          : p
+      )
+    );
+
+  const removeBreedRow = (progIdx: number, breedIdx: number) =>
+    setPrograms((prev) =>
+      prev.map((p, i) =>
+        i === progIdx ? { ...p, breeds: p.breeds.filter((_, j) => j !== breedIdx) } : p
+      )
+    );
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[11px] text-brown-faint">
+        ตารางราคาที่ใช้ตอนคิดเงินและตอนลูกค้าเลือกโปรแกรมตอนจอง — เพิ่ม/ลบโปรแกรมหรือแถวพันธุ์ได้เอง
+      </p>
+      {programs.map((prog, progIdx) => (
+        <div key={prog.id} className="rounded-catcha border border-catcha-line bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <input
+              value={prog.name}
+              onChange={(e) => updateProgram(progIdx, { name: e.target.value })}
+              className="min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-2.5 py-1.5 text-sm font-bold text-brown"
+              placeholder="ชื่อโปรแกรม"
+            />
+            <button
+              type="button"
+              onClick={() => removeProgram(progIdx)}
+              className="shrink-0 rounded-full bg-wait/10 px-2.5 py-1 text-[10px] font-bold text-wait"
+            >
+              🗑️ ลบโปรแกรม
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {prog.breeds.map((b, breedIdx) => (
+              <div
+                key={breedIdx}
+                className="rounded-catcha-sm border border-catcha-line bg-paper/50 p-2.5"
+              >
+                <div className="mb-1.5 flex items-center gap-2">
+                  <input
+                    value={b.breed}
+                    onChange={(e) => updateBreedRow(progIdx, breedIdx, { breed: e.target.value })}
+                    placeholder="เช่น แมวไทย, แมวพันธุ์ขนสั้น"
+                    className="min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-card px-2 py-1.5 text-xs font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeBreedRow(progIdx, breedIdx)}
+                    className="shrink-0 text-[10px] font-bold text-wait"
+                  >
+                    ✕ ลบแถว
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  {GROOM_SIZES.map((sz) => (
+                    <label key={sz.id} className="flex-1 text-[10px] font-bold text-brown-soft">
+                      {sz.label}
+                      <input
+                        type="number"
+                        value={b.prices[sz.id as GroomSize]}
+                        onChange={(e) =>
+                          updateBreedRow(progIdx, breedIdx, {
+                            prices: { ...b.prices, [sz.id]: Number(e.target.value) || 0 },
+                          })
+                        }
+                        className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-card px-2 py-1.5 text-xs"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => addBreedRow(progIdx)}
+            className="mt-2 w-full rounded-catcha-sm border border-dashed border-latte/60 py-1.5 text-[11px] font-bold text-latte-deep"
+          >
+            ➕ เพิ่มแถวพันธุ์/ราคา
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addProgram}
+        className="w-full rounded-catcha-sm border-2 border-dashed border-latte/60 bg-latte/10 py-2.5 text-xs font-extrabold text-latte-deep"
+      >
+        ➕ เพิ่มโปรแกรมใหม่
+      </button>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => onSave({ groomPricePrograms: programs })}
+        className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
+      >
+        {saving ? "กำลังบันทึก…" : "💾 บันทึกโปรแกรมอาบน้ำทั้งหมด"}
+      </button>
+    </div>
+  );
+}
+
+function BoardingRulesTab({
+  config,
+  saving,
+  onSave,
+}: {
+  config: SiteConfig;
+  saving: boolean;
+  onSave: (p: Partial<SiteConfig>) => void;
+}) {
+  const [blocks, setBlocks] = useState<BoardingRuleBlock[]>(config.boardingRules || []);
+  useEffect(() => setBlocks(config.boardingRules || []), [config.boardingRules]);
+
+  const updateBlock = (idx: number, patch: Partial<BoardingRuleBlock>) =>
+    setBlocks((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)));
+
+  const addBlock = () =>
+    setBlocks((prev) => [...prev, { id: `rule-${Date.now()}`, text: "" }]);
+
+  const removeBlock = (idx: number) =>
+    setBlocks((prev) => prev.filter((_, i) => i !== idx));
+
+  const move = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= blocks.length) return;
+    setBlocks((prev) => {
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
+
+  const onImage = (idx: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => updateBlock(idx, { image: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[11px] text-brown-faint">
+        เนื้อหาหน้ากฎระเบียบการฝาก (ฝั่งลูกค้า ในหน้าบริการ) — ใส่ได้ทั้งรูปและ/หรือข้อความต่อบล็อก
+        เรียงลำดับได้ตามต้องการ
+      </p>
+      {blocks.map((b, idx) => (
+        <div key={b.id} className="rounded-catcha border border-catcha-line bg-card p-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-brown-soft">บล็อกที่ {idx + 1}</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => move(idx, -1)}
+                disabled={idx === 0}
+                className="rounded-full bg-paper px-2 py-1 text-[10px] font-bold text-brown-soft disabled:opacity-30"
+              >
+                ⬆️
+              </button>
+              <button
+                type="button"
+                onClick={() => move(idx, 1)}
+                disabled={idx === blocks.length - 1}
+                className="rounded-full bg-paper px-2 py-1 text-[10px] font-bold text-brown-soft disabled:opacity-30"
+              >
+                ⬇️
+              </button>
+              <button
+                type="button"
+                onClick={() => removeBlock(idx)}
+                className="rounded-full bg-wait/10 px-2.5 py-1 text-[10px] font-bold text-wait"
+              >
+                🗑️ ลบ
+              </button>
+            </div>
+          </div>
+
+          {b.image && (
+            <Image
+              src={b.image}
+              alt=""
+              width={200}
+              height={140}
+              className="mb-2 h-[140px] w-full rounded-catcha-sm object-cover bg-paper"
+              unoptimized
+            />
+          )}
+          <label className="block text-[10px] font-bold text-latte-deep">
+            {b.image ? "เปลี่ยนรูป" : "แนบรูป (ไม่บังคับ)"}
+            <input
+              type="file"
+              accept="image/*"
+              className="mt-1 block w-full text-[10px]"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onImage(idx, f);
+              }}
+            />
+          </label>
+          {b.image && (
+            <button
+              type="button"
+              onClick={() => updateBlock(idx, { image: undefined })}
+              className="mt-1 text-[10px] font-bold text-wait underline"
+            >
+              เอารูปออก
+            </button>
+          )}
+
+          <label className="mt-2 block text-[10px] font-bold text-brown-soft">
+            ข้อความ (ไม่บังคับถ้ามีแต่รูป)
+            <textarea
+              value={b.text || ""}
+              onChange={(e) => updateBlock(idx, { text: e.target.value })}
+              rows={3}
+              placeholder="เช่น กติกาการฝากเลี้ยง วัคซีน อาหาร ฯลฯ"
+              className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addBlock}
+        className="w-full rounded-catcha-sm border-2 border-dashed border-latte/60 bg-latte/10 py-2.5 text-xs font-extrabold text-latte-deep"
+      >
+        ➕ เพิ่มบล็อก
+      </button>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => onSave({ boardingRules: blocks })}
+        className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
+      >
+        {saving ? "กำลังบันทึก…" : "💾 บันทึกกฎระเบียบ"}
       </button>
     </div>
   );
