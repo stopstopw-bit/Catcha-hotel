@@ -74,6 +74,8 @@ export function getDefaultSiteConfig(): SiteConfig {
       rooms: ROOMS,
       groomPricePrograms: GROOM_PROGRAMS,
       boardingRules: [],
+      roomsPageBlocks: [],
+      groomingPageBlocks: [],
       groomSlots: [...GROOM_SLOTS],
       closedWeekdays: [],
       closedDates: [],

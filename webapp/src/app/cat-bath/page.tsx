@@ -7,6 +7,7 @@ import { BUSINESS } from "@/lib/business";
 import { getSiteConfig } from "@/lib/config-store";
 import { resolveGroomPrograms, groomProgram, type GroomProgram } from "@/lib/grooming-prices";
 import SiteFooter from "@/components/SiteFooter";
+import { ContentBlocks } from "@/components/ContentBlocks";
 
 /** หน้าอาบน้ำแมว — เมนู + ราคาเต็ม (SEO service page) · ร้านไม่มีบริการตัดขน */
 
@@ -279,6 +280,8 @@ export default async function CatBathPage() {
           </Link>
         </p>
       </div>
+
+      <ContentBlocks blocks={config.groomingPageBlocks} />
 
       <SiteFooter />
     </main>

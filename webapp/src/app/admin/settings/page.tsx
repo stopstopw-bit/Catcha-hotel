@@ -19,6 +19,8 @@ type Tab =
   | "rooms"
   | "groomPrograms"
   | "boardingRules"
+  | "roomsPageBlocks"
+  | "groomingPageBlocks"
   | "grooming"
   | "points"
   | "crm"
@@ -33,6 +35,8 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "rooms", label: "ห้อง", icon: "🛏️" },
   { id: "groomPrograms", label: "โปรแกรมอาบน้ำ", icon: "🧴" },
   { id: "boardingRules", label: "กฎระเบียบ", icon: "📜" },
+  { id: "roomsPageBlocks", label: "เนื้อหาห้องพัก", icon: "🖼️" },
+  { id: "groomingPageBlocks", label: "เนื้อหาอาบน้ำ", icon: "🖼️" },
   { id: "grooming", label: "อาบน้ำ", icon: "🛁" },
   { id: "points", label: "แต้ม", icon: "🎁" },
   { id: "crm", label: "ลูกค้า", icon: "👥" },
@@ -182,7 +186,34 @@ export default function SettingsPage() {
         <GroomProgramsTab config={config} saving={saving} onSave={save} />
       )}
       {tab === "boardingRules" && (
-        <BoardingRulesTab config={config} saving={saving} onSave={save} />
+        <ContentBlocksTab
+          config={config}
+          saving={saving}
+          onSave={save}
+          field="boardingRules"
+          hint="เนื้อหาหน้ากฎระเบียบการฝาก (ฝั่งลูกค้า ในหน้าบริการ) — ใส่ได้ทั้งรูปและ/หรือข้อความต่อบล็อก เรียงลำดับได้ตามต้องการ"
+          saveLabel="💾 บันทึกกฎระเบียบ"
+        />
+      )}
+      {tab === "roomsPageBlocks" && (
+        <ContentBlocksTab
+          config={config}
+          saving={saving}
+          onSave={save}
+          field="roomsPageBlocks"
+          hint="เนื้อหาเสริมท้ายหน้าห้องพัก (ทั้งหน้า SEO /cat-hotel และหน้าห้องพักในแอปลูกค้า) — จะเพิ่มแค่รูป แค่ข้อความ หรือทั้งคู่ต่อบล็อกก็ได้"
+          saveLabel="💾 บันทึกเนื้อหาห้องพัก"
+        />
+      )}
+      {tab === "groomingPageBlocks" && (
+        <ContentBlocksTab
+          config={config}
+          saving={saving}
+          onSave={save}
+          field="groomingPageBlocks"
+          hint="เนื้อหาเสริมท้ายหน้าอาบน้ำ (ทั้งหน้า SEO /cat-bath และหน้าอาบน้ำในแอปลูกค้า) — จะเพิ่มแค่รูป แค่ข้อความ หรือทั้งคู่ต่อบล็อกก็ได้"
+          saveLabel="💾 บันทึกเนื้อหาอาบน้ำ"
+        />
       )}
       {tab === "grooming" && (
         <GroomingTab config={config} saving={saving} onSave={save} />
@@ -916,17 +947,27 @@ function GroomProgramsTab({
   );
 }
 
-function BoardingRulesTab({
+/**
+ * ตัวแก้ไขบล็อกเนื้อหา (รูป/ข้อความ อย่างใดอย่างหนึ่งหรือทั้งคู่) ใช้ร่วมกัน 3 ที่:
+ * กฎระเบียบการฝาก, เนื้อหาเสริมหน้าห้องพัก, เนื้อหาเสริมหน้าอาบน้ำ — ต่างกันแค่ field ที่บันทึกลง config
+ */
+function ContentBlocksTab({
   config,
   saving,
   onSave,
+  field,
+  hint,
+  saveLabel,
 }: {
   config: SiteConfig;
   saving: boolean;
   onSave: (p: Partial<SiteConfig>) => void;
+  field: "boardingRules" | "roomsPageBlocks" | "groomingPageBlocks";
+  hint: string;
+  saveLabel: string;
 }) {
-  const [blocks, setBlocks] = useState<BoardingRuleBlock[]>(config.boardingRules || []);
-  useEffect(() => setBlocks(config.boardingRules || []), [config.boardingRules]);
+  const [blocks, setBlocks] = useState<BoardingRuleBlock[]>(config[field] || []);
+  useEffect(() => setBlocks(config[field] || []), [config, field]);
 
   const updateBlock = (idx: number, patch: Partial<BoardingRuleBlock>) =>
     setBlocks((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)));
@@ -955,10 +996,7 @@ function BoardingRulesTab({
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] text-brown-faint">
-        เนื้อหาหน้ากฎระเบียบการฝาก (ฝั่งลูกค้า ในหน้าบริการ) — ใส่ได้ทั้งรูปและ/หรือข้อความต่อบล็อก
-        เรียงลำดับได้ตามต้องการ
-      </p>
+      <p className="text-[11px] text-brown-faint">{hint}</p>
       {blocks.map((b, idx) => (
         <div key={b.id} className="rounded-catcha border border-catcha-line bg-card p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -1044,10 +1082,10 @@ function BoardingRulesTab({
       <button
         type="button"
         disabled={saving}
-        onClick={() => onSave({ boardingRules: blocks })}
+        onClick={() => onSave({ [field]: blocks })}
         className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
       >
-        {saving ? "กำลังบันทึก…" : "💾 บันทึกกฎระเบียบ"}
+        {saving ? "กำลังบันทึก…" : saveLabel}
       </button>
     </div>
   );

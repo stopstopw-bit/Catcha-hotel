@@ -220,6 +220,10 @@ export type SiteConfig = {
   groomPricePrograms?: GroomProgram[];
   /** เนื้อหาหน้ากฎระเบียบการฝาก (ฝั่งลูกค้า) — ไม่ตั้ง = ยังไม่มีหน้านี้ */
   boardingRules?: BoardingRuleBlock[];
+  /** เนื้อหาเสริมท้ายหน้าห้องพัก — ทั้งหน้า SEO (/cat-hotel) และหน้าห้องพักในแอปลูกค้า */
+  roomsPageBlocks?: BoardingRuleBlock[];
+  /** เนื้อหาเสริมท้ายหน้าอาบน้ำ — ทั้งหน้า SEO (/cat-bath) และหน้าอาบน้ำในแอปลูกค้า */
+  groomingPageBlocks?: BoardingRuleBlock[];
   groomSlots: string[];
   /** วันหยุดประจำสัปดาห์ (0=อาทิตย์ … 6=เสาร์) */
   closedWeekdays?: number[];

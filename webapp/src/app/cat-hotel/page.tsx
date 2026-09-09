@@ -7,6 +7,7 @@ import { BUSINESS } from "@/lib/business";
 import type { RoomType } from "@/lib/business";
 import { getSiteConfig } from "@/lib/config-store";
 import SiteFooter from "@/components/SiteFooter";
+import { ContentBlocks } from "@/components/ContentBlocks";
 
 /** หน้าห้องพักโรงแรมแมว — รูปจริง + ราคา ครบทุกห้อง (SEO service page) */
 
@@ -190,6 +191,8 @@ export default async function CatHotelPage() {
           </Link>
         </p>
       </div>
+
+      <ContentBlocks blocks={config.roomsPageBlocks} />
 
       <SiteFooter />
     </main>
