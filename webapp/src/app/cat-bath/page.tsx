@@ -4,11 +4,16 @@ import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
 import { BUSINESS } from "@/lib/business";
+import { getSiteConfig } from "@/lib/config-store";
+import { resolveGroomPrograms, groomProgram, type GroomProgram } from "@/lib/grooming-prices";
 import SiteFooter from "@/components/SiteFooter";
 
 /** หน้าอาบน้ำแมว — เมนู + ราคาเต็ม (SEO service page) · ร้านไม่มีบริการตัดขน */
 
 import { getAppUrl } from "@/lib/app-url";
+
+// ราคาอาบน้ำมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
+export const revalidate = 300;
 
 const SITE_URL = getAppUrl();
 const PHONE_MAIN = BUSINESS.phones[0];
@@ -40,14 +45,37 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const PRICE_ROWS = [
-  ["แมวไทย", "400 / 450 / 550", "500 / 600 / 700"],
-  ["แมวพันธุ์ขนสั้น", "450 / 500 / 700", "600 / 750 / 900"],
-  ["แมวพันธุ์ขนยาว", "550 / 650 / 850", "700 / 850 / 1,050"],
-  ["แรคดอล/เมนคูน/ขนหนาฟู", "650 / 850 / 1,050", "800 / 1,050 / 1,250"],
-];
+/** ต่ำสุดของราคาในโปรแกรม — ใช้เป็นราคา "เริ่มต้น" โชว์ใน jsonLd (ถ้าไม่เจอโปรแกรมคืน 0) */
+function cheapestPrice(prog?: GroomProgram): number {
+  if (!prog) return 0;
+  const all = prog.breeds.flatMap((b) => Object.values(b.prices));
+  return all.length ? Math.min(...all) : 0;
+}
 
-function jsonLd() {
+/** แถวราคาต่อสายพันธุ์ เทียบ 2 โปรแกรม (อาบน้ำ-เป่าขน vs ขจัดคราบมัน) — เรียงตามลำดับพันธุ์ของโปรแกรมแรก */
+function priceRowsFor(bath?: GroomProgram, degrease?: GroomProgram): [string, string, string][] {
+  if (!bath) return [];
+  return bath.breeds.map((b) => {
+    const bathStr = `${b.prices.kitten.toLocaleString()} / ${b.prices.m.toLocaleString()} / ${b.prices.l.toLocaleString()}`;
+    const d = degrease?.breeds.find((x) => x.breed === b.breed);
+    const degreaseStr = d
+      ? `${d.prices.kitten.toLocaleString()} / ${d.prices.m.toLocaleString()} / ${d.prices.l.toLocaleString()}`
+      : "—";
+    return [b.breed, bathStr, degreaseStr];
+  });
+}
+
+function jsonLd(programs: GroomProgram[]) {
+  const bath = groomProgram("bath-dry", programs);
+  const degrease = groomProgram("bath-degrease", programs);
+  const premium = groomProgram("premium", programs);
+  const malaseb = groomProgram("malaseb", programs);
+  const offers = [
+    bath && { "@type": "Offer", name: bath.name, price: String(cheapestPrice(bath)), priceCurrency: "THB" },
+    degrease && { "@type": "Offer", name: degrease.name, price: String(cheapestPrice(degrease)), priceCurrency: "THB" },
+    premium && { "@type": "Offer", name: premium.name, price: String(cheapestPrice(premium)), priceCurrency: "THB" },
+    malaseb && { "@type": "Offer", name: malaseb.name, price: String(cheapestPrice(malaseb)), priceCurrency: "THB" },
+  ].filter((o): o is NonNullable<typeof o> => !!o);
   return {
     "@context": "https://schema.org",
     "@type": "Service",
@@ -57,22 +85,26 @@ function jsonLd() {
       "อาบน้ำแมวแชมพูพรีเมียม เป่าแห้งสนิท รวมตัดเล็บ เช็ดหู-ตา ไถขนก้นและอุ้งเท้า บริการแบบ Private",
     provider: { "@type": "LocalBusiness", name: "CatCha Hotel", telephone: "+66805498969" },
     areaServed: ["บางนา", "เทพารักษ์", "หนามแดง", "ศรีนครินทร์", "พัฒนาการ", "เมกาบางนา", "สมุทรปราการ"],
-    offers: [
-      { "@type": "Offer", name: "อาบน้ำ-เป่าขน", price: "400", priceCurrency: "THB" },
-      { "@type": "Offer", name: "อาบน้ำ+ขจัดคราบมัน", price: "500", priceCurrency: "THB" },
-      { "@type": "Offer", name: "Catcha Premium", price: "700", priceCurrency: "THB" },
-      { "@type": "Offer", name: "อาบน้ำยับยั้งเชื้อรา Malaseb", price: "700", priceCurrency: "THB" },
-    ],
+    offers,
   };
 }
 
-export default function CatBathPage() {
+export default async function CatBathPage() {
   if (!isMarketingSite()) redirect("/app");
+  const config = await getSiteConfig();
+  const programs = resolveGroomPrograms(config.groomPricePrograms);
+  const bath = groomProgram("bath-dry", programs);
+  const degrease = groomProgram("bath-degrease", programs);
+  const premium = groomProgram("premium", programs);
+  const malaseb = groomProgram("malaseb", programs);
+  const PRICE_ROWS = priceRowsFor(bath, degrease);
+  const advancePrices = [premium, malaseb].map(cheapestPrice).filter((n) => n > 0);
+  const advanceFrom = advancePrices.length ? Math.min(...advancePrices) : 700;
   return (
     <main className="mx-auto max-w-5xl px-5 pb-16 pt-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(programs)) }}
       />
       <Link href="/" className="text-xs font-bold text-brown-soft">
         ← หน้าแรก CatCha Hotel
@@ -158,7 +190,7 @@ export default function CatBathPage() {
       </div>
       <p className="mt-2 text-[11px] text-brown-soft">
         ขนาดตัว: ลูกแมวไม่เกิน 2 กก. · M ไม่เกิน 6 กก. · L 6 กก.ขึ้นไป — โปรแกรม Advance:
-        Catcha Premium และอาบยับยั้งเชื้อรา Malaseb เริ่ม 700.- (ดูตารางเต็มด้านล่าง)
+        Catcha Premium และอาบยับยั้งเชื้อรา Malaseb เริ่ม {advanceFrom.toLocaleString()}.- (ดูตารางเต็มด้านล่าง)
       </p>
 
       {/* เมนูฉบับเต็ม (รูป) */}

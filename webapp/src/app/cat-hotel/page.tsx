@@ -3,12 +3,18 @@ import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
-import { BUSINESS, ROOMS } from "@/lib/business";
+import { BUSINESS } from "@/lib/business";
+import type { RoomType } from "@/lib/business";
+import { getSiteConfig } from "@/lib/config-store";
 import SiteFooter from "@/components/SiteFooter";
 
 /** หน้าห้องพักโรงแรมแมว — รูปจริง + ราคา ครบทุกห้อง (SEO service page) */
 
 import { getAppUrl } from "@/lib/app-url";
+
+// ราคา/รูป/ข้อความห้องมาจากหลังบ้านแล้ว (ไม่ใช่ฝังในโค้ดอีกต่อไป) — ตั้ง revalidate
+// ให้หน้านี้ไปดึงค่าล่าสุดทุก 5 นาที ไม่งั้นแก้ในแอดมินแล้วหน้า SEO จะยังโชว์ของเก่าจนกว่าจะ deploy ใหม่
+export const revalidate = 300;
 
 const SITE_URL = getAppUrl();
 const PHONE_MAIN = BUSINESS.phones[0];
@@ -39,14 +45,14 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-function jsonLd() {
+function jsonLd(rooms: RoomType[]) {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: "ห้องพักโรงแรมแมว CatCha Hotel",
     description: "ห้องพักแมวห้องแอร์ส่วนตัว ย่านบางนา เทพารักษ์ สมุทรปราการ",
     image: `${SITE_URL}/catalog/rooms/cat-hotel-bangna-catflix.jpg`,
-    offers: ROOMS.map((r) => ({
+    offers: rooms.map((r) => ({
       "@type": "Offer",
       name: `ห้อง ${r.name}`,
       price: String(r.price),
@@ -56,10 +62,7 @@ function jsonLd() {
   };
 }
 
-const singles = ROOMS.filter((r) => r.count);
-const duos = ROOMS.filter((r) => !r.count);
-
-function RoomCard({ room }: { room: (typeof ROOMS)[number] }) {
+function RoomCard({ room }: { room: RoomType }) {
   return (
     <div className="overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
       <a href={room.image} target="_blank" rel="noopener noreferrer">
@@ -114,13 +117,17 @@ function RoomCard({ room }: { room: (typeof ROOMS)[number] }) {
   );
 }
 
-export default function CatHotelPage() {
+export default async function CatHotelPage() {
   if (!isMarketingSite()) redirect("/app");
+  const config = await getSiteConfig();
+  const rooms = config.rooms;
+  const singles = rooms.filter((r) => r.count);
+  const duos = rooms.filter((r) => !r.count);
   return (
     <main className="mx-auto max-w-5xl px-5 pb-16 pt-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(rooms)) }}
       />
       <Link href="/" className="text-xs font-bold text-brown-soft">
         ← หน้าแรก CatCha Hotel

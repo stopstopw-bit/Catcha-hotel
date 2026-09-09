@@ -4,13 +4,25 @@ import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
 import { BUSINESS } from "@/lib/business";
+import { getSiteConfig } from "@/lib/config-store";
+import { resolveGroomPrograms, groomProgram, type GroomProgram } from "@/lib/grooming-prices";
 import SiteFooter from "@/components/SiteFooter";
 
 /** หน้าประจำโซน: อาบน้ำแมว บางนา–ศรีนครินทร์–พัฒนาการ (Local SEO area page) · ร้านไม่มีบริการตัดขน */
 
 import { getAppUrl } from "@/lib/app-url";
 
+// ราคาอาบน้ำมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
+export const revalidate = 300;
+
 const SITE_URL = getAppUrl();
+
+/** ต่ำสุดของราคาในโปรแกรม — ใช้โชว์เป็นราคา "เริ่มต้น" (ไม่เจอโปรแกรมคืน fallback ที่ส่งมา) */
+function cheapestPrice(prog: GroomProgram | undefined, fallback: number): number {
+  if (!prog) return fallback;
+  const all = prog.breeds.flatMap((b) => Object.values(b.prices));
+  return all.length ? Math.min(...all) : fallback;
+}
 const PHONE_MAIN = BUSINESS.phones[0];
 const LINE_URL = "https://line.me/R/ti/p/@catchahotel";
 
@@ -61,7 +73,7 @@ const FAQS = [
   },
 ];
 
-function jsonLd() {
+function jsonLd(bath?: GroomProgram, degrease?: GroomProgram) {
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -73,8 +85,8 @@ function jsonLd() {
         provider: { "@type": "LocalBusiness", name: "CatCha Hotel", telephone: "+66805498969" },
         areaServed: ["บางนา", "ศรีนครินทร์", "พัฒนาการ", "เมกาบางนา", "อุดมสุข", "สวนหลวง"],
         offers: [
-          { "@type": "Offer", name: "อาบน้ำ-เป่าขน", price: "400", priceCurrency: "THB" },
-          { "@type": "Offer", name: "อาบน้ำ+ขจัดคราบมัน", price: "500", priceCurrency: "THB" },
+          { "@type": "Offer", name: bath?.name || "อาบน้ำ-เป่าขน", price: String(cheapestPrice(bath, 400)), priceCurrency: "THB" },
+          { "@type": "Offer", name: degrease?.name || "อาบน้ำ+ขจัดคราบมัน", price: String(cheapestPrice(degrease, 500)), priceCurrency: "THB" },
         ],
       },
       {
@@ -89,13 +101,25 @@ function jsonLd() {
   };
 }
 
-export default function CatBathBangnaPage() {
+export default async function CatBathBangnaPage() {
   if (!isMarketingSite()) redirect("/app");
+  const config = await getSiteConfig();
+  const programs = resolveGroomPrograms(config.groomPricePrograms);
+  const bath = groomProgram("bath-dry", programs);
+  const degrease = groomProgram("bath-degrease", programs);
+  const premium = groomProgram("premium", programs);
+  const malaseb = groomProgram("malaseb", programs);
+  const advancePrices = [premium, malaseb]
+    .map((p) => cheapestPrice(p, 0))
+    .filter((n) => n > 0);
+  const bathFrom = cheapestPrice(bath, 400);
+  const degreaseFrom = cheapestPrice(degrease, 500);
+  const advanceFrom = advancePrices.length ? Math.min(...advancePrices) : 700;
   return (
     <main className="mx-auto max-w-3xl px-5 pb-16 pt-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(bath, degrease)) }}
       />
       <Link href="/" className="text-xs font-bold text-brown-soft">
         ← หน้าแรก CatCha Hotel
@@ -151,9 +175,9 @@ export default function CatBathBangnaPage() {
       <h2 className="mt-10 text-lg font-extrabold text-catcha-chocolate">💰 ราคาเริ่มต้น</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {[
-          ["อาบน้ำ-เป่าขน", "เริ่ม 400.-", "ตามพันธุ์และขนาดตัว"],
-          ["อาบน้ำ+ขจัดคราบมัน", "เริ่ม 500.-", "ขนมันเหนียว เส้นจับตัว"],
-          ["Advance (พรีเมียม/เชื้อรา)", "เริ่ม 700.-", "Catcha Premium / Malaseb"],
+          [bath?.name || "อาบน้ำ-เป่าขน", `เริ่ม ${bathFrom.toLocaleString()}.-`, "ตามพันธุ์และขนาดตัว"],
+          [degrease?.name || "อาบน้ำ+ขจัดคราบมัน", `เริ่ม ${degreaseFrom.toLocaleString()}.-`, "ขนมันเหนียว เส้นจับตัว"],
+          ["Advance (พรีเมียม/เชื้อรา)", `เริ่ม ${advanceFrom.toLocaleString()}.-`, "Catcha Premium / Malaseb"],
         ].map(([name, price, desc]) => (
           <div key={name} className="rounded-catcha border border-catcha-line bg-card p-4 text-center">
             <p className="text-sm font-extrabold text-catcha-chocolate">{name}</p>

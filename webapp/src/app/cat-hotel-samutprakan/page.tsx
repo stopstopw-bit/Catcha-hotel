@@ -3,12 +3,16 @@ import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
-import { BUSINESS, ROOMS } from "@/lib/business";
+import { BUSINESS } from "@/lib/business";
+import { getSiteConfig } from "@/lib/config-store";
 import SiteFooter from "@/components/SiteFooter";
 
 /** หน้าประจำโซนเทพารักษ์–หนามแดง–สมุทรปราการ (Local SEO area page) — โซนบ้านของร้านเอง */
 
 import { getAppUrl } from "@/lib/app-url";
+
+// ราคา/รูปห้องมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
+export const revalidate = 300;
 
 const SITE_URL = getAppUrl();
 const PHONE_MAIN = BUSINESS.phones[0];
@@ -92,10 +96,10 @@ function jsonLd() {
   };
 }
 
-const duoRooms = ROOMS.filter((r) => !r.count).slice(0, 3);
-
-export default function CatHotelSamutprakanPage() {
+export default async function CatHotelSamutprakanPage() {
   if (!isMarketingSite()) redirect("/app");
+  const config = await getSiteConfig();
+  const duoRooms = config.rooms.filter((r) => !r.count).slice(0, 3);
   return (
     <main className="mx-auto max-w-3xl px-5 pb-16 pt-8">
       <script
