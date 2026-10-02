@@ -312,7 +312,7 @@ export function BookingCalendar() {
   };
   const [viewMonth, setViewMonth] = useState(() => today.slice(0, 7));
   /** มุมมองตาราง — เดือนดูภาพรวม, สัปดาห์วางแผน, วันทำงานหน้าร้าน, ห้องดูที่ว่าง */
-  const [view, setView] = useState<"month" | "week" | "day" | "rooms">("week");
+  const [view, setView] = useState<"month" | "week" | "day" | "rooms">("month");
 
   const liveBookings = bookings.filter((b) => b.status !== "cancelled");
   const dayBookings = liveBookings.filter((b) => bookingOnDate(b, activeDate));
@@ -1069,6 +1069,36 @@ export function BookingCalendar() {
                           ⏳ ยังไม่กดยอมรับข้อตกลง
                         </p>
                       ))}
+                    {b.service === "room" && b.consentAcceptedAt && (
+                      <div className="mt-1 space-y-1">
+                        {group.map((x) => (
+                          <div key={x.id} className="flex items-center gap-2 text-[11px]">
+                            <span className="font-bold text-brown-soft">🐱 {x.catName}</span>
+                            {x.vaccinePhotoUrl ? (
+                              <a
+                                href={x.vaccinePhotoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 font-bold text-ok underline"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={x.vaccinePhotoUrl}
+                                  alt="สมุดวัคซีน"
+                                  className="h-8 w-8 rounded border border-catcha-line object-cover"
+                                />
+                                💉 ดูสมุดวัคซีน
+                              </a>
+                            ) : (
+                              <span className="text-brown-faint">ยังไม่ได้แนบสมุดวัคซีน</span>
+                            )}
+                            {x.fleaTickTreated && (
+                              <span className="font-bold text-ok">✅ หยดยาเห็บหมัดแล้ว</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {(b.arrivalTime || b.pickupTime) && (
                       <p className="mt-1 text-[11px] font-bold text-latte-deep">
                         {b.arrivalTime && `🚗 ลูกค้าแจ้งเวลาส่งน้อง: ${b.arrivalTime}`}
