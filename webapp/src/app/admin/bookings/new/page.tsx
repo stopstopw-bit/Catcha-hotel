@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { RoomType } from "@/lib/business";
@@ -34,8 +34,17 @@ function CustomerPicker({
   const [results, setResults] = useState<CustomerListItem[]>([]);
   const [recent, setRecent] = useState<CustomerListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
+  // เก็บทั้งก้อนลูกค้าที่เปิดอยู่ ไม่ใช่แค่ id — ผลค้นหาโหลดช้า/รีเฟรชแล้วทับลิสต์ได้
+  // ถ้าเปิดจาก id อย่างเดียว แผงติ๊กแมวจะหายไปกลางทางจนเหมือน "กดแล้วไม่ติด"
+  const [openCustomer_, setOpenCustomer_] = useState<CustomerListItem | null>(null);
+  const openCustomerId = openCustomer_?.id ?? null;
+  const setOpenCustomerId = (id: string | null) => {
+    if (id === null) setOpenCustomer_(null);
+  };
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const recentRef = useRef<CustomerListItem[]>([]);
+  // แมวบางตัวข้อมูลเก่าไม่มี id — ใช้ชื่อแทน ไม่งั้นทุกตัวใช้ key เดียวกัน ติ๊กตัวหนึ่งกลายเป็นติ๊กหมด/ไม่ติด
+  const catKey = (cat: { id?: string; name: string }) => cat.id || `name:${cat.name}`;
 
   // โหลดลูกค้าสมัครล่าสุดไว้ล่วงหน้า — โชว์เป็นลิสต์ให้เลือกได้ทันทีโดยไม่ต้องพิมพ์ค้นหา
   useEffect(() => {
@@ -47,6 +56,7 @@ function CustomerPicker({
         );
         const top = sorted.slice(0, 20);
         setRecent(top);
+        recentRef.current = top;
         setResults((prev) => (prev.length === 0 ? top : prev));
       })
       .catch(() => {});
@@ -56,7 +66,7 @@ function CustomerPicker({
     async (query: string) => {
       const trimmed = query.trim();
       if (!trimmed) {
-        setResults(recent);
+        setResults(recentRef.current);
         return;
       }
       setLoading(true);
@@ -65,7 +75,7 @@ function CustomerPicker({
       setResults(data.customers || []);
       setLoading(false);
     },
-    [recent]
+    []
   );
 
   useEffect(() => {
@@ -82,15 +92,15 @@ function CustomerPicker({
         lineUserId: c.lineUserId,
       });
       setQ("");
-      setResults(recent);
+      setResults(recentRef.current);
       return;
     }
-    setOpenCustomerId(c.id);
+    setOpenCustomer_(c);
     setChecked({});
   };
 
   const confirmPick = (c: CustomerListItem) => {
-    const names = c.cats.filter((cat) => checked[cat.id]).map((cat) => cat.name);
+    const names = c.cats.filter((cat) => checked[catKey(cat)]).map((cat) => cat.name);
     onSelect({
       customerId: c.id,
       customerName: c.name,
@@ -98,7 +108,7 @@ function CustomerPicker({
       lineUserId: c.lineUserId,
     });
     setQ("");
-    setResults(recent);
+    setResults(recentRef.current);
     setOpenCustomerId(null);
     setChecked({});
   };
@@ -131,7 +141,10 @@ function CustomerPicker({
 
       {results.length > 0 && (
         <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-          {results.map((c) => (
+          {(openCustomer_ && !results.some((r) => r.id === openCustomer_.id)
+            ? [openCustomer_, ...results]
+            : results
+          ).map((c) => (
             <li key={c.id}>
               {openCustomerId === c.id ? (
                 <div className="rounded-catcha-sm border border-honey/50 bg-card p-2.5">
@@ -144,14 +157,14 @@ function CustomerPicker({
                   <div className="space-y-1">
                     {c.cats.map((cat) => (
                       <label
-                        key={cat.id}
+                        key={catKey(cat)}
                         className="flex items-center gap-2 rounded-catcha-sm bg-paper px-2.5 py-1.5 text-xs"
                       >
                         <input
                           type="checkbox"
-                          checked={!!checked[cat.id]}
+                          checked={!!checked[catKey(cat)]}
                           onChange={(e) =>
-                            setChecked((prev) => ({ ...prev, [cat.id]: e.target.checked }))
+                            setChecked((prev) => ({ ...prev, [catKey(cat)]: e.target.checked }))
                           }
                         />
                         <span className="font-bold text-brown">🐱 {cat.name}</span>
@@ -163,7 +176,7 @@ function CustomerPicker({
                       type="button"
                       onClick={() =>
                         setChecked(
-                          Object.fromEntries(c.cats.map((cat) => [cat.id, true]))
+                          Object.fromEntries(c.cats.map((cat) => [catKey(cat), true]))
                         )
                       }
                       className="rounded-full bg-honey/30 px-3 py-1 text-[10px] font-bold text-catcha-chocolate"
