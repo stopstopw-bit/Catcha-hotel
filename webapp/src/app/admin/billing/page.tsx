@@ -97,6 +97,9 @@ type Item = {
   /** ราคาต่อหน่วยที่ตกลงกับลูกค้าคนนี้ — ทับราคากลางของร้านเฉพาะบิลนี้
    *  undefined = ใช้ราคาปกติ, 0 = ตั้งใจให้ฟรี (จึงเช็ค undefined ไม่ใช่ falsy) */
   priceOverride?: number;
+  /** ส่วนลดเฉพาะรายการนี้ (หักจากยอดรวมของรายการ ก่อนส่วนลดท้ายบิล) — บาท หรือ % */
+  discount?: number;
+  discountMode?: "baht" | "percent";
 };
 
 function newGrooming(programs: GroomProgram[] = GROOM_PROGRAMS): Item {
@@ -149,6 +152,26 @@ function joinCatNames(names: string[]): string | undefined {
 }
 
 function computeLine(
+  it: Item,
+  programs: GroomProgram[] = GROOM_PROGRAMS
+): ReturnType<typeof computeLineBase> {
+  const base = computeLineBase(it, programs);
+  const d = Math.max(0, it.discount || 0);
+  if (it.kind === "freebie" || d <= 0 || base.amount <= 0) return base;
+  const off =
+    it.discountMode === "percent"
+      ? Math.round((base.amount * Math.min(100, d)) / 100)
+      : Math.min(base.amount, d);
+  if (off <= 0) return base;
+  const tag = it.discountMode === "percent" ? `ลด ${Math.min(100, d)}%` : `ลด ${off.toLocaleString()}฿`;
+  return {
+    ...base,
+    label: `${base.label} (${tag})`,
+    amount: base.amount - off,
+  };
+}
+
+function computeLineBase(
   it: Item,
   programs: GroomProgram[] = GROOM_PROGRAMS
 ): {
@@ -1529,6 +1552,33 @@ export default function BillingPage() {
                       </div>
                     )}
                   </div>
+
+                  {item.kind !== "freebie" && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-brown-soft">
+                      <span>🏷️ ลดเฉพาะรายการนี้</span>
+                      <NumField
+                        value={item.discount || 0}
+                        min={0}
+                        onCommit={(n) => updateItem(i, { discount: n || undefined })}
+                        className="w-16 rounded-lg border border-catcha-line bg-paper px-2 py-1 text-right text-xs font-bold"
+                      />
+                      <select
+                        value={item.discountMode || "baht"}
+                        onChange={(e) =>
+                          updateItem(i, { discountMode: e.target.value as "baht" | "percent" })
+                        }
+                        className="rounded-lg border border-catcha-line bg-paper px-1.5 py-1 text-xs"
+                      >
+                        <option value="baht">บาท</option>
+                        <option value="percent">%</option>
+                      </select>
+                      {(item.discount || 0) > 0 && (
+                        <span className="text-ok">
+                          = {line.amount.toLocaleString()} ฿
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {isSpecial && (
                     <div className="flex items-center justify-between gap-2 rounded-lg bg-honey/15 px-2 py-1">
