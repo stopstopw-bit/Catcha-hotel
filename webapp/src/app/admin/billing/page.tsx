@@ -369,7 +369,10 @@ export default function BillingPage() {
     | "issued-asc"
     | "amount-desc"
     | "due-desc"
+    | "name-asc"
   >("issued-desc");
+  // กรองบิลรายเดือน — เปิดมาครั้งแรกเห็นเดือนปัจจุบันเลย ("" = ทุกเดือน)
+  const [billMonth, setBillMonth] = useState(() => new Date().toISOString().slice(0, 7));
   // ตารางราคาโปรแกรมอาบน้ำ — ค่าเริ่มต้นของระบบ จนกว่า config จะโหลดเสร็จ (มีโปรแกรมที่ร้านเพิ่มเองด้วย)
   const [groomPrograms, setGroomPrograms] = useState<GroomProgram[]>(GROOM_PROGRAMS);
   const [items, setItems] = useState<Item[]>([newGrooming()]);
@@ -1959,6 +1962,7 @@ export default function BillingPage() {
           <option value="date-asc">📅 วันนัดเก่าก่อน</option>
           <option value="amount-desc">💰 ยอดมากสุด</option>
           <option value="due-desc">⏳ ค้างชำระมากสุด</option>
+          <option value="name-asc">🔤 ชื่อลูกค้า ก–ฮ</option>
         </select>
       </div>
       {(() => {
@@ -1977,7 +1981,17 @@ export default function BillingPage() {
         };
         const dueOf = (inv: Invoice) => inv.total - (inv.deposit || 0);
         const q = billSearch.trim().toLowerCase();
+        // เดือนอ้างอิง: เรียงตามวันออกบิล → เดือนที่ออกบิล, นอกนั้น → เดือนของวันนัด
+        const monthOf = (inv: Invoice) =>
+          (billSort === "issued-desc" || billSort === "issued-asc"
+            ? (inv.createdAt || "").slice(0, 10)
+            : serviceDate(inv)
+          ).slice(0, 7);
+        const monthSet = new Set(invoices.map(monthOf).filter(Boolean));
+        monthSet.add(new Date().toISOString().slice(0, 7));
+        const monthOptions = [...monthSet].sort().reverse();
         let list = invoices
+          .filter((inv) => !billMonth || monthOf(inv) === billMonth)
           .filter((inv) => billFilter === "all" || inv.status === billFilter)
           .filter(
             (inv) =>
@@ -1989,6 +2003,8 @@ export default function BillingPage() {
         list = [...list].sort((a, b) => {
           if (billSort === "amount-desc") return b.total - a.total;
           if (billSort === "due-desc") return dueOf(b) - dueOf(a);
+          if (billSort === "name-asc")
+            return (a.customerName || "").localeCompare(b.customerName || "", "th");
           if (billSort === "issued-asc" || billSort === "issued-desc") {
             const ia = a.createdAt || "";
             const ib = b.createdAt || "";
@@ -2196,6 +2212,33 @@ export default function BillingPage() {
           );
         };
 
+        const monthBar = (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-catcha-sm bg-paper/60 px-3 py-2">
+            <span className="text-[11px] font-extrabold text-catcha-chocolate">🗓️ เดือน</span>
+            <select
+              value={billMonth}
+              onChange={(e) => setBillMonth(e.target.value)}
+              className="rounded-catcha-sm border border-catcha-line bg-card px-2 py-1 text-xs font-bold text-brown-soft"
+            >
+              <option value="">ทุกเดือน</option>
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>
+                  {formatThaiDateShort(`${m}-01`).replace(/^1 /, "")}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] font-bold text-brown-soft">
+              {list.length} บิล · รวม {list.reduce((n, i) => n + i.total, 0).toLocaleString()} ฿
+              {list.some((i) => i.status === "pending")
+                ? ` · ค้าง ${list
+                    .filter((i) => i.status === "pending")
+                    .reduce((n, i) => n + dueOf(i), 0)
+                    .toLocaleString()} ฿`
+                : ""}
+            </span>
+          </div>
+        );
+
         if (
           billSort === "date-desc" ||
           billSort === "date-asc" ||
@@ -2217,10 +2260,15 @@ export default function BillingPage() {
           }
           if (groups.length === 0) {
             return (
-              <p className="py-6 text-center text-xs text-brown-soft">ไม่พบบิล</p>
+              <>
+                {monthBar}
+                <p className="py-6 text-center text-xs text-brown-soft">ไม่พบบิล</p>
+              </>
             );
           }
           return (
+            <>
+            {monthBar}
             <div className="space-y-4">
               {groups.map((g) => {
                 const dayTotal = g.bills.reduce((s, i) => s + i.total, 0);
@@ -2245,15 +2293,24 @@ export default function BillingPage() {
                 );
               })}
             </div>
+            </>
           );
         }
 
         if (list.length === 0) {
           return (
-            <p className="py-6 text-center text-xs text-brown-soft">ไม่พบบิล</p>
+            <>
+              {monthBar}
+              <p className="py-6 text-center text-xs text-brown-soft">ไม่พบบิล</p>
+            </>
           );
         }
-        return <div className="space-y-3">{list.map(renderBill)}</div>;
+        return (
+          <>
+            {monthBar}
+            <div className="space-y-3">{list.map(renderBill)}</div>
+          </>
+        );
       })()}
     </div>
   );
