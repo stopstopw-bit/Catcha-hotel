@@ -53,6 +53,7 @@ export default function ProfilePage() {
   const [cats, setCats] = useState<CatForm[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!profile?.lineUserId) return;
@@ -92,10 +93,31 @@ export default function ProfilePage() {
         );
       })
       .finally(() => setLoading(false));
-  }, [profile?.lineUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile?.lineUserId, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateCat = (idx: number, patch: Partial<CatForm>) =>
     setCats((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+
+  const addNewCat = () =>
+    setCats((prev) => [
+      ...prev,
+      {
+        id: "",
+        name: "",
+        gender: "",
+        breed: "",
+        breedOther: "",
+        ageValue: "",
+        ageUnit: "year",
+        birthday: "",
+        medical: "",
+        note: "",
+        needsConfirm: false,
+      },
+    ]);
+
+  const removeNewCat = (idx: number) =>
+    setCats((prev) => prev.filter((_, i) => i !== idx));
 
   const save = async () => {
     if (!profile?.lineUserId || !name.trim()) return;
@@ -132,6 +154,8 @@ export default function ProfilePage() {
       });
       if (res.ok) {
         setSaved(true);
+        // โหลดใหม่ให้น้องที่เพิ่งเพิ่มได้ id จริง — ไม่งั้นกดบันทึกซ้ำจะสร้างซ้ำ
+        setReloadKey((k) => k + 1);
         setTimeout(() => setSaved(false), 2500);
       }
     } finally {
@@ -221,7 +245,7 @@ export default function ProfilePage() {
           <div className="mt-4 space-y-3">
             <p className="text-xs font-extrabold text-catcha-chocolate">🐱 น้องแมวของฉัน</p>
             {cats.map((cat, idx) => (
-              <div key={cat.id} className="space-y-2 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
+              <div key={cat.id || `new-${idx}`} className="space-y-2 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 {cat.needsConfirm && (
                   <p className="rounded-catcha-sm bg-honey/20 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
                     📋 ตอนนี้เป็นข้อมูลที่ทางร้านกรอกแทนไว้ — ช่วยตรวจสอบ/แก้ไขให้ล่าสุด
@@ -286,10 +310,27 @@ export default function ProfilePage() {
                   noteValue={cat.note}
                   onChange={(medical, note) => updateCat(idx, { medical, note })}
                 />
+                {!cat.id && (
+                  <button
+                    type="button"
+                    onClick={() => removeNewCat(idx)}
+                    className="text-[10px] font-bold text-brown-faint"
+                  >
+                    ลบน้องแมวตัวนี้
+                  </button>
+                )}
               </div>
             ))}
+            <button
+              type="button"
+              onClick={addNewCat}
+              className="flex w-full items-center justify-center gap-2 rounded-catcha-sm bg-latte-deep py-3.5 text-sm font-extrabold text-white shadow-catcha-sm active:scale-[.98]"
+            >
+              <span className="text-lg">🐱</span> เพิ่มน้องแมวอีกตัว
+              <span className="text-lg">🐾</span>
+            </button>
             <p className="text-[10px] text-brown-faint">
-              อยากเพิ่มน้องใหม่ ทักแชทบอกเราได้เลยนะคะ 🧡
+              กรอกข้อมูลน้องใหม่แล้วกด “บันทึก” ด้านล่างเพื่อเพิ่มเข้าระบบ 🧡
             </p>
           </div>
 

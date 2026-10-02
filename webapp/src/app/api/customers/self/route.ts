@@ -4,6 +4,7 @@ import {
   findCustomerByLine,
   updateCustomer,
   updateCat,
+  addCat,
 } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -85,8 +86,8 @@ export async function POST(req: NextRequest) {
 
   if (Array.isArray(body.cats)) {
     for (const cat of body.cats) {
-      if (!cat?.id || typeof cat.name !== "string" || !cat.name.trim()) continue;
-      await updateCat(c.id, String(cat.id), {
+      if (typeof cat?.name !== "string" || !cat.name.trim()) continue;
+      const fields = {
         name: cat.name.trim(),
         gender:
           cat.gender === "male" || cat.gender === "female" ? cat.gender : undefined,
@@ -95,11 +96,14 @@ export async function POST(req: NextRequest) {
           cat.ageValue !== "" && cat.ageValue != null && !isNaN(Number(cat.ageValue))
             ? Number(cat.ageValue)
             : undefined,
-        ageUnit: cat.ageUnit === "month" ? "month" : "year",
+        ageUnit: cat.ageUnit === "month" ? ("month" as const) : ("year" as const),
         birthday: cat.birthday ? String(cat.birthday) : undefined,
         medical: cat.medical ? String(cat.medical).trim() : undefined,
         staffNote: cat.note ? String(cat.note).trim() : undefined,
-      }, { source: "customer" });
+      };
+      // ไม่มี id = น้องที่ลูกค้าเพิ่มเองในหน้านี้ → สร้างใหม่ (ไม่ต้องทักแชทให้ร้านเพิ่มให้)
+      if (!cat.id) await addCat(c.id, fields, { source: "customer" });
+      else await updateCat(c.id, String(cat.id), fields, { source: "customer" });
     }
   }
 
