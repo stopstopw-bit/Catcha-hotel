@@ -1947,6 +1947,7 @@ function TimeSlotField({
         <option value="08:00">เช้า (8 โมง)</option>
         <option value="12:00">เที่ยง (12 โมง)</option>
         <option value="18:00">หัวค่ำ (6 โมงเย็น)</option>
+        <option value="19:30">ค่ำ (1 ทุ่มครึ่ง)</option>
       </select>
     </label>
   );
@@ -1964,7 +1965,7 @@ const AUTOMATION_DEFAULT = {
   checkinReminderTime: "12:00",
   checkoutReminderEnabled: true,
   checkoutReminderDays: 1,
-  checkoutReminderTime: "18:00",
+  checkoutReminderTime: "19:30",
   reviewRequestEnabled: true,
   reviewRequestDaysAfter: 1,
   groomInfoEnabled: true,
@@ -2121,7 +2122,7 @@ function AutomationTab({
             />
             <TimeSlotField
               label="ส่งช่วงไหน"
-              value={form.checkoutReminderTime || "18:00"}
+              value={form.checkoutReminderTime || "19:30"}
               onChange={(v) => set({ checkoutReminderTime: v })}
             />
           </div>

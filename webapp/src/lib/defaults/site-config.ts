@@ -48,7 +48,7 @@ export function getDefaultSiteConfig(): SiteConfig {
         checkinReminderTime: "12:00",
         checkoutReminderEnabled: true,
         checkoutReminderDays: 1,
-        checkoutReminderTime: "18:00",
+        checkoutReminderTime: "19:30",
         reviewRequestEnabled: true,
         reviewRequestDaysAfter: 1,
         groomInfoEnabled: true,
