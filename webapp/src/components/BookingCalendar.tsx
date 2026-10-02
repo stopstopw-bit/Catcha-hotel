@@ -394,6 +394,45 @@ export function BookingCalendar() {
     await run();
   };
 
+  /** เพิ่มแมวอีกตัวเข้านัดเดียวกัน (บ้านเดียวกัน วัน/เวลา/ห้องเดียวกัน) โดยไม่ต้องไปกรอกจองใหม่ทั้งฟอร์ม */
+  const addCatToGroup = async (group: CalendarDay[]) => {
+    const b = group[0];
+    const input = prompt(
+      `เพิ่มน้องแมวเข้านัดของ ${b.customerName}
+(ใส่ชื่อ — หลายตัวคั่นด้วย , )`
+    );
+    const names = (input || "")
+      .split(",")
+      .map((n) => n.trim())
+      .filter((n) => n && !group.some((g) => g.catName === n));
+    if (names.length === 0) return;
+    const results = await Promise.all(
+      names.map((catName) =>
+        fetch("/api/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerId: b.customerId,
+            customerName: b.customerName,
+            lineUserId: b.lineUserId,
+            catName,
+            service: b.service,
+            date: b.service === "groom" ? b.date : undefined,
+            time: b.time,
+            groomProgram: b.groomProgram,
+            room: b.room,
+            roomUnit: b.roomUnit,
+            checkin: b.checkin,
+            checkout: b.checkout,
+          }),
+        }).then((r) => r.ok)
+      )
+    );
+    if (results.every(Boolean)) toast(`เพิ่ม ${names.join(", ")} เข้านัดแล้ว ✔️`, "success");
+    else toast("เพิ่มบางตัวไม่สำเร็จ", "error");
+    load();
+  };
+
   const cancelGroup = async (group: CalendarDay[]) => {
     const names = group.map((b) => b.catName).join(", ");
     const label = group[0].service === "room" ? "การเข้าพัก" : "นัด";
@@ -1205,6 +1244,13 @@ export function BookingCalendar() {
                       ✏️ แก้ไข
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => addCatToGroup(group)}
+                    className="rounded-full bg-sage/25 px-2.5 py-1 text-[10px] font-bold text-ok"
+                  >
+                    ➕ เพิ่มแมวในนัดนี้
+                  </button>
                   {/* บ้านที่มาหลายตัว — ยกเลิกทีละตัวได้ เผื่อน้องตัวใดตัวหนึ่งมาไม่ได้ */}
                   {group.length > 1 &&
                     group.map((x) => (
