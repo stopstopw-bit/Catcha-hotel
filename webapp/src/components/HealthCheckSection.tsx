@@ -11,6 +11,8 @@ type Health = {
     connected: boolean;
     tablesReady: boolean;
     missingTables: string[];
+    dbError?: string;
+    allFailed?: boolean;
   } | null;
   line: {
     token: boolean;
@@ -78,11 +80,23 @@ function buildRows(h: Health, origin: string): { rows: Row[]; failCount: number 
       label: "ฐานข้อมูลยังไม่เชื่อมต่อ",
       hint: "ลูกค้าที่สมัคร/ข้อมูลที่กรอกจะไม่ถูกบันทึกจริง — เช็ก NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ใน Vercel",
     });
+  } else if (h.db.allFailed) {
+    // อ่านไม่ได้ทุกตาราง = ฐานข้อมูลไม่ตอบทั้งก้อน ไม่ใช่ตารางหาย — ข้อมูลยังอยู่ อย่าไปกดสร้างตารางใหม่
+    rows.push({
+      level: "fail",
+      label: "ฐานข้อมูลตอบไม่ได้เลย — ข้อมูลยังอยู่ แค่อ่านไม่ได้",
+      hint:
+        `Supabase ตอบว่า: ${h.db.dbError || "ไม่ทราบสาเหตุ"} · สาเหตุที่พบบ่อย: 1) โปรเจกต์ Supabase ถูก pause → กด Restore ใน Supabase ` +
+        `2) SUPABASE_SERVICE_ROLE_KEY ใน Vercel ผิด/ถูกหมุน → วางคีย์ service_role ใหม่แล้ว Redeploy ` +
+        `3) NEXT_PUBLIC_SUPABASE_URL ชี้คนละโปรเจกต์ · อย่ากด "สร้างตารางอัตโนมัติ" จนกว่าจะแก้ข้อนี้`,
+    });
   } else {
     rows.push({
       level: "fail",
-      label: `ตารางฐานข้อมูลไม่ครบ (ขาด ${h.db.missingTables.length})`,
-      hint: "กด ⚡ สร้างตารางอัตโนมัติ ด้านล่าง",
+      label: `ตารางฐานข้อมูลไม่ครบ (ขาด ${h.db.missingTables.length}: ${h.db.missingTables.join(", ")})`,
+      hint: h.db.dbError
+        ? `Supabase ตอบว่า: ${h.db.dbError} — ถ้าเป็นตารางหายจริง กด ⚡ สร้างตารางอัตโนมัติ ด้านล่าง`
+        : "กด ⚡ สร้างตารางอัตโนมัติ ด้านล่าง",
     });
   }
 

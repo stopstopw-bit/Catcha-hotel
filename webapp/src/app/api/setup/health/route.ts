@@ -77,6 +77,8 @@ export async function GET() {
           connected: db.connected,
           tablesReady: db.tablesReady,
           missingTables: db.missingTables,
+          dbError: db.dbError,
+          allFailed: db.allFailed,
         }
       : null,
     line: {
