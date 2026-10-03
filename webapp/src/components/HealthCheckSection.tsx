@@ -13,6 +13,7 @@ type Health = {
     missingTables: string[];
     dbError?: string;
     allFailed?: boolean;
+    message?: string;
   } | null;
   line: {
     token: boolean;
@@ -77,8 +78,8 @@ function buildRows(h: Health, origin: string): { rows: Row[]; failCount: number 
   } else if (!h.db.connected) {
     rows.push({
       level: "fail",
-      label: "ฐานข้อมูลยังไม่เชื่อมต่อ",
-      hint: "ลูกค้าที่สมัคร/ข้อมูลที่กรอกจะไม่ถูกบันทึกจริง — เช็ก NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ใน Vercel",
+      label: "ฐานข้อมูลยังไม่เชื่อมต่อ — ข้อมูลยังอยู่ แค่แอปชี้ไม่ถูกที่",
+      hint: h.db.message || "เช็ก NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ใน Vercel แล้ว Redeploy",
     });
   } else if (h.db.allFailed) {
     // อ่านไม่ได้ทุกตาราง = ฐานข้อมูลไม่ตอบทั้งก้อน ไม่ใช่ตารางหาย — ข้อมูลยังอยู่ อย่าไปกดสร้างตารางใหม่

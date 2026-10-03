@@ -79,6 +79,7 @@ export async function GET() {
           missingTables: db.missingTables,
           dbError: db.dbError,
           allFailed: db.allFailed,
+          message: db.message,
         }
       : null,
     line: {
