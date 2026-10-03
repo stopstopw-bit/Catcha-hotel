@@ -371,8 +371,8 @@ export default function BillingPage() {
     | "due-desc"
     | "name-asc"
   >("issued-desc");
-  // กรองบิลรายเดือน — เปิดมาครั้งแรกเห็นเดือนปัจจุบันเลย ("" = ทุกเดือน)
-  const [billMonth, setBillMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  // กรองบิลรายเดือน — เปิดมาเห็นทุกเดือน (กันบิลค้างเก่าๆ ดูเหมือนหาย) เลือกเดือนเองได้
+  const [billMonth, setBillMonth] = useState("");
   // ตารางราคาโปรแกรมอาบน้ำ — ค่าเริ่มต้นของระบบ จนกว่า config จะโหลดเสร็จ (มีโปรแกรมที่ร้านเพิ่มเองด้วย)
   const [groomPrograms, setGroomPrograms] = useState<GroomProgram[]>(GROOM_PROGRAMS);
   const [items, setItems] = useState<Item[]>([newGrooming()]);
