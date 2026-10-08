@@ -158,6 +158,23 @@ export async function POST(req: NextRequest) {
     // คอร์สแบบคืนหักหลายหน่วยในบิลเดียว (พัก 5 คืน = หัก 5) ไม่ระบุ = 1 เหมือนเดิม
     const packageUnits = Math.max(1, Math.round(Number(body.packageUnits) || 1));
     if (body.packageId) {
+      // คอร์สคืนผูกประเภทห้อง (แพ็กห้องรายเดือน) — หักได้ไม่เกินคืนของห้องประเภทนั้นในบิลนี้
+      // กันเอาคืนห้องเล็ก (ราคาถูก) ไปคลุมห้องใหญ่ (ราคาแพง)
+      const pk = await getPackage(String(body.packageId));
+      if (pk?.unit === "night" && pk.roomType && pk.roomLabel) {
+        const items: { label?: string; kind?: string; qty?: number }[] = Array.isArray(body.items)
+          ? body.items
+          : [];
+        const nightsOfRoom = items
+          .filter((it) => it.kind === "room" && String(it.label || "").includes(pk.roomLabel!))
+          .reduce((n, it) => n + Math.max(1, Math.round(Number(it.qty) || 1)), 0);
+        if (nightsOfRoom < packageUnits) {
+          return NextResponse.json(
+            { error: `คอร์สนี้ใช้ได้กับ${pk.roomLabel}เท่านั้น (บิลนี้มี ${nightsOfRoom} คืน)` },
+            { status: 400 }
+          );
+        }
+      }
       try {
         const used = await consumePackage(String(body.packageId), packageUnits);
         if (used.ok) consumedPackageId = String(body.packageId);

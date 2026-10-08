@@ -55,6 +55,8 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "bookings", column: "flea_tick_treated", feature: "หลักฐานหยดยาเห็บหมัด" },
   { table: "cats", column: "needs_owner_confirm", feature: "เตือนลูกค้ายืนยันข้อมูลแมว" },
   { table: "bookings", column: "room_unit", feature: "ระบุห้องจริงตอนจอง" },
+  { table: "room_plans", column: "payments", feature: "แพ็กห้องรายเดือน (แบ่งจ่าย)" },
+  { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
 ];
 
 export type SchemaCheckRow = {
@@ -400,6 +402,16 @@ where staff_note like '%🎁%';`,
     // ตอนจอง แทนที่จะปล่อยให้ผังห้องเดารายวัน (ดู room-board.ts)
     name: "bookings.room_unit",
     sql: "alter table bookings add column if not exists room_unit integer;",
+  },
+  {
+    // แพ็กห้องรายเดือน — ลูกค้าเลือกห้องแต่ละประเภทกี่คืน ลดราคา แบ่งจ่ายเป็นงวดได้
+    // คอร์สคืนผูกประเภทห้อง: หักได้เฉพาะตอนพักห้องประเภทนั้น
+    name: "room_plans.setup",
+    sql: `
+      alter table customer_packages add column if not exists room_type text, add column if not exists room_label text, add column if not exists plan_id text;
+      create table if not exists room_plans (id text primary key, customer_id text, customer_name text, line_user_id text, name text, items jsonb not null default '[]'::jsonb, full_price numeric not null default 0, discount_pct numeric not null default 0, price numeric not null default 0, installments integer not null default 1, payments jsonb not null default '[]'::jsonb, status text not null default 'active', created_at timestamptz not null default now());
+      alter table room_plans enable row level security;
+    `,
   },
 ];
 

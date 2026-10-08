@@ -18,6 +18,7 @@ import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import type { Booking } from "@/lib/business";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { BookingEditModal, type EditableBooking } from "@/components/BookingEditModal";
+import { RoomPlanSection } from "@/components/RoomPlanSection";
 import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { BirthdayPicker } from "@/components/BirthdayPicker";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
@@ -2826,6 +2827,12 @@ export default function CustomersPage() {
             </div>
           ))}
         </section>
+
+        <RoomPlanSection
+          customerId={c.id}
+          hasLine={!!c.lineUserId}
+          onChanged={() => open(c.id)}
+        />
 
         <PackageHistorySection
           customerId={c.id}

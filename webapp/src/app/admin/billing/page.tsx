@@ -354,8 +354,19 @@ export default function BillingPage() {
   >([]);
   const [packageId, setPackageId] = useState("");
   const [customerPackages, setCustomerPackages] = useState<
-    { id: string; name: string; totalUses: number; usedUses: number; unit?: "use" | "night" }[]
+    {
+      id: string;
+      name: string;
+      totalUses: number;
+      usedUses: number;
+      unit?: "use" | "night";
+      /** คอร์สคืนที่ผูกประเภทห้อง (แพ็กห้องรายเดือน) — หักได้เฉพาะห้องประเภทนี้ */
+      roomType?: string;
+      roomLabel?: string;
+    }[]
   >([]);
+  /** พนักงานกดเลือก/ยกเลิกคอร์สเองแล้ว — ไม่เลือกคอร์สห้องให้อัตโนมัติทับอีก */
+  const [packageTouched, setPackageTouched] = useState(false);
   const [billDeposit, setBillDeposit] = useState("");
   const [billDepPct, setBillDepPct] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -460,6 +471,7 @@ export default function BillingPage() {
   useEffect(() => {
     setCouponId("");
     setPackageId("");
+    setPackageTouched(false);
     if (!customerId) {
       setCustomerCoupons([]);
       setCustomerPackages([]);
@@ -543,9 +555,20 @@ export default function BillingPage() {
    * (ค่าอาบน้ำ/ของเสริมในบิลเดียวกันยังต้องจ่าย) ถ้าคืนที่เหลือไม่พอ
    * จะคลุมเท่าที่เหลือ แล้วส่วนที่เกินลูกค้าจ่ายเพิ่มตามปกติ
    */
+  // คอร์สผูกประเภทห้อง → นับเฉพาะบรรทัดห้องประเภทนั้น (หักตามห้องที่พักจริง)
+  const lineMatchesRoom = (
+    it: Item | undefined,
+    pk?: { roomType?: string; roomLabel?: string }
+  ) => {
+    if (!it || it.kind !== "room") return false;
+    if (!pk?.roomType) return true;
+    const rid = rooms.find((r) => r.label === it.roomLabel)?.id;
+    return rid === pk.roomType || (!!pk.roomLabel && it.roomLabel === pk.roomLabel);
+  };
   const roomLines = lines
-    .map((l, i) => ({ ...l, kind: items[i]?.kind }))
-    .filter((l) => l.kind === "room");
+    .map((l, i) => ({ ...l, kind: items[i]?.kind, match: lineMatchesRoom(items[i], pickedPackage) }))
+    .filter((l) => l.kind === "room" && l.match);
+  const billHasRoom = items.some((it) => it.kind === "room");
   const nightsOnBill = roomLines.reduce((n, l) => n + Math.max(1, l.qty || 1), 0);
   const nightsToUse =
     pickedPackage?.unit === "night" ? Math.min(packageLeft, nightsOnBill) : 0;
@@ -561,6 +584,30 @@ export default function BillingPage() {
     }
     return covered;
   })();
+
+  // ลูกค้ามีแพ็กห้องรายเดือนตรงกับห้องในบิล → เลือกคอร์สให้เลย (แบบ Member ที่หักอัตโนมัติ)
+  // ถ้ามีหลายห้องในบิล เลือกคอร์สที่คลุมคืนได้มากสุด · พนักงานกดยกเลิกได้ ไม่เลือกทับอีก
+  const autoRoomPackageId = (() => {
+    if (packageTouched || packageId || editingId) return "";
+    let best = "";
+    let bestNights = 0;
+    for (const pk of customerPackages) {
+      if (pk.unit !== "night" || !pk.roomType) continue;
+      const left = pk.totalUses - pk.usedUses;
+      const onBill = items
+        .filter((it) => lineMatchesRoom(it, pk))
+        .reduce((n, it) => n + Math.max(1, it.nights || 1), 0);
+      const n = Math.min(left, onBill);
+      if (n > bestNights) {
+        best = pk.id;
+        bestNights = n;
+      }
+    }
+    return best;
+  })();
+  useEffect(() => {
+    if (autoRoomPackageId) setPackageId(autoRoomPackageId);
+  }, [autoRoomPackageId]);
 
   // คอร์สนับครั้ง: หัก 1 ครั้ง → คลุมยอดที่เหลือทั้งบิลให้เป็น 0 (จ่ายไปแล้วตอนซื้อคอร์ส)
   const packageCovers = !packageId
@@ -1784,14 +1831,17 @@ export default function BillingPage() {
                   <button
                     key={pk.id}
                     type="button"
-                    onClick={() => setPackageId((prev) => (prev === pk.id ? "" : pk.id))}
+                    onClick={() => {
+                      setPackageTouched(true);
+                      setPackageId((prev) => (prev === pk.id ? "" : pk.id));
+                    }}
                     className={`rounded-full px-3 py-1.5 text-xs font-bold ${
                       packageId === pk.id ? "bg-sage text-card" : "bg-paper text-brown-soft"
                     }`}
                   >
                     {packageId === pk.id ? "✓ " : ""}
-                    {pk.name} (เหลือ {pk.totalUses - pk.usedUses}/{pk.totalUses}{" "}
-                    {pk.unit === "night" ? "คืน" : "ครั้ง"})
+                    {pk.roomType ? `🏠 ${pk.roomLabel || pk.name}` : pk.name} (เหลือ{" "}
+                    {pk.totalUses - pk.usedUses}/{pk.totalUses} {pk.unit === "night" ? "คืน" : "ครั้ง"})
                   </button>
                 ))}
               </div>
@@ -1806,7 +1856,9 @@ export default function BillingPage() {
                   "ค่าห้าง",
                   "ค่าห้อง"
                 )
-              : "⚠️ บิลนี้ไม่มีรายการห้องพัก หรือคอร์สหมดคืนแล้ว — ยังหักไม่ได้"}
+              : pickedPackage.roomType && billHasRoom
+                ? `⚠️ คอร์สนี้ใช้ได้กับ${pickedPackage.roomLabel || "ห้องอีกประเภท"}เท่านั้น — ห้องในบิลนี้ไม่ตรง`
+                : "⚠️ บิลนี้ไม่มีรายการห้องพัก หรือคอร์สหมดคืนแล้ว — ยังหักไม่ได้"}
             {nightsToUse > 0 && nightsOnBill > nightsToUse && (
               <span className="block font-normal text-brown-soft">
                 บิลนี้พัก {nightsOnBill} คืน แต่คอร์สเหลือ {nightsToUse} คืน — ส่วนที่เกินคิดเงินตามปกติ

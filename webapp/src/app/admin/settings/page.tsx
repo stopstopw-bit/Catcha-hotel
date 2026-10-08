@@ -293,6 +293,28 @@ function ShopTab({
         onChange={(v) => setForm({ ...form, pointsRate: Number(v) || 100 })}
       />
       <div className="rounded-catcha-sm border border-catcha-line bg-paper px-3 py-3">
+        <p className="mb-1 text-xs font-extrabold text-catcha-chocolate">🏠 แพ็กห้องรายเดือน</p>
+        <p className="mb-2 text-[10px] text-brown-faint">
+          ลูกค้าเลือกห้องแต่ละแบบกี่คืน ราคาคิดจากราคาเต็มแล้วลดตาม % นี้ (ปรับเป็นรายเคสตอนขายได้)
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <Field
+            label="ส่วนลด (%)"
+            type="number"
+            value={String(form.roomPlanDiscountPct ?? 30)}
+            onChange={(v) =>
+              setForm({ ...form, roomPlanDiscountPct: Math.min(100, Math.max(0, Number(v) || 0)) })
+            }
+          />
+          <Field
+            label="รวมกี่คืนขึ้นไปถึงลด"
+            type="number"
+            value={String(form.roomPlanMinNights ?? 30)}
+            onChange={(v) => setForm({ ...form, roomPlanMinNights: Math.max(1, Number(v) || 30) })}
+          />
+        </div>
+      </div>
+      <div className="rounded-catcha-sm border border-catcha-line bg-paper px-3 py-3">
         <p className="mb-2 text-xs font-extrabold text-catcha-chocolate">
           💎 แต้มของลูกค้า Member
         </p>

@@ -193,6 +193,10 @@ export type SiteConfig = {
     pointsOnMemberTopup?: boolean;
     /** เลขประจำตัวผู้เสียภาษี — โชว์บนเอกสารรายได้/ใบสำคัญจ่าย (ไม่บังคับ) */
     taxId?: string;
+    /** แพ็กห้องรายเดือน: ส่วนลดจากราคาเต็ม (%) — ไม่ตั้ง = 30 */
+    roomPlanDiscountPct?: number;
+    /** แพ็กห้องรายเดือน: รวมกี่คืนขึ้นไปถึงได้ส่วนลด — ไม่ตั้ง = 30 */
+    roomPlanMinNights?: number;
   };
   payment: {
     bankName: string;
