@@ -39,6 +39,7 @@ import {
 } from "@/lib/line";
 import { renderTemplate } from "@/lib/messages";
 import { consumePackage, refundPackageUse, getPackage } from "@/lib/packages-store";
+import { roomPlanOutstanding } from "@/lib/room-plans-store";
 import { getBooking } from "@/lib/bookings-store";
 import { bookingScheduleText } from "@/lib/booking-reminders";
 import type { InvoiceRecord } from "@/lib/invoices-store";
@@ -161,6 +162,14 @@ export async function POST(req: NextRequest) {
       // คอร์สคืนผูกประเภทห้อง (แพ็กห้องรายเดือน) — หักได้ไม่เกินคืนของห้องประเภทนั้นในบิลนี้
       // กันเอาคืนห้องเล็ก (ราคาถูก) ไปคลุมห้องใหญ่ (ราคาแพง)
       const pk = await getPackage(String(body.packageId));
+      // แพ็กห้องรายเดือนต้องจ่ายครบทุกงวดก่อนถึงจะเริ่มใช้คืนได้
+      const owed = await roomPlanOutstanding(pk?.planId);
+      if (owed > 0) {
+        return NextResponse.json(
+          { error: `แพ็กนี้ยังค้างจ่าย ${owed.toLocaleString()} บาท — ต้องจ่ายครบก่อนถึงจะใช้คืนได้` },
+          { status: 400 }
+        );
+      }
       if (pk?.unit === "night" && pk.roomType && pk.roomLabel) {
         const items: { label?: string; kind?: string; qty?: number }[] = Array.isArray(body.items)
           ? body.items

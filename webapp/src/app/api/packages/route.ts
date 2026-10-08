@@ -11,6 +11,7 @@ import {
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { pushLineMessage, buildPackageFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
+import { roomPlanOutstanding } from "@/lib/room-plans-store";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
 /** ล็อกอินหลังบ้านอยู่ไหม — route นี้ใช้ร่วมกันทั้งแอปลูกค้าและหลังบ้าน */
@@ -50,9 +51,18 @@ export async function GET(req: NextRequest) {
       : undefined;
   if (!cust) return NextResponse.json({ found: false, packages: [] });
 
-  const packages = activeOnly
+  const list = activeOnly
     ? await activeCustomerPackages(cust.id)
     : await listCustomerPackages(cust.id);
+  // คอร์สจากแพ็กห้องรายเดือนที่ยังจ่ายไม่ครบ — ยังใช้ไม่ได้ (ต้องจ่ายครบก่อนใช้)
+  const owed = new Map<string, number>();
+  for (const pid of new Set(list.map((p) => p.planId).filter(Boolean) as string[])) {
+    owed.set(pid, await roomPlanOutstanding(pid));
+  }
+  const packages = list.map((p) => {
+    const due = p.planId ? owed.get(p.planId) || 0 : 0;
+    return due > 0 ? { ...p, locked: true, outstanding: due } : p;
+  });
   return NextResponse.json({ found: true, customerId: cust.id, packages });
 }
 

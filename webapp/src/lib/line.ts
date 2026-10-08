@@ -2406,8 +2406,16 @@ export function buildRoomPlanFlex(data: {
         false
       )
     );
+    contents.push({
+      type: "text",
+      text: "เริ่มใช้คืนได้เมื่อชำระครบทุกงวดนะคะ",
+      size: "xs",
+      color: "#C0703A",
+      margin: "md",
+      wrap: true,
+    });
   } else {
-    contents.push(row("สถานะ", "ชำระครบแล้ว ✅", true, "#6E8B5E"));
+    contents.push(row("สถานะ", "ชำระครบ ใช้ได้เลย ✅", true, "#6E8B5E"));
   }
   contents.push({
     type: "text",

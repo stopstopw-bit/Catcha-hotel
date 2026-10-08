@@ -248,7 +248,8 @@ export function RoomPlanSection({
         <div className="mb-3 space-y-2 rounded-catcha-sm border border-honey-deep/40 bg-honey/10 p-3">
           <p className="text-[11px] text-brown-soft">
             เลือกห้องแต่ละแบบกี่คืน ผสมกันได้ · ราคาจากราคาเต็มลด {settings.discountPct}% เมื่อรวมครบ{" "}
-            {settings.minNights} คืน · ไม่มีวันหมดอายุ · พักห้องไหนหักคืนของห้องนั้นตามจริง
+            {settings.minNights} คืน · ไม่มีวันหมดอายุ · พักห้องไหนหักคืนของห้องนั้นตามจริง ·{" "}
+            <b>ต้องจ่ายครบทุกงวดก่อนถึงจะเริ่มใช้คืนได้</b>
           </p>
           {rooms.map((r) => (
             <label key={r.id} className="flex items-center gap-2 text-xs">
@@ -414,9 +415,12 @@ export function RoomPlanSection({
                     <>
                       {" "}
                       · ค้าง <b className="text-wait">{baht(p.remaining)}</b> · เหลือ {p.installmentsLeft} งวด
+                      <span className="block text-[10px] font-bold text-wait">
+                        🔒 ยังใช้คืนไม่ได้จนกว่าจะจ่ายครบ
+                      </span>
                     </>
                   ) : (
-                    " · ✅ ครบแล้ว"
+                    " · ✅ ครบแล้ว ใช้คืนได้"
                   )}
                 </div>
                 {p.payments.length > 0 && (

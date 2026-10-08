@@ -343,6 +343,18 @@ export async function receiveRoomPlanPayment(
   }
 }
 
+/**
+ * แพ็กนี้ยังค้างจ่ายอยู่ไหม — นโยบายร้าน: ต้องจ่ายครบทุกงวดก่อนถึงจะเริ่มใช้คืนได้
+ * คืนยอดค้าง (0 = จ่ายครบ ใช้ได้) · หาแพ็กไม่เจอถือว่าไม่ล็อก (คอร์สเก่าที่ไม่ได้มาจากแพ็ก)
+ */
+export async function roomPlanOutstanding(planId?: string): Promise<number> {
+  if (!planId) return 0;
+  const plan = await getRoomPlan(planId);
+  if (!plan) return 0;
+  const paid = plan.payments.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  return Math.max(0, plan.price - paid);
+}
+
 /** ยกเลิกแพ็ก — ปิดคอร์สคืนที่ยังเหลือ (เงินที่รับมาแล้วไม่ถูกลบ ร้านคืนเงินเองถ้าต้องการ) */
 export async function cancelRoomPlan(planId: string) {
   const plan = await getRoomPlan(planId);

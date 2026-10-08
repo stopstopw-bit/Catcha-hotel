@@ -363,6 +363,9 @@ export default function BillingPage() {
       /** คอร์สคืนที่ผูกประเภทห้อง (แพ็กห้องรายเดือน) — หักได้เฉพาะห้องประเภทนี้ */
       roomType?: string;
       roomLabel?: string;
+      /** แพ็กห้องรายเดือนที่ยังจ่ายไม่ครบ — ยังใช้ไม่ได้ */
+      locked?: boolean;
+      outstanding?: number;
     }[]
   >([]);
   /** พนักงานกดเลือก/ยกเลิกคอร์สเองแล้ว — ไม่เลือกคอร์สห้องให้อัตโนมัติทับอีก */
@@ -592,7 +595,7 @@ export default function BillingPage() {
     let best = "";
     let bestNights = 0;
     for (const pk of customerPackages) {
-      if (pk.unit !== "night" || !pk.roomType) continue;
+      if (pk.unit !== "night" || !pk.roomType || pk.locked) continue;
       const left = pk.totalUses - pk.usedUses;
       const onBill = items
         .filter((it) => lineMatchesRoom(it, pk))
@@ -1831,17 +1834,24 @@ export default function BillingPage() {
                   <button
                     key={pk.id}
                     type="button"
+                    disabled={pk.locked && packageId !== pk.id}
+                    title={
+                      pk.locked
+                        ? `ค้างจ่าย ${(pk.outstanding || 0).toLocaleString()} บาท — ต้องจ่ายครบก่อนใช้`
+                        : undefined
+                    }
                     onClick={() => {
                       setPackageTouched(true);
                       setPackageId((prev) => (prev === pk.id ? "" : pk.id));
                     }}
-                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold disabled:opacity-50 ${
                       packageId === pk.id ? "bg-sage text-card" : "bg-paper text-brown-soft"
                     }`}
                   >
                     {packageId === pk.id ? "✓ " : ""}
                     {pk.roomType ? `🏠 ${pk.roomLabel || pk.name}` : pk.name} (เหลือ{" "}
                     {pk.totalUses - pk.usedUses}/{pk.totalUses} {pk.unit === "night" ? "คืน" : "ครั้ง"})
+                    {pk.locked && ` · 🔒 ค้าง ${(pk.outstanding || 0).toLocaleString()}`}
                   </button>
                 ))}
               </div>
