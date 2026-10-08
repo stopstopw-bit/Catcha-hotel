@@ -233,6 +233,72 @@ export function BookingCalendar() {
   /** นัดที่มีบิลผูกอยู่ — นัดที่ออกบิลแล้วถือว่าลูกค้ามาแล้ว ไม่ต้องรอยืนยัน */
   const [billedIds, setBilledIds] = useState<Set<string>>(new Set());
 
+  /** 📅 เลื่อนนัดทั้งบ้าน — เปิดหน้าต่างเลือกวัน/เวลาใหม่ แล้วเลื่อนทุกตัวในบ้านพร้อมกัน */
+  const [moving, setMoving] = useState<{
+    group: CalendarDay[];
+    date: string;
+    time: string;
+    checkin: string;
+    checkout: string;
+  } | null>(null);
+  const [movingBusy, setMovingBusy] = useState(false);
+
+  const openMove = (group: CalendarDay[]) => {
+    const h = group[0];
+    setMoving({
+      group,
+      date: h.date || h.checkin || "",
+      time: h.time || "",
+      checkin: h.checkin || h.date || "",
+      checkout: h.checkout || "",
+    });
+  };
+
+  const saveMove = async () => {
+    if (!moving) return;
+    const h = moving.group[0];
+    const isRoom = h.service === "room";
+    if (isRoom && moving.checkout && moving.checkout <= moving.checkin) {
+      toast("วันออกต้องหลังวันเข้าพักนะ", "error");
+      return;
+    }
+    setMovingBusy(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: h.id,
+          action: "reschedule",
+          applyToGroup: true,
+          ...(isRoom
+            ? { checkin: moving.checkin, checkout: moving.checkout, date: moving.checkin }
+            : { date: moving.date, time: moving.time }),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast("เลื่อนนัดไม่สำเร็จ", "error");
+        return;
+      }
+      const inv = data.invoice;
+      toast(
+        `เลื่อนแล้ว ${Number(data.movedCount) || 1} ตัว` +
+          (inv?.kind === "updated"
+            ? ` · แก้บิลเป็น ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
+            : inv?.kind === "created_extra"
+              ? ` · ออกบิลต่อคืน ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
+              : ""),
+        "success"
+      );
+      if (inv?.kind === "warn") alert(`⚠️ ${inv.message}`);
+      setMoving(null);
+      load();
+    } finally {
+      setMovingBusy(false);
+    }
+  };
+
   /**
    * 🌙 ต่อคืน — กดทีเดียว เลื่อนวันออกให้ทุกตัวในบ้าน + ปรับบิลให้ตรงจำนวนคืน
    * (บิลยังไม่ปิด = แก้บิลเดิม · ปิดแล้ว = ออกบิลต่อคืนเฉพาะคืนที่เพิ่ม)
@@ -626,6 +692,90 @@ export function BookingCalendar() {
           onConfirm={() => stagePreview.run()}
           onCancel={() => setStagePreview(null)}
         />
+      )}
+      {moving && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          onClick={() => !movingBusy && setMoving(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-catcha bg-card p-5 shadow-catcha"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-sm font-extrabold text-catcha-chocolate">📅 เลื่อนนัดทั้งบ้าน</h2>
+            <p className="mb-3 mt-0.5 text-[11px] text-brown-soft">
+              {moving.group.map((g) => g.catName).join(", ")} ({moving.group.length} ตัว) —
+              เปลี่ยนแค่วัน/เวลา ข้อมูลอื่นของแต่ละตัวไม่ถูกแตะ
+            </p>
+            {moving.group[0].service === "room" ? (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[11px] font-bold text-brown-soft">
+                  วันเข้าพัก
+                  <input
+                    type="date"
+                    value={moving.checkin}
+                    onChange={(e) => setMoving({ ...moving, checkin: e.target.value })}
+                    className="w-full rounded-lg border border-catcha-line bg-paper px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-[11px] font-bold text-brown-soft">
+                  วันออก
+                  <input
+                    type="date"
+                    value={moving.checkout}
+                    onChange={(e) => setMoving({ ...moving, checkout: e.target.value })}
+                    className="w-full rounded-lg border border-catcha-line bg-paper px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <p className="col-span-2 text-[10px] text-brown-faint">บิลห้องพักจะปรับจำนวนคืนให้เอง</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[11px] font-bold text-brown-soft">
+                  วันที่
+                  <input
+                    type="date"
+                    value={moving.date}
+                    onChange={(e) => setMoving({ ...moving, date: e.target.value })}
+                    className="w-full rounded-lg border border-catcha-line bg-paper px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-[11px] font-bold text-brown-soft">
+                  เวลา
+                  <select
+                    value={moving.time}
+                    onChange={(e) => setMoving({ ...moving, time: e.target.value })}
+                    className="w-full rounded-lg border border-catcha-line bg-paper px-2 py-1.5 text-sm"
+                  >
+                    {Array.from(new Set([moving.time, ...groomSlots].filter(Boolean))).map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={movingBusy}
+                onClick={() => setMoving(null)}
+                className="flex-1 rounded-catcha-sm bg-paper py-2 text-sm font-bold text-brown-soft"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={movingBusy}
+                onClick={saveMove}
+                className="flex-1 rounded-catcha-sm bg-honey/50 py-2 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
+              >
+                {movingBusy ? "กำลังเลื่อน..." : "เลื่อนทั้งบ้าน"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {editing && (
         <BookingEditModal
@@ -1322,6 +1472,15 @@ export function BookingCalendar() {
                       className="rounded-full bg-honey/25 px-2.5 py-1 text-[10px] font-bold text-catcha-chocolate"
                     >
                       ✏️ แก้ไข
+                    </button>
+                  )}
+                  {group.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => openMove(group)}
+                      className="rounded-full bg-honey/40 px-2.5 py-1 text-[10px] font-bold text-catcha-chocolate"
+                    >
+                      📅 เลื่อนนัดทั้งบ้าน
                     </button>
                   )}
                   {(b.service === "room" || !!b.checkout) && b.checkout && (
