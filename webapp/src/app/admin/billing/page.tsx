@@ -755,7 +755,10 @@ export default function BillingPage() {
     const existing = matches.find((i) => i.status !== "paid") || matches[0];
     if (existing) {
       if (existing.status === "paid") {
-        toast("นัดนี้ออกบิลและชำระแล้ว — แก้ไขไม่ได้ (1 นัดออกบิลได้ 1 ใบเท่านั้น)", "error");
+        toast(
+          "นัดนี้ออกบิลและชำระแล้ว — ถ้าลูกค้าอยู่ต่อ ให้แก้ \"วันออก\" ที่นัด ระบบจะออกบิลต่อคืนเฉพาะคืนที่เพิ่มให้เอง",
+          "error"
+        );
         return;
       }
       toast("นัดนี้มีบิลค้างอยู่แล้ว — เปิดมาแก้ไขบิลเดิมให้แทน", "info");
@@ -1132,6 +1135,57 @@ export default function BillingPage() {
     } finally {
       setInvoiceBusy("");
     }
+  };
+
+  /**
+   * รับเงินบางส่วน — ลูกค้าพักยาว/ต่อคืน จ่ายเป็นงวด ลงรายรับตามวันที่รับจริง บิลยังเปิดอยู่
+   * งวดที่ทำให้จ่ายครบ จะปิดบิลต่อให้เลย (ตอนปิดเก็บแค่ยอดที่ยังค้าง = 0 ไม่ลงบัญชีซ้ำ)
+   */
+  const receivePartial = async (inv: Invoice) => {
+    if (invoiceBusy) return;
+    const remaining = Math.max(0, inv.total - (inv.deposit || 0));
+    const raw = prompt(
+      `รับเงินบางส่วน — ${inv.customerName}\nยอดบิล ${inv.total.toLocaleString()} · ค้างอยู่ ${remaining.toLocaleString()} บาท\n\nรับรอบนี้กี่บาท?`,
+      ""
+    );
+    if (raw == null) return;
+    const amount = Math.round(Number(raw.replace(/[,\s฿]/g, "")) || 0);
+    if (amount <= 0) {
+      toast("ใส่จำนวนเงินให้ถูกนะ", "error");
+      return;
+    }
+    const method: "transfer" | "cash" = confirm("รับเป็นเงินสดใช่ไหม?\n(ตกลง = เงินสด · ยกเลิก = โอน)")
+      ? "cash"
+      : "transfer";
+    setInvoiceBusy(`${inv.id}:receive_payment`);
+    let fullyPaid = false;
+    try {
+      const res = await fetch("/api/invoices", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: inv.id, action: "receive_payment", amount, paymentMethod: method }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fullyPaid = !!data.fullyPaid;
+        toast(
+          fullyPaid
+            ? "รับครบแล้ว — กำลังปิดบิล"
+            : `รับแล้ว ${amount.toLocaleString()} · ค้างอีก ${Number(data.remaining).toLocaleString()} บาท`,
+          "success"
+        );
+      } else if (data.error === "over_due") {
+        toast(`เกินยอดที่ค้าง — ค้างอยู่ ${Number(data.due).toLocaleString()} บาท`, "error");
+      } else if (data.error === "nothing_due") {
+        toast("บิลนี้ไม่มียอดค้างแล้ว — กดปิดบิลได้เลย", "info");
+      } else {
+        toast("ไม่สำเร็จ", "error");
+      }
+    } finally {
+      setInvoiceBusy("");
+    }
+    if (fullyPaid) await markPaid(inv.id, method);
+    else load();
   };
 
   const sub = "w-full rounded-lg border border-catcha-line bg-paper px-3 py-2 text-sm";
@@ -2065,7 +2119,7 @@ export default function BillingPage() {
             </div>
             {(inv.deposit ?? 0) > 0 && (
               <p className="text-[11px] font-bold text-ok">
-                {inv.depositReceivedAt ? "✅ รับมัดจำแล้ว " : "💰 มัดจำ (รอรับ) "}
+                {inv.depositReceivedAt ? "✅ รับแล้ว " : "💰 มัดจำ (รอรับ) "}
                 {inv.deposit!.toLocaleString()}
                 {inv.status === "pending" && (
                   <span className="text-wait">
@@ -2164,6 +2218,14 @@ export default function BillingPage() {
                   className="rounded-full bg-paper px-3 py-1.5 text-xs font-bold disabled:opacity-50"
                 >
                   💵 เงินสด
+                </button>
+                <button
+                  type="button"
+                  disabled={!!invoiceBusy}
+                  onClick={() => receivePartial(inv)}
+                  className="rounded-full bg-paper px-3 py-1.5 text-xs font-bold text-brown-soft disabled:opacity-50"
+                >
+                  ➗ รับเงินบางส่วน
                 </button>
                 <button
                   type="button"

@@ -17,6 +17,7 @@ import {
   type StoredBooking,
 } from "@/lib/bookings-store";
 import { AUTO_MESSAGE_TOPICS } from "@/lib/auto-messages";
+import { rescheduleGroup, type DatePatch } from "@/lib/stay-sync";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { listCustomers, resolveCustomerForBooking } from "@/lib/customers-store";
@@ -867,6 +868,52 @@ export async function PATCH(req: NextRequest) {
       const message = e instanceof Error ? e.message : String(e);
       return NextResponse.json({ error: message }, { status: 500 });
     }
+  }
+
+  // ── เลื่อนวัน / ต่อคืน ทั้งบ้านในครั้งเดียว + ปรับบิลให้ตรงจำนวนคืน ──
+  if (action === "reschedule") {
+    const patch: DatePatch = {};
+    if (body.date != null) patch.date = String(body.date);
+    if (body.time != null) patch.time = String(body.time) || undefined;
+    if (body.checkin != null) patch.checkin = String(body.checkin) || undefined;
+    if (body.checkout != null) patch.checkout = String(body.checkout) || undefined;
+    if (patch.checkin && patch.checkout && patch.checkout <= patch.checkin) {
+      return NextResponse.json({ error: "checkout_before_checkin" }, { status: 400 });
+    }
+    const res = await rescheduleGroup(id, patch, body.applyToGroup !== false);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 404 });
+
+    for (const u of res.updated) {
+      if (u.calendarEventId && u.status !== "cancelled") {
+        await updateCalendarEvent(u.calendarEventId, bookingCalendarPayload(u));
+      }
+    }
+    const h = res.updated[0];
+    const inv = res.invoice;
+    await sendTelegram(
+      formatBookingTelegram(h?.service === "room" ? "📅 เลื่อนวัน/ต่อคืน" : "📅 เลื่อนนัด", {
+        ลูกค้า: String(h?.customerName || ""),
+        น้องแมว: res.updated.map((u) => u.catName).join(", "),
+        วันที่:
+          h?.service === "room"
+            ? `${h?.checkin || "-"} → ${h?.checkout || "-"}`
+            : `${h?.date || "-"} ${h?.time || ""}`,
+        บิล:
+          inv.kind === "updated"
+            ? `แก้บิลเดิมเป็น ${inv.nights} คืน · ${inv.total} บาท`
+            : inv.kind === "created_extra"
+              ? `ออกบิลต่อคืน ${inv.nights} คืน · ${inv.total} บาท`
+              : inv.kind === "warn"
+                ? `⚠️ ${inv.message}`
+                : "-",
+      })
+    );
+    return NextResponse.json({
+      ok: true,
+      movedCount: res.movedCount,
+      invoice: res.invoice,
+      bookings: res.updated.map(toBooking),
+    });
   }
 
   if (action === "update") {

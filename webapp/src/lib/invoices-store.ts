@@ -21,6 +21,7 @@ import { getCoupon, redeemCoupon, unredeemCoupon, findCouponByInvoice } from "./
 import { addPoints } from "./points-store";
 import { getSupabase } from "./supabase/server";
 import { summarizeInvoiceItems } from "./invoice-item-label";
+import { bangkokToday } from "./bangkok-date";
 
 export type InvoiceItem = {
   label: string;
@@ -238,13 +239,12 @@ export async function receiveDepositCredit(
   const c = await getCustomer(customerId);
   if (!c) return { ok: false as const, error: "not_found", balance: 0 };
 
-  const now = new Date().toISOString();
   await addFinanceEntry({
     type: "income",
     amount: amt,
     category: "มัดจำ",
     description: `${c.name} — รับมัดจำล่วงหน้า${note ? ` (${note})` : ""}`,
-    date: now.slice(0, 10),
+    date: bangkokToday(),
     customerId,
   });
 
@@ -434,7 +434,7 @@ export async function receiveInvoiceDeposit(id: string) {
     amount: toRecord,
     category: "มัดจำ",
     description: `${inv.catName} · ${inv.customerName} — มัดจำ (บิล ${inv.id})`,
-    date: new Date().toISOString().slice(0, 10),
+    date: bangkokToday(),
     customerId: inv.customerId,
     invoiceId: inv.id,
   });
@@ -479,7 +479,14 @@ export async function updateInvoice(
   const subtotal = items.reduce((s, i) => s + i.amount, 0);
   const promoId = patch.promoId !== undefined ? patch.promoId : inv.promoId;
   const { discount: promoDiscount, label } = await calcPromoDiscount(promoId, subtotal);
-  const extra = Math.max(0, Math.round(patch.extraDiscount ?? 0));
+  // ไม่ได้ส่งส่วนลดเพิ่มมา = คงส่วนลดเดิมไว้ (ส่วนลดพิเศษ/คูปอง) — เมื่อก่อนตกเป็น 0
+  // ทำให้แก้แค่จำนวนคืน (ต่อคืน) แล้วส่วนลดที่ให้ลูกค้าไว้หายไปเงียบๆ
+  let keptExtra = 0;
+  if (patch.extraDiscount === undefined) {
+    const { discount: oldPromo } = await calcPromoDiscount(inv.promoId, inv.subtotal);
+    keptExtra = Math.max(0, (inv.discount || 0) - oldPromo);
+  }
+  const extra = Math.max(0, Math.round(patch.extraDiscount ?? keptExtra));
   const discount = Math.min(subtotal, promoDiscount + extra);
   const total = subtotal - discount;
   const deposit = Math.min(
@@ -620,6 +627,96 @@ export async function markInvoiceSent(id: string) {
  * ก็ลงรายรับสามรอบและแจกแต้มสามรอบ
  */
 const payingNow = new Set<string>();
+
+/** บิลทั้งหมดที่ผูกกับนัดเหล่านี้ (ไม่รวมบิลในถังขยะ) */
+export async function listInvoicesForBookings(bookingIds: string[]) {
+  if (bookingIds.length === 0) return [];
+  const sb = getSupabase();
+  let list: InvoiceRecord[];
+  if (sb) {
+    const { data } = await sb.from("invoices").select("*").in("booking_id", bookingIds);
+    list = ((data as InvoiceRow[] | null) || []).map(rowToInvoice);
+  } else {
+    list = mem.filter((i) => i.bookingId && bookingIds.includes(i.bookingId));
+  }
+  return list
+    .filter((i) => !i.deletedAt)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/** หมวดของรายรับ "รับเงินบางส่วน" — ไม่ถูกลบตอนกด "ยกเลิกการชำระ" เพราะเป็นเงินที่รับมาจริงแล้ว */
+export const PARTIAL_PAYMENT_CATEGORY = "รับเงินบางส่วน";
+
+/**
+ * รับเงินบางส่วนของบิล (เช่น ลูกค้าพักยาว จ่ายเป็นงวด) — ลงรายรับตามวันที่รับเงินจริง แต่ยังไม่ปิดบิล
+ *
+ * ไม่คิดเงินซ้ำ: ทุกงวดผูก invoiceId ไว้ ตอนปิดบิล markInvoicePaid จะคิดเฉพาะ
+ * "ยอดบิล − เงินที่รับไปแล้วของบิลนี้" และงวดนี้รับได้ไม่เกินยอดที่ยังค้างอยู่
+ * ถ้างวดนี้ทำให้จ่ายครบพอดี จะปิดบิลให้เลย (ปิดแล้วไม่ลงรายรับเพิ่ม เพราะไม่มียอดค้าง)
+ */
+export async function receiveInvoicePayment(
+  id: string,
+  amount: number,
+  paymentMethod: "transfer" | "cash" = "transfer"
+) {
+  const inv = await getInvoice(id);
+  if (!inv || inv.status === "paid") return { ok: false as const, error: "invalid" };
+  if (payingNow.has(id)) return { ok: false as const, error: "busy" };
+  payingNow.add(id);
+  try {
+    const already = await incomeForInvoice(id);
+    const due = Math.max(0, inv.total - already);
+    const amt = Math.round(Number(amount) || 0);
+    if (amt <= 0) return { ok: false as const, error: "bad_amount" };
+    if (due <= 0) return { ok: false as const, error: "nothing_due" };
+    if (amt > due) return { ok: false as const, error: "over_due", due };
+
+    await addFinanceEntry({
+      type: "income",
+      amount: amt,
+      category: PARTIAL_PAYMENT_CATEGORY,
+      description: `${inv.catName} · ${inv.customerName} — รับเงินบางส่วน${
+        paymentMethod === "cash" ? " (เงินสด)" : ""
+      } (บิล ${inv.id})`,
+      date: bangkokToday(),
+      customerId: inv.customerId,
+      invoiceId: inv.id,
+    });
+
+    // เก็บยอด "รับแล้ว" ไว้ในช่องมัดจำของบิล — หน้าบิลจะได้โชว์ยอดคงเหลือถูก
+    const received = already + amt;
+    inv.deposit = Math.min(inv.total, received);
+    inv.depositReceivedAt = new Date().toISOString();
+    const sb = getSupabase();
+    if (sb) {
+      await sb.from("invoices").update({ deposit: inv.deposit }).eq("id", id);
+      try {
+        await sb
+          .from("invoices")
+          .update({ deposit_received_at: inv.depositReceivedAt })
+          .eq("id", id);
+      } catch {
+        /* ยังไม่ได้รัน migration — ข้าม */
+      }
+    } else {
+      const m = mem.find((x) => x.id === id);
+      if (m) {
+        m.deposit = inv.deposit;
+        m.depositReceivedAt = inv.depositReceivedAt;
+      }
+    }
+    return {
+      ok: true as const,
+      received,
+      remaining: Math.max(0, inv.total - received),
+      fullyPaid: received >= inv.total,
+    };
+  } finally {
+    payingNow.delete(id);
+  }
+}
+
+
 
 export async function markInvoicePaid(
   id: string,

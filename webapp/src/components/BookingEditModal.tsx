@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Booking } from "@/lib/business";
 import { relevantAutoMessageTopics } from "@/lib/auto-messages";
+import { toast } from "@/components/Toast";
 import { GROOM_PROGRAMS, type GroomProgram } from "@/lib/grooming-prices";
 import { freeUnitsForRange, roomCapacity, compositionOf, type BoardBooking } from "@/lib/room-board";
 
@@ -179,6 +180,38 @@ export function BookingEditModal({
             autoOff,
           };
 
+    // 1) เลื่อนวัน/ต่อคืนก่อน — ทำฝั่งเซิร์ฟเวอร์ทีเดียวทั้งบ้าน และปรับบิลให้ตรงจำนวนคืน
+    //    (ต้องทำก่อนแก้ข้อมูลอื่น เพราะเซิร์ฟเวอร์หาน้องตัวอื่นในบ้านจากวันที่เดิม)
+    const datePatch =
+      service === "groom"
+        ? { date: String(fd.get("date") || ""), time: String(fd.get("time") || "") }
+        : {
+            checkin: String(fd.get("checkin") || ""),
+            checkout: String(fd.get("checkout") || ""),
+            date: String(fd.get("checkin") || ""),
+          };
+    const moved = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: booking.id,
+        action: "reschedule",
+        applyToGroup: applyToSiblings,
+        ...datePatch,
+      }),
+    });
+    const movedData = await moved.json().catch(() => ({}));
+    if (!moved.ok) {
+      setSaving(false);
+      alert(
+        movedData.error === "checkout_before_checkin"
+          ? "วันออกต้องหลังวันเข้าพักนะ"
+          : "เลื่อนวันไม่สำเร็จ"
+      );
+      return;
+    }
+
+    // 2) ข้อมูลอื่นของตัวนี้ (ชื่อ ห้อง โน้ต เวลา ฯลฯ)
     const res = await fetch("/api/bookings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -191,29 +224,22 @@ export function BookingEditModal({
       return;
     }
 
-    // เลื่อนวัน/เวลาให้น้องตัวอื่นในนัดเดียวกันด้วย — เฉพาะวันเวลา ไม่แตะชื่อ/โน้ต/โปรแกรมของตัวอื่น
-    // เพราะแต่ละตัวมีข้อมูลของตัวเอง เปลี่ยนแค่ "นัดวันไหน" ให้ตรงกันทั้งบ้าน
-    if (applyToSiblings && siblings.length > 0) {
-      const datePatch =
-        service === "groom"
-          ? { action: "update", date: payload.date, time: payload.time }
-          : { action: "update", checkin: payload.checkin, checkout: payload.checkout, date: payload.checkin };
-      const results = await Promise.all(
-        siblings.map((s) =>
-          fetch("/api/bookings", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: s.id, ...datePatch }),
-          }).then((r) => r.ok)
-        )
+    const count = Number(movedData.movedCount) || 1;
+    const inv = movedData.invoice as
+      | { kind: "none" }
+      | { kind: "updated" | "created_extra"; nights: number; total: number }
+      | { kind: "warn"; message: string }
+      | undefined;
+    if (count > 1) toast(`เลื่อนให้ทั้งบ้านแล้ว (${count} ตัว)`, "success");
+    if (inv?.kind === "updated") {
+      toast(`แก้บิลเดิมเป็น ${inv.nights} คืน · ${inv.total.toLocaleString()} บาท`, "success");
+    } else if (inv?.kind === "created_extra") {
+      toast(
+        `บิลเดิมปิดไปแล้ว — ออกบิลต่อคืน ${inv.nights} คืน · ${inv.total.toLocaleString()} บาท ไว้ในหน้าบิล`,
+        "info"
       );
-      setSaving(false);
-      if (!results.every(Boolean)) {
-        alert("เลื่อนวันให้บางตัวไม่สำเร็จ กรุณาตรวจสอบ");
-      }
-      onSaved();
-      onClose();
-      return;
+    } else if (inv?.kind === "warn") {
+      alert(`⚠️ ${inv.message}`);
     }
 
     setSaving(false);
@@ -389,7 +415,6 @@ export function BookingEditModal({
               </div>
             </>
           )}
-          {siblings.length > 0 && (
             <label className="flex items-start gap-2 rounded-catcha-sm border border-honey-deep/40 bg-honey/15 p-3 text-[11px] font-bold text-catcha-chocolate">
               <input
                 type="checkbox"
@@ -398,14 +423,16 @@ export function BookingEditModal({
                 className="mt-0.5 h-3.5 w-3.5 accent-latte-deep"
               />
               <span>
-                🔁 เลื่อนวัน{service === "groom" ? "/เวลา" : "เข้า-ออก"}ให้น้องตัวอื่นในนัดเดียวกันด้วย
+                🔁 เลื่อนวัน{service === "groom" ? "/เวลา" : "เข้า-ออก"}ให้ทั้งบ้านด้วย
                 <span className="block font-normal text-brown-faint">
-                  {siblings.map((s) => s.catName).join(", ")} ({siblings.length} ตัว) — เปลี่ยนแค่วันที่/เวลา
-                  ชื่อและโน้ตของแต่ละตัวไม่ถูกแตะ
+                  {siblings.length > 0
+                    ? `${siblings.map((s) => s.catName).join(", ")} (${siblings.length} ตัว)`
+                    : "ทุกตัวในบ้านที่มานัดเดียวกัน (ถ้ามี)"}{" "}
+                  — เปลี่ยนแค่วันที่/เวลา ชื่อและโน้ตของแต่ละตัวไม่ถูกแตะ
+                  {service === "room" && " · บิลห้องพักจะปรับจำนวนคืนให้เอง"}
                 </span>
               </span>
             </label>
-          )}
           <EditField label="โน้ต" name="notes" defaultValue={booking.notes || ""} textarea />
 
           {/* ปิดข้อความอัตโนมัติเฉพาะเคสนี้ — เช่น ลูกค้าประจำที่คุยกันทางแชทอยู่แล้ว */}

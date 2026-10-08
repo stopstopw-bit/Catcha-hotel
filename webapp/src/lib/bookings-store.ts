@@ -147,6 +147,16 @@ export async function listBookings(lineUserId?: string) {
   return mem.filter((b) => b.lineUserId === lineUserId);
 }
 
+/** นัดทั้งหมดของลูกค้าชื่อนี้ — ใช้หาน้องตัวอื่นในบ้านที่มานัดเดียวกัน (ไม่ต้องดึงนัดทั้งร้าน) */
+export async function listBookingsByCustomerName(customerName: string) {
+  const sb = getSupabase();
+  if (sb) {
+    const { data } = await sb.from("bookings").select("*").eq("customer_name", customerName);
+    return (data as BookingRow[] | null)?.map(rowToStored) || [];
+  }
+  return mem.filter((b) => b.customerName === customerName);
+}
+
 export async function getBooking(id: string) {
   const sb = getSupabase();
   if (sb) {

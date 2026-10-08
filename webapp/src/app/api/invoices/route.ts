@@ -9,6 +9,7 @@ import {
   markInvoiceSent,
   receiveDepositCredit,
   receiveInvoiceDeposit,
+  receiveInvoicePayment,
   updateInvoice,
   deleteInvoice,
   restoreInvoice,
@@ -554,6 +555,43 @@ export async function PATCH(req: NextRequest) {
       }, (await getSiteConfig()).cards?.memberBalance),
     ]);
     return NextResponse.json({ ok: true });
+  }
+
+  // ── รับเงินบางส่วน (จ่ายเป็นงวด) — ลงรายรับตามวันที่รับจริง ยังไม่ปิดบิล ──
+  // จ่ายครบเมื่อไหร่ หน้าเว็บจะเรียก mark_paid ต่อ ซึ่งเก็บเฉพาะยอดที่ยังค้าง (เท่ากับ 0) — ไม่ลงซ้ำ
+  if (action === "receive_payment") {
+    const method = body.paymentMethod === "cash" ? "cash" : "transfer";
+    const res = await receiveInvoicePayment(id, Number(body.amount), method);
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: res.error, due: "due" in res ? res.due : undefined },
+        { status: 400 }
+      );
+    }
+    await logAudit({
+      actor: await actorName(req),
+      action: "receive_payment",
+      resourceType: "invoice",
+      resourceId: id,
+      detail: {
+        ลูกค้า: inv.customerName,
+        รับรอบนี้: Number(body.amount),
+        รับแล้วรวม: res.received,
+        คงเหลือ: res.remaining,
+        วิธีจ่าย: method,
+      },
+    });
+    await sendTelegram(
+      formatBookingTelegram("💵 รับเงินบางส่วน", {
+        ลูกค้า: inv.customerName,
+        น้องแมว: inv.catName,
+        รับรอบนี้: `${Number(body.amount)} บาท`,
+        รับแล้วรวม: `${res.received} บาท`,
+        คงเหลือ: `${res.remaining} บาท`,
+        บิล: inv.id,
+      })
+    );
+    return NextResponse.json(res);
   }
 
   if (action === "receive_deposit") {
