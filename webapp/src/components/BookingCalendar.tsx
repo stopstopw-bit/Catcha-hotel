@@ -9,7 +9,7 @@ import { bookingOnDate } from "@/lib/booking-customer-match";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { groupBookings } from "@/lib/booking-group";
-import { buildRoomBoard, roomCapacity } from "@/lib/room-board";
+import { buildRoomBoard, roomCapacity, freeUnitsForRange, compositionOf } from "@/lib/room-board";
 import { BOOKING_STATUS_LABELS, type BookingStatus } from "@/lib/business";
 import { effectiveBookingStatus } from "@/lib/booking-status";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
@@ -232,6 +232,86 @@ export function BookingCalendar() {
 
   /** นัดที่มีบิลผูกอยู่ — นัดที่ออกบิลแล้วถือว่าลูกค้ามาแล้ว ไม่ต้องรอยืนยัน */
   const [billedIds, setBilledIds] = useState<Set<string>>(new Set());
+
+  /**
+   * 🌙 ต่อคืน — กดทีเดียว เลื่อนวันออกให้ทุกตัวในบ้าน + ปรับบิลให้ตรงจำนวนคืน
+   * (บิลยังไม่ปิด = แก้บิลเดิม · ปิดแล้ว = ออกบิลต่อคืนเฉพาะคืนที่เพิ่ม)
+   */
+  const extendStay = async (group: CalendarDay[]) => {
+    const host = group[0];
+    const oldOut = host.checkout || "";
+    if (!host.checkin || !oldOut) {
+      toast("นัดนี้ยังไม่มีวันเข้า-ออก — กด ✏️ แก้ไข ใส่วันก่อนนะ", "error");
+      return;
+    }
+    const raw = prompt(
+      `🌙 ต่อคืน — ${group.map((g) => g.catName).join(", ")}\nวันออกเดิม ${oldOut}\n\nต่ออีกกี่คืน?`,
+      "1"
+    );
+    if (raw == null) return;
+    const extra = Math.round(Number(raw) || 0);
+    if (extra <= 0) return;
+    const d = new Date(`${oldOut}T12:00:00`);
+    d.setDate(d.getDate() + extra);
+    const newOut = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+
+    // เช็คว่าห้องประเภทนี้ยังว่างช่วงคืนที่เพิ่ม (ไม่นับตัวเองทั้งบ้าน)
+    const roomId = host.room || host.roomType || "";
+    if (roomId && !compositionOf(roomId)) {
+      const ids = new Set(group.map((g) => g.id));
+      const boardRooms = rooms.map((r) => ({
+        id: r.id,
+        name: r.name,
+        count: r.count || 0,
+        maxCats: roomCapacity(r),
+      }));
+      const free = freeUnitsForRange(
+        boardRooms,
+        liveBookings.filter((b) => !ids.has(b.id)),
+        roomId,
+        oldOut,
+        newOut
+      );
+      if (
+        boardRooms.some((r) => r.id === roomId && r.count > 0) &&
+        free.length === 0 &&
+        !confirm(`ห้องประเภทนี้เต็มบางคืนในช่วง ${oldOut} → ${newOut}\nยังจะต่อคืนอยู่ไหม?`)
+      )
+        return;
+    }
+
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: host.id,
+        action: "reschedule",
+        applyToGroup: true,
+        checkin: host.checkin,
+        checkout: newOut,
+        date: host.checkin,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast("ต่อคืนไม่สำเร็จ", "error");
+      return;
+    }
+    const inv = data.invoice;
+    toast(
+      `ต่อคืนแล้ว → ออก ${newOut}` +
+        (inv?.kind === "updated"
+          ? ` · แก้บิลเป็น ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
+          : inv?.kind === "created_extra"
+            ? ` · ออกบิลต่อคืน ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
+            : ""),
+      "success"
+    );
+    if (inv?.kind === "warn") alert(`⚠️ ${inv.message}`);
+    load();
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1242,6 +1322,15 @@ export function BookingCalendar() {
                       className="rounded-full bg-honey/25 px-2.5 py-1 text-[10px] font-bold text-catcha-chocolate"
                     >
                       ✏️ แก้ไข
+                    </button>
+                  )}
+                  {(b.service === "room" || !!b.checkout) && b.checkout && (
+                    <button
+                      type="button"
+                      onClick={() => extendStay(group)}
+                      className="rounded-full bg-latte/25 px-2.5 py-1 text-[10px] font-bold text-catcha-chocolate"
+                    >
+                      🌙 ต่อคืน
                     </button>
                   )}
                   <button
