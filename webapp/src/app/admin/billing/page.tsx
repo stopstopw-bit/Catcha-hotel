@@ -6,6 +6,7 @@ import { PosPanel } from "@/components/PosPanel";
 import type { PosProduct } from "@/lib/pos-store";
 import { SERVICE_PRESETS, type ServicePreset } from "@/lib/service-presets";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
+import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 import { toast } from "@/components/Toast";
 import { Icon, type IconName } from "@/components/Icon";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
@@ -1269,7 +1270,14 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         if (editingId === id) resetForm();
         load();
       } else {
-        toast(data.error === "already_received" ? "รับมัดจำบิลนี้ไปแล้ว" : "ไม่สำเร็จ", "error");
+        toast(
+          data.error === "already_received"
+            ? "รับมัดจำบิลนี้ไปแล้ว"
+            : typeof data.error === "string" && /[\u0E00-\u0E7F]/.test(data.error)
+              ? data.error
+              : "ไม่สำเร็จ",
+          "error"
+        );
       }
     } finally {
       setInvoiceBusy("");
@@ -2793,6 +2801,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
               )}
               <MoreMenu items={menu} />
             </div>
+            {paid && inv.customerId && (
+              <div className="mt-2">
+                <CancelToCreditButton invoiceId={inv.id} total={inv.total} size="md" onDone={load} />
+              </div>
+            )}
 
             {/* แผ่นส่งการ์ด LINE ของบิลนี้ — เปิดจากปุ่ม/เมนูด้านบน (ชุดปุ่มรวม เหมือนในปฏิทิน) */}
             <CustomerSendButtons

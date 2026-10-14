@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { MoreMenu } from "@/components/ui";
 import { toast } from "@/components/Toast";
-import { PreviewSendModal } from "@/components/PreviewSendModal";
+import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 
 type Inv = {
   id: string;
@@ -181,6 +181,19 @@ export function InvoiceActionButtons({
           }
         />
       </div>
+      {/* ลูกค้าจ่ายแล้วแต่ยกเลิก/ไม่มา — ยกเลิกนัด แล้วเก็บยอดไว้เป็นเครดิตใช้ครั้งหน้า */}
+      {paid && (
+        <div className="mt-2">
+          <CancelToCreditButton
+            invoiceId={inv.id}
+            total={inv.total}
+            onDone={() => {
+              reload();
+              onDone?.();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
