@@ -5,6 +5,7 @@
 import type { calendar_v3 } from "googleapis";
 import { getGoogleCredentials, isGoogleConfigured } from "./google-config";
 import { BUSINESS } from "./business";
+import type { StoredBooking } from "./bookings-store";
 
 export const CALENDAR_OWNER_EMAILS = [
   "chutchanok.than@gmail.com",
@@ -402,4 +403,18 @@ export async function deleteCalendarEvent(googleEventId: string) {
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/** ข้อมูลนัดสำหรับสร้าง/แก้ event ใน Google Calendar */
+export function bookingCalendarPayload(b: StoredBooking) {
+  return {
+    summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
+    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}`,
+    start: b.date || b.checkin || "",
+    end: b.checkout || b.date || b.checkin || "",
+    time: b.time,
+    allDay: b.service === "room" && !b.time,
+    service: b.service === "room" ? ("room" as const) : ("groom" as const),
+    eventId: b.id,
+  };
 }

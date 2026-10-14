@@ -216,12 +216,16 @@ function MemberTopupSection({
   const [msg, setMsg] = useState("");
   // ยอดยกมาจากระบบเก่า — เติมเครดิตให้ลูกค้าจริง แต่ไม่ใช่เงินที่รับเข้าร้านเดือนนี้
   const [isLegacy, setIsLegacy] = useState(false);
+  // 🔁 ยกเลิกนัดแล้วเก็บยอดบิลเป็นเครดิต — เงินเข้าร้าน + แต้มได้ไปแล้วตอนจ่ายบิลเดิม
+  // จึงไม่ลงรายรับ/ไม่ให้แต้มซ้ำ (ถ้าเติมแบบปกติ รายรับกับแต้มจะเบิ้ลจากเงินก้อนเดียว)
+  const [isCancelCredit, setIsCancelCredit] = useState(false);
+  const [sourceInvoiceId, setSourceInvoiceId] = useState("");
   /** ค่าเริ่มต้น = ไม่แจ้ง — ยกยอดเก่าเข้าระบบทีละหลายคนไม่ควรไปกวนลูกค้า */
   const [notify, setNotify] = useState(false);
   const [topupPreview, setTopupPreview] = useState<Record<string, unknown>[] | null>(null);
 
   const paidNum = Math.max(0, Number(paid) || 0);
-  const bonusNum = Math.max(0, Number(bonus) || 0);
+  const bonusNum = isCancelCredit ? 0 : Math.max(0, Number(bonus) || 0);
   const total = paidNum + bonusNum;
 
   const applyPromo = (p: number, b: number) => {
@@ -236,7 +240,9 @@ function MemberTopupSection({
     paidAmount: paidNum,
     bonusAmount: bonusNum,
     note: note.trim() || undefined,
-    isLegacy,
+    isLegacy: isLegacy && !isCancelCredit,
+    isCancelCredit,
+    sourceInvoiceId: isCancelCredit ? sourceInvoiceId.trim() || undefined : undefined,
     notify,
   });
 
@@ -260,10 +266,14 @@ function MemberTopupSection({
       setBonus("");
       setNote("");
       setIsLegacy(false);
+      setIsCancelCredit(false);
+      setSourceInvoiceId("");
       setNotify(false);
       setMsg(
         `✅ เติมสำเร็จ +${total.toLocaleString()} บาท (คงเหลือ ${data.customer.memberCredit.toLocaleString()} บาท)` +
-          (isLegacy
+          (isCancelCredit
+            ? " · 🔁 จากบิลยกเลิกนัด ไม่ลงรายรับ · ไม่ให้แต้มซ้ำ (ได้ไปแล้วตอนจ่ายบิล)"
+            : isLegacy
             ? " · ยอดยกมา ไม่นับรายรับเดือนนี้ · ไม่ได้แต้ม (ไม่ใช่เงินรอบนี้)"
             // บอกชัดว่าได้แต้มเท่าไหร่ — ไม่งั้นพนักงานเดาไม่ออกว่าระบบให้แต้มจริงไหม
             // ตอนลูกค้าถามว่าทำไมไม่ได้แต้ม (เช่น ปิดสวิตช์ไว้ หรือจ่ายเป็นยอดแถมล้วนไม่มีเงินจ่ายจริง)
@@ -279,7 +289,7 @@ function MemberTopupSection({
       );
       onDone();
     } else {
-      setMsg("❌ บันทึกไม่สำเร็จ");
+      setMsg(data.error && data.error !== "invalid_topup" ? `❌ ${data.error}` : "❌ บันทึกไม่สำเร็จ");
     }
   };
 
@@ -316,7 +326,7 @@ function MemberTopupSection({
 
       <div className="mb-3 grid grid-cols-2 gap-2">
         <label className="block text-[10px] font-bold text-brown-soft">
-          💵 รับเงินจริง (บาท)
+          {isCancelCredit ? "🔁 ยอดบิลเดิม (บาท)" : "💵 รับเงินจริง (บาท)"}
           <input
             type="number"
             min={0}
@@ -333,7 +343,8 @@ function MemberTopupSection({
             min={0}
             value={bonus}
             onChange={(e) => setBonus(e.target.value)}
-            placeholder="2000"
+            placeholder={isCancelCredit ? "—" : "2000"}
+            disabled={isCancelCredit}
             className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm font-bold text-latte-deep"
           />
         </label>
@@ -375,7 +386,10 @@ function MemberTopupSection({
         <input
           type="checkbox"
           checked={isLegacy}
-          onChange={(e) => setIsLegacy(e.target.checked)}
+          onChange={(e) => {
+            setIsLegacy(e.target.checked);
+            if (e.target.checked) setIsCancelCredit(false);
+          }}
           className="mt-0.5 h-3.5 w-3.5 accent-latte-deep"
         />
         <span>
@@ -383,6 +397,32 @@ function MemberTopupSection({
           <span className="block font-normal text-brown-faint">
             เติมเครดิตให้ลูกค้าตามปกติ แต่จะ<b>ไม่นับเป็นรายรับ</b>ของร้านเดือนนี้
           </span>
+        </span>
+      </label>
+
+      <label className="mb-3 flex items-start gap-2 rounded-catcha-sm bg-paper/60 px-3 py-2 text-[11px] font-bold text-brown-soft">
+        <input
+          type="checkbox"
+          checked={isCancelCredit}
+          onChange={(e) => {
+            setIsCancelCredit(e.target.checked);
+            if (e.target.checked) setIsLegacy(false);
+          }}
+          className="mt-0.5 h-3.5 w-3.5 accent-latte-deep"
+        />
+        <span className="flex-1">
+          🔁 ยกเลิกนัด เก็บยอดบิลที่จ่ายแล้วเป็นเครดิต
+          <span className="block font-normal text-brown-faint">
+            <b>ไม่ลงรายรับ ไม่ให้แต้มซ้ำ</b> (ได้ไปแล้วตอนจ่ายบิล) · ทำได้ในคลิกเดียวจากปุ่มที่บิลในตารางนัด
+          </span>
+          {isCancelCredit && (
+            <input
+              value={sourceInvoiceId}
+              onChange={(e) => setSourceInvoiceId(e.target.value)}
+              placeholder="เลขบิลเดิม (ถ้ามี) — โชว์ในประวัติเครดิต"
+              className="mt-1.5 w-full rounded-catcha-sm border border-catcha-line bg-paper px-2 py-1.5 text-xs font-normal"
+            />
+          )}
         </span>
       </label>
 
@@ -411,7 +451,9 @@ function MemberTopupSection({
           ? "กำลังบันทึก…"
           : notify
             ? "🔍 ดูการ์ดก่อนเติม"
-            : isLegacy
+            : isCancelCredit
+              ? `🔁 เก็บเป็นเครดิต +${total > 0 ? total.toLocaleString() : "—"} บาท (ไม่นับรายรับ)`
+              : isLegacy
               ? `บันทึกยอดยกมา +${total > 0 ? total.toLocaleString() : "—"} บาท (ไม่นับรายรับ)`
               : `บันทึกเติม Member +${total > 0 ? total.toLocaleString() : "—"} บาท`}
       </button>
@@ -846,12 +888,16 @@ function MemberCreditHistorySection({
    * ถ้าลูกค้าใช้เครดิตไปแล้วบางส่วน เซิร์ฟเวอร์จะบล็อกและบอกให้ไปยกเลิกบิลก่อน
    */
   const cancelTopup = async (t: MemberTopupRecord) => {
-    const label = t.isLegacy ? "ยอดยกมา" : "การเติมเครดิต";
+    const label = t.isCancelCredit
+      ? "เครดิตจากบิลยกเลิกนัด"
+      : t.isLegacy
+        ? "ยอดยกมา"
+        : "การเติมเครดิต";
     if (
       !confirm(
         `ยกเลิก${label} +${t.creditAdded.toLocaleString()} บาท?\n` +
           `เครดิตลูกค้าจะถูกหักออก ${t.creditAdded.toLocaleString()} บาท` +
-          (t.isLegacy ? "" : " และลบรายรับที่ลงไว้ด้วย") +
+          (t.isLegacy || t.isCancelCredit ? "" : " และลบรายรับที่ลงไว้ด้วย") +
           "\nกู้คืนไม่ได้"
       )
     )
@@ -926,16 +972,39 @@ function MemberCreditHistorySection({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className={`font-bold ${row.topup.isLegacy ? "text-brown" : "text-ok"}`}>
-                      {row.topup.isLegacy ? "🕰️ ยอดยกมาจากระบบเก่า" : "+ เติมเครดิต"}
+                    <p
+                      className={`font-bold ${
+                        row.topup.isLegacy || row.topup.isCancelCredit ? "text-brown" : "text-ok"
+                      }`}
+                    >
+                      {row.topup.isCancelCredit
+                        ? "🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต"
+                        : row.topup.isLegacy
+                          ? "🕰️ ยอดยกมาจากระบบเก่า"
+                          : "+ เติมเครดิต"}
                     </p>
-                    <p className="text-brown-soft">
-                      {row.topup.createdAt.slice(0, 10)} · รับ {row.topup.paidAmount.toLocaleString()} บาท
-                      {row.topup.bonusAmount > 0 && (
-                        <> · แถม {row.topup.bonusAmount.toLocaleString()} บาท</>
-                      )}
-                      {row.topup.isLegacy && <> · ไม่นับรายรับ</>}
-                    </p>
+                    {row.topup.isCancelCredit ? (
+                      <p className="text-brown-soft">
+                        {row.topup.createdAt.slice(0, 10)}
+                        {row.topup.sourceInvoiceId && (
+                          <>
+                            {" · จากบิล "}
+                            <span className="font-bold text-latte-deep">
+                              {row.topup.sourceInvoiceId}
+                            </span>
+                          </>
+                        )}
+                        {" · ไม่นับรายรับ · ไม่ให้แต้มซ้ำ"}
+                      </p>
+                    ) : (
+                      <p className="text-brown-soft">
+                        {row.topup.createdAt.slice(0, 10)} · รับ {row.topup.paidAmount.toLocaleString()} บาท
+                        {row.topup.bonusAmount > 0 && (
+                          <> · แถม {row.topup.bonusAmount.toLocaleString()} บาท</>
+                        )}
+                        {row.topup.isLegacy && <> · ไม่นับรายรับ</>}
+                      </p>
+                    )}
                     {row.topup.note && (
                       <p className="text-[10px] text-brown-faint">{row.topup.note}</p>
                     )}

@@ -5,6 +5,7 @@ import {
   updateCalendarEventConfirmed,
   updateCalendarEvent,
   deleteCalendarEvent,
+  bookingCalendarPayload,
 } from "@/lib/calendar";
 import {
   addBooking,
@@ -64,19 +65,6 @@ import {
 } from "@/lib/booking-reminders";
 
 export const dynamic = "force-dynamic";
-
-function bookingCalendarPayload(b: StoredBooking) {
-  return {
-    summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
-    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}`,
-    start: b.date || b.checkin || "",
-    end: b.checkout || b.date || b.checkin || "",
-    time: b.time,
-    allDay: b.service === "room" && !b.time,
-    service: b.service === "room" ? ("room" as const) : ("groom" as const),
-    eventId: b.id,
-  };
-}
 
 /** หา LINE User ID ปลายทางของนัด (จากตัวนัด หรือจับคู่ลูกค้าในระบบ) */
 async function resolveRecipient(
