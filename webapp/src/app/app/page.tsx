@@ -130,10 +130,10 @@ export default function CustomerHome() {
 
       {/* เมนูลัด — ไอคอนกลมแบบหมวดหมู่ */}
       <nav aria-label="menu" className="mb-5 mt-1 grid grid-cols-4 gap-2">
-        <Link href="/app/rooms"><IconChip icon="🏨" label={t(locale).nav.rooms} tone="honey" /></Link>
-        <Link href="/app/grooming"><IconChip icon="🛁" label={t(locale).nav.grooming} tone="sage" /></Link>
-        <Link href="/app/bookings"><IconChip icon="📅" label={t(locale).nav.bookings} tone="latte" badge={nextBooking ? 1 : undefined} /></Link>
-        <Link href="/app/profile"><IconChip icon="✏️" label={locale === "th" ? "แก้ข้อมูล" : "Profile"} tone="paper" /></Link>
+        <Link href="/app/rooms"><IconChip icon="bed" label={t(locale).nav.rooms} tone="honey" /></Link>
+        <Link href="/app/grooming"><IconChip icon="bath" label={t(locale).nav.grooming} tone="sage" /></Link>
+        <Link href="/app/bookings"><IconChip icon="calendar" label={t(locale).nav.bookings} tone="latte" badge={nextBooking ? 1 : undefined} /></Link>
+        <Link href="/app/profile"><IconChip icon="edit" label={locale === "th" ? "แก้ข้อมูล" : "Profile"} tone="paper" /></Link>
       </nav>
 
       {!ready && (

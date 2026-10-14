@@ -6,6 +6,7 @@ import { adminJson } from "@/lib/admin-fetch";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { resolveRange, type RangeId } from "@/lib/date-range";
 import { IconChip, ListRowContent } from "@/components/HeaderBand";
+import { Icon } from "@/components/Icon";
 
 type Stats = {
   today: string;
@@ -27,9 +28,20 @@ type Stats = {
 
 type Tasks = { unpaidCount: number; unpaidDue: number; pendingConsent: number };
 
+/** นัดของวันนี้ที่โชว์ในแดชบอร์ด (อ่านอย่างเดียว จาก /api/bookings ที่โหลดอยู่แล้ว) */
+type TodayItem = {
+  id: string;
+  kind: "groom" | "checkin" | "checkout";
+  time: string;
+  catName: string;
+  customerName: string;
+  status: string;
+};
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [tasks, setTasks] = useState<Tasks | null>(null);
+  const [todayItems, setTodayItems] = useState<TodayItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   /** ช่วงเวลาของตัวเลขยอดขาย/บัญชี — คิว "รอยืนยัน" กับ "นัดวันนี้" ยึดวันนี้เสมอ */
@@ -61,11 +73,40 @@ export default function AdminDashboard() {
       ]);
       const invs = (invR.invoices || []) as { status: string; total: number; deposit?: number }[];
       const bks = (bkR.bookings || []) as {
+        id?: string;
         service?: string;
+        date?: string;
+        time?: string;
         checkin?: string;
+        checkout?: string;
+        arrivalTime?: string;
+        pickupTime?: string;
+        catName?: string;
+        customerName?: string;
         consentAcceptedAt?: string;
         status?: string;
       }[];
+      // นัดวันนี้ — นับแบบเดียวกับตัวเลข "นัดวันนี้" (date/checkin = วันนี้) + น้องที่ออกวันนี้
+      const items: TodayItem[] = [];
+      for (const b of bks) {
+        if (b.status === "cancelled") continue;
+        const base = {
+          id: b.id || "",
+          catName: b.catName || "-",
+          customerName: b.customerName || "",
+          status: b.status || "",
+        };
+        if (b.service === "room") {
+          if ((b.checkin || b.date) === today)
+            items.push({ ...base, kind: "checkin", time: b.arrivalTime || b.time || "" });
+          if (b.checkout === today)
+            items.push({ ...base, id: `${base.id}-out`, kind: "checkout", time: b.pickupTime || "" });
+        } else if (b.date === today) {
+          items.push({ ...base, kind: "groom", time: b.time || "" });
+        }
+      }
+      items.sort((a, b) => (a.time || "99").localeCompare(b.time || "99"));
+      setTodayItems(items);
       const pending = invs.filter((i) => i.status === "pending");
       setTasks({
         unpaidCount: pending.length,
@@ -112,17 +153,19 @@ export default function AdminDashboard() {
     stats.queue > 0 || (tasks && (tasks.unpaidCount > 0 || tasks.pendingConsent > 0));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* การ์ดสรุป — เกยขึ้นไปบนแถบหัว */}
       <section className="relative rounded-catcha bg-card p-5 shadow-catcha">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-bold text-brown-soft">รายรับ · {range.label}</p>
-            <p className="mt-1 text-3xl font-extrabold text-catcha-chocolate">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
+              Revenue · {range.label}
+            </p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-catcha-chocolate">
               {stats.financeToday.income.toLocaleString()}
               <span className="ml-1 text-base font-bold text-latte-deep">฿</span>
             </p>
-            <p className="mt-0.5 text-[11px] text-brown-faint">
+            <p className="mt-0.5 text-[11px] text-brown-soft">
               {
                 // ใช้ยอดจากบัญชีรายรับ ไม่ใช่เฉพาะบิล — ขายคอร์ส/เติมเครดิตก็คือเงินเข้าเหมือนกัน
                 // (เมื่อก่อนการ์ดนี้นับเฉพาะบิล เลยไม่ตรงกับ "สุทธิ" ที่นับทุกอย่าง)
@@ -137,98 +180,125 @@ export default function AdminDashboard() {
               }
             </p>
           </div>
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-honey/35 text-2xl">
-            💰
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-honey/35 text-catcha-chocolate">
+            <Icon name="wallet" size={22} />
           </span>
         </div>
         <div className="mt-4 grid grid-cols-3 divide-x divide-catcha-line rounded-catcha-sm bg-paper/70 py-3 text-center">
-          <MiniStat label="สุทธิ" value={`${stats.financeToday.net.toLocaleString()} ฿`} sub={
+          <MiniStat label="Net" value={`${stats.financeToday.net.toLocaleString()} ฿`} sub={
             stats.financeToday.expense > 0
               ? `หักจ่าย ${stats.financeToday.expense.toLocaleString()}`
               : "ยังไม่มีรายจ่าย"
           } />
-          <MiniStat label="นัดวันนี้" value={String(stats.todayAppointments)} sub={`ยืนยัน ${stats.todayConfirmed}`} />
-          <MiniStat label="รอยืนยัน" value={String(stats.queue)} sub="นัด" highlight={stats.queue > 0} />
+          <MiniStat label="Today" value={String(stats.todayAppointments)} sub={`ยืนยัน ${stats.todayConfirmed}`} />
+          <MiniStat label="Pending" value={String(stats.queue)} sub="รอยืนยัน" highlight={stats.queue > 0} />
+        </div>
+        <div className="mt-3">
+          <DateRangePicker
+            value={rangeId}
+            onChange={setRangeId}
+            custom={customRange}
+            onCustomChange={setCustomRange}
+          />
         </div>
       </section>
 
-      {/* เมนูลัด — ไอคอนกลมแบบหมวดหมู่ */}
-      <nav aria-label="เมนูลัด" className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-        <Link href="/admin/bookings/new"><IconChip icon="➕" label="จองใหม่" tone="honey" /></Link>
-        <Link href="/admin/schedule"><IconChip icon="🗓️" label="ตารางนัด" tone="latte" /></Link>
-        <Link href="/admin/billing"><IconChip icon="💳" label="คิดเงิน" tone="honey" /></Link>
-        <Link href="/admin/customers"><IconChip icon="👤" label="ลูกค้า" tone="sage" /></Link>
-        <Link href="/admin/finance"><IconChip icon="📒" label="รายรับ-จ่าย" tone="latte" /></Link>
-        <Link href="/admin/pending"><IconChip icon="⏳" label="รอยืนยัน" tone="paper" badge={stats.queue || undefined} /></Link>
-        <Link href="/admin/insights" className="sm:hidden"><IconChip icon="📊" label="สรุปข้อมูล" tone="sage" /></Link>
-        <Link href="/admin/promos" className="sm:hidden"><IconChip icon="✨" label="โปร" tone="honey" /></Link>
+      {/* เมนูลัด — 4 อย่างที่ใช้บ่อยสุด (ที่เหลืออยู่ในปุ่ม Menu ด้านล่าง) */}
+      <nav aria-label="เมนูลัด" className="grid grid-cols-4 gap-2">
+        <Link href="/admin/billing"><IconChip icon="card" label="คิดเงิน" tone="honey" /></Link>
+        <Link href="/admin/pending"><IconChip icon="inbox" label="รอยืนยัน" tone="latte" badge={stats.queue || undefined} /></Link>
+        <Link href="/admin/finance"><IconChip icon="wallet" label="รายรับ-จ่าย" tone="sage" /></Link>
+        <Link href="/admin/insights"><IconChip icon="chart" label="สรุปข้อมูล" tone="paper" /></Link>
       </nav>
-
-      <DateRangePicker
-        value={rangeId}
-        onChange={setRangeId}
-        custom={customRange}
-        onCustomChange={setCustomRange}
-      />
 
       {/* งานที่ต้องทำ */}
       {hasTasks && (
-        <section className="rounded-catcha bg-card p-4 shadow-catcha-sm">
-          <p className="mb-1 px-1 text-sm font-extrabold text-catcha-chocolate">
-            📌 งานที่ต้องทำ
-          </p>
-          <div className="divide-y divide-catcha-line">
+        <section>
+          <SectionTitle title="To-do" sub="งานที่ต้องทำ" />
+          <div className="divide-y divide-catcha-line rounded-catcha bg-card px-4 shadow-catcha-sm">
             {stats.queue > 0 && (
-              <Link href="/admin/pending" className="block px-1 py-3">
-                <ListRowContent
-                  icon="⏳"
-                  title="นัดรอยืนยัน"
-                  sub="ลูกค้ายังไม่กดยืนยัน"
-                  value={`${stats.queue} นัด →`}
-                  valueClass="text-wait"
-                />
+              <Link href="/admin/pending" className="block py-3">
+                <ListRowContent icon="inbox" title="นัดรอยืนยัน" sub="ลูกค้ายังไม่กดยืนยัน" value={`${stats.queue} นัด`} valueClass="text-wait" />
               </Link>
             )}
             {tasks && tasks.unpaidCount > 0 && (
-              <Link href="/admin/billing" className="block px-1 py-3">
-                <ListRowContent
-                  icon="💳"
-                  title="บิลค้างชำระ"
-                  sub={`${tasks.unpaidCount} บิล`}
-                  value={`${tasks.unpaidDue.toLocaleString()} ฿ →`}
-                  valueClass="text-wait"
-                />
+              <Link href="/admin/billing" className="block py-3">
+                <ListRowContent icon="card" title="บิลค้างชำระ" sub={`${tasks.unpaidCount} บิล`} value={`${tasks.unpaidDue.toLocaleString()} ฿`} valueClass="text-wait" />
               </Link>
             )}
             {tasks && tasks.pendingConsent > 0 && (
-              <Link href="/admin/schedule" className="block px-1 py-3">
-                <ListRowContent
-                  icon="📋"
-                  title="ยังไม่กดยอมรับเงื่อนไข"
-                  sub="ห้องพักที่กำลังจะมาถึง"
-                  value={`${tasks.pendingConsent} คน →`}
-                  valueClass="text-latte-deep"
-                />
+              <Link href="/admin/schedule" className="block py-3">
+                <ListRowContent icon="doc" title="ยังไม่กดยอมรับเงื่อนไข" sub="ห้องพักที่กำลังจะมาถึง" value={`${tasks.pendingConsent} คน`} valueClass="text-latte-deep" />
               </Link>
             )}
           </div>
         </section>
       )}
 
-      {/* เปิดตารางนัด (แยกหน้า) */}
-      <Link
-        href="/admin/schedule"
-        className="flex items-center justify-between gap-3 rounded-catcha bg-card p-4 shadow-catcha-sm"
-      >
-        <ListRowContent
-          icon="🗓️"
-          title="ตารางนัด"
-          sub={`วันนี้ ${stats.todayAppointments} นัด · รอยืนยัน ${stats.queue}`}
+      {/* นัดวันนี้ */}
+      <section>
+        <SectionTitle
+          title="Today"
+          sub={`นัดวันนี้ ${todayItems.length} รายการ`}
+          action={<Link href="/admin/schedule" className="text-xs font-bold text-latte-deep">ดูตารางนัด</Link>}
         />
-        <span className="shrink-0 rounded-full bg-honey/40 px-4 py-2 text-xs font-extrabold text-catcha-chocolate">
-          เปิดตาราง →
-        </span>
-      </Link>
+        {todayItems.length === 0 ? (
+          <div className="flex flex-col items-center rounded-catcha bg-card px-4 py-8 text-center shadow-catcha-sm">
+            <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-paper text-brown-soft">
+              <Icon name="paw" size={24} />
+            </span>
+            <p className="text-sm font-bold text-brown">วันนี้ยังไม่มีนัด</p>
+            <p className="text-xs text-brown-soft">กดปุ่ม + ด้านล่างเพื่อจองให้ลูกค้า</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-catcha-line rounded-catcha bg-card px-4 shadow-catcha-sm">
+            {todayItems.slice(0, 8).map((it) => (
+              <li key={it.id} className="flex items-center gap-3 py-3">
+                <span className="w-11 shrink-0 text-center text-xs font-extrabold text-catcha-chocolate">
+                  {it.time || "–"}
+                </span>
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                    it.kind === "groom" ? "bg-sage/30" : it.kind === "checkin" ? "bg-honey/35" : "bg-latte/30"
+                  } text-catcha-chocolate`}
+                >
+                  <Icon name={it.kind === "groom" ? "bath" : "bed"} size={18} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-catcha-chocolate">{it.catName}</span>
+                  <span className="block truncate text-[11px] text-brown-soft">
+                    {it.kind === "groom" ? "อาบน้ำ" : it.kind === "checkin" ? "เช็คอิน" : "เช็คเอาท์"} · {it.customerName}
+                  </span>
+                </span>
+                {it.status === "pending" ? (
+                  <span className="shrink-0 rounded-full bg-wait/15 px-2 py-0.5 text-[10px] font-bold text-wait">รอยืนยัน</span>
+                ) : it.status === "confirmed" ? (
+                  <span className="shrink-0 rounded-full bg-ok/15 px-2 py-0.5 text-[10px] font-bold text-ok">ยืนยันแล้ว</span>
+                ) : null}
+              </li>
+            ))}
+            {todayItems.length > 8 && (
+              <li className="py-3 text-center">
+                <Link href="/admin/schedule" className="text-xs font-bold text-latte-deep">
+                  ดูอีก {todayItems.length - 8} รายการ
+                </Link>
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function SectionTitle({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-end justify-between gap-3 px-1">
+      <div>
+        <h2 className="text-base font-extrabold text-catcha-chocolate">{title}</h2>
+        {sub ? <p className="text-[11px] text-brown-soft">{sub}</p> : null}
+      </div>
+      {action}
     </div>
   );
 }
@@ -246,7 +316,7 @@ function MiniStat({
 }) {
   return (
     <div className="min-w-0 px-2">
-      <p className="text-[10px] font-bold text-brown-soft">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-brown-soft">{label}</p>
       <p className={`truncate text-base font-extrabold ${highlight ? "text-wait" : "text-catcha-chocolate"}`}>
         {value}
       </p>

@@ -9,11 +9,35 @@ import {
   AdminBottomBar,
   AdminNav,
   AdminSidebar,
+  getActiveAdminTabEn,
   getActiveAdminTabLabel,
   getAllowedMenus,
   isPathAllowed,
 } from "@/components/AdminNav";
 import { Toaster } from "@/components/Toast";
+import { Icon } from "@/components/Icon";
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function LogoutButton({ onClick, subtle }: { onClick: () => void; subtle?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="ออกจากระบบ"
+      className={`flex h-10 w-10 items-center justify-center rounded-full text-catcha-chocolate ${
+        subtle ? "bg-paper" : "bg-card/70 shadow-catcha-sm backdrop-blur"
+      }`}
+    >
+      <Icon name="logout" size={19} />
+    </button>
+  );
+}
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -84,34 +108,49 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-catcha-gradient pb-28 lg:pb-0">
       <Toaster />
-      <header className="print:hidden">
-        <HeaderBand className={isDashboard ? "pb-10 lg:pb-12" : "pb-4 lg:pb-5"}>
-          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pb-1 pt-4 lg:max-w-6xl lg:px-6 lg:pt-6">
-            <Logo size={44} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold text-catcha-chocolate/70">
-                CatCha Admin · หลังบ้าน
+      {isDashboard ? (
+        <header className="print:hidden">
+          <HeaderBand className="pb-12 lg:pb-14">
+            <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pb-1 pt-5 lg:max-w-6xl lg:px-6 lg:pt-6">
+              <Logo size={46} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-catcha-chocolate/60">
+                  {greeting()}
+                </p>
+                <p className="truncate text-xl font-extrabold text-catcha-chocolate lg:text-2xl">
+                  CatCha Hotel
+                </p>
+                <p className="truncate text-[11px] font-bold text-catcha-chocolate/70">
+                  {new Date().toLocaleDateString("th-TH", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+              <LogoutButton onClick={logout} />
+            </div>
+          </HeaderBand>
+        </header>
+      ) : (
+        <header className="sticky top-0 z-30 border-b border-catcha-line/70 bg-cream/85 backdrop-blur-md print:hidden">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5 lg:max-w-6xl lg:px-6">
+            <Logo size={34} />
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-latte-deep">
+                {getActiveAdminTabEn(pathname) || "CatCha Admin"}
               </p>
-              <p
-                className={`truncate font-extrabold text-catcha-chocolate ${
-                  isDashboard ? "text-xl lg:text-2xl" : "text-base lg:text-lg"
-                }`}
-              >
+              <p className="truncate text-sm font-extrabold text-catcha-chocolate">
                 {getActiveAdminTabLabel(pathname)}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="rounded-full bg-card/70 px-3.5 py-1.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm backdrop-blur lg:text-sm"
-            >
-              ออก
-            </button>
+            <LogoutButton onClick={logout} subtle />
           </div>
-        </HeaderBand>
-      </header>
+        </header>
+      )}
       <AdminNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-      <div className={`mx-auto max-w-3xl ${isDashboard ? "-mt-6" : "mt-5 lg:mt-6"} px-4 lg:grid lg:max-w-6xl lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6`}>
+      <div className={`mx-auto max-w-3xl ${isDashboard ? "-mt-8" : "mt-4 lg:mt-6"} px-4 lg:grid lg:max-w-6xl lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6`}>
         <aside className="print:hidden">
           <AdminSidebar />
         </aside>

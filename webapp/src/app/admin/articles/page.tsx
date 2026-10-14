@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { useCallback, useEffect, useState } from "react";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { toast } from "@/components/Toast";
@@ -304,16 +305,18 @@ export default function ArticlesAdminPage() {
             <a
               href={`/blog/${a.slug}`}
               target="_blank"
-              className="shrink-0 rounded-full bg-paper px-2.5 py-1 text-[10px] font-bold text-latte-deep"
+              aria-label="ดูหน้าบทความ"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-paper text-latte-deep"
             >
-              👁️ ดู
+              <Icon name="eye" size={18} />
             </a>
             <button
               type="button"
               onClick={() => startEdit(a)}
-              className="shrink-0 rounded-full bg-honey/25 px-2.5 py-1 text-[10px] font-bold text-catcha-chocolate"
+              aria-label="แก้ไขบทความ"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-honey/30 text-catcha-chocolate"
             >
-              ✏️ แก้ไข
+              <Icon name="edit" size={18} />
             </button>
             <button
               type="button"
@@ -350,16 +353,18 @@ export default function ArticlesAdminPage() {
             <a
               href={`/blog/${a.slug}`}
               target="_blank"
-              className="shrink-0 rounded-full bg-paper px-2.5 py-1 text-[10px] font-bold text-latte-deep"
+              aria-label="ดูหน้าบทความ"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-paper text-latte-deep"
             >
-              👁️ ดู
+              <Icon name="eye" size={18} />
             </a>
             <button
               type="button"
               onClick={() => startEditBuiltin(a)}
-              className="shrink-0 rounded-full bg-honey/25 px-2.5 py-1 text-[10px] font-bold text-catcha-chocolate"
+              aria-label="แก้ไขบทความ"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-honey/30 text-catcha-chocolate"
             >
-              ✏️ แก้ไข
+              <Icon name="edit" size={18} />
             </button>
           </div>
         ))}

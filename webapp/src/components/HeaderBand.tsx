@@ -1,3 +1,5 @@
+import { Icon } from "@/components/Icon";
+
 /**
  * แถบหัวโค้งมนสีน้ำผึ้ง + ลายกระดาษสีเล็กๆ ลอยอยู่ (สไตล์ภาพประกอบ)
  * ใช้เป็นหัวหน้าของหลังบ้านและแอปลูกค้า — การ์ดสรุปด้านล่างจะเกยขึ้นมาทับขอบล่างได้
@@ -34,7 +36,7 @@ export function BandDecor() {
       <circle cx="190" cy="14" r="4" fill="#fffdfa" opacity="0.7" />
       <circle cx="210" cy="176" r="3" fill="#fffdfa" opacity="0.7" />
       <path d="M232 26 l12 -16 l6 20 z" fill="#a9855f" opacity="0.35" />
-      <path d="M14 120 a10 10 0 0 1 20 0 z" fill="#fffdfa" opacity="0.45" />
+      <path d="M330 120 a10 10 0 0 1 20 0 z" fill="#fffdfa" opacity="0.35" />
       <path d="M384 168 l8 8 m0 -8 l-8 8" stroke="#5c4033" strokeOpacity="0.25" strokeWidth="2" strokeLinecap="round" />
       <path
         d="M300 186 q10 -12 20 0 t20 0 t20 0"
@@ -48,7 +50,7 @@ export function BandDecor() {
   );
 }
 
-/** ปุ่มไอคอนกลมแบบหมวดหมู่ (ไอคอนในวงกลม + ชื่อใต้) */
+/** ปุ่มไอคอนแบบหมวดหมู่ (ไอคอนเส้นในกรอบมน + ชื่อใต้) — icon = ชื่อใน Icon.tsx */
 export function IconChip({
   icon,
   label,
@@ -61,19 +63,17 @@ export function IconChip({
   tone?: "honey" | "latte" | "sage" | "paper";
 }) {
   const bg = {
-    honey: "bg-honey/30",
-    latte: "bg-latte/25",
-    sage: "bg-sage/25",
+    honey: "bg-honey/35",
+    latte: "bg-latte/30",
+    sage: "bg-sage/30",
     paper: "bg-paper",
   }[tone];
   return (
     <span className="flex flex-col items-center gap-1.5 text-center">
       <span
-        className={`relative flex h-14 w-14 items-center justify-center rounded-full border border-catcha-line ${bg} text-2xl shadow-catcha-sm`}
+        className={`relative flex h-14 w-14 items-center justify-center rounded-2xl ${bg} text-catcha-chocolate`}
       >
-        <span aria-hidden className="leading-none">
-          {icon}
-        </span>
+        <Icon name={icon} size={24} />
         {badge ? (
           <span className="absolute -right-1 -top-1 min-w-[20px] rounded-full bg-catcha-chocolate px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-card">
             {badge}
@@ -101,11 +101,8 @@ export function ListRowContent({
 }) {
   return (
     <span className="flex items-center gap-3">
-      <span
-        aria-hidden
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-lg"
-      >
-        {icon}
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/25 text-catcha-chocolate">
+        <Icon name={icon} size={20} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-extrabold text-catcha-chocolate">{title}</span>
