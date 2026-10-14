@@ -2,6 +2,7 @@ import { getSiteConfig } from "./config-store";
 import {
   deductMemberCredit,
   restoreMemberCredit,
+  findCancelCreditTopup,
   addServiceRecord,
   deleteServiceRecordByInvoice,
   getCustomer,
@@ -552,6 +553,10 @@ export async function linkInvoiceToBooking(id: string, bookingId: string) {
 export async function deleteInvoice(id: string) {
   const inv = await getInvoice(id);
   if (!inv) return { ok: false as const, error: "not_found" };
+  // บิลที่ยกเลิกนัดแล้วโอนยอดเป็นเครดิตไปแล้ว — ลบบิลจะถอนรายรับ/แต้ม แต่เครดิตยังอยู่ (ได้ฟรี)
+  if (inv.status === "paid" && (await findCancelCreditTopup(id))) {
+    return { ok: false as const, error: "converted_to_credit" };
+  }
 
   // ต้องอ่านยอดที่หักเครดิต Member ไปก่อน "ลบรายรับ" ข้างล่าง ไม่งั้นรายการที่ใช้คำนวณ
   // ยอดคืนจะหายไปก่อนอ่านทัน แล้วจะคำนวณได้ 0 เสมอ (คืนเครดิตให้ลูกค้าไม่ได้เลย)
@@ -978,6 +983,11 @@ export async function revertInvoicePaid(id: string) {
   const inv = await getInvoice(id);
   if (!inv || inv.status !== "paid") {
     return { ok: false as const, error: "not_paid" };
+  }
+  // ยอดบิลนี้ถูกโอนเป็นเครดิต (🔁 ยกเลิกนัด) ไปแล้ว — ต้องยกเลิกรายการเครดิตนั้นก่อน
+  // ไม่งั้นรายรับ/แต้มถูกถอน แต่ลูกค้ายังถือเครดิตเท่ายอดบิลอยู่
+  if (await findCancelCreditTopup(id)) {
+    return { ok: false as const, error: "converted_to_credit" };
   }
 
   // คืนเครดิต Member ที่หักไป

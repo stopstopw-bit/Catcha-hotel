@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { MoreMenu } from "@/components/ui";
 import { toast } from "@/components/Toast";
+import { PreviewSendModal } from "@/components/PreviewSendModal";
 
 type Inv = {
   id: string;
