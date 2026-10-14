@@ -5,6 +5,7 @@ import Link from "next/link";
 import { adminJson } from "@/lib/admin-fetch";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { resolveRange, type RangeId } from "@/lib/date-range";
+import { IconChip, ListRowContent } from "@/components/HeaderBand";
 
 type Stats = {
   today: string;
@@ -107,8 +108,62 @@ export default function AdminDashboard() {
     );
   }
 
+  const hasTasks =
+    stats.queue > 0 || (tasks && (tasks.unpaidCount > 0 || tasks.pendingConsent > 0));
+
   return (
     <div className="space-y-5">
+      {/* การ์ดสรุป — เกยขึ้นไปบนแถบหัว */}
+      <section className="relative rounded-catcha bg-card p-5 shadow-catcha">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-brown-soft">รายรับ · {range.label}</p>
+            <p className="mt-1 text-3xl font-extrabold text-catcha-chocolate">
+              {stats.financeToday.income.toLocaleString()}
+              <span className="ml-1 text-base font-bold text-latte-deep">฿</span>
+            </p>
+            <p className="mt-0.5 text-[11px] text-brown-faint">
+              {
+                // ใช้ยอดจากบัญชีรายรับ ไม่ใช่เฉพาะบิล — ขายคอร์ส/เติมเครดิตก็คือเงินเข้าเหมือนกัน
+                // (เมื่อก่อนการ์ดนี้นับเฉพาะบิล เลยไม่ตรงกับ "สุทธิ" ที่นับทุกอย่าง)
+                [
+                  `${stats.salesToday.count} บิล`,
+                  stats.salesToday.creditTotal > 0
+                    ? `ตัดเครดิต ${stats.salesToday.creditTotal.toLocaleString()} ฿`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              }
+            </p>
+          </div>
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-honey/35 text-2xl">
+            💰
+          </span>
+        </div>
+        <div className="mt-4 grid grid-cols-3 divide-x divide-catcha-line rounded-catcha-sm bg-paper/70 py-3 text-center">
+          <MiniStat label="สุทธิ" value={`${stats.financeToday.net.toLocaleString()} ฿`} sub={
+            stats.financeToday.expense > 0
+              ? `หักจ่าย ${stats.financeToday.expense.toLocaleString()}`
+              : "ยังไม่มีรายจ่าย"
+          } />
+          <MiniStat label="นัดวันนี้" value={String(stats.todayAppointments)} sub={`ยืนยัน ${stats.todayConfirmed}`} />
+          <MiniStat label="รอยืนยัน" value={String(stats.queue)} sub="นัด" highlight={stats.queue > 0} />
+        </div>
+      </section>
+
+      {/* เมนูลัด — ไอคอนกลมแบบหมวดหมู่ */}
+      <nav aria-label="เมนูลัด" className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+        <Link href="/admin/bookings/new"><IconChip icon="➕" label="จองใหม่" tone="honey" /></Link>
+        <Link href="/admin/schedule"><IconChip icon="🗓️" label="ตารางนัด" tone="latte" /></Link>
+        <Link href="/admin/billing"><IconChip icon="💳" label="คิดเงิน" tone="honey" /></Link>
+        <Link href="/admin/customers"><IconChip icon="👤" label="ลูกค้า" tone="sage" /></Link>
+        <Link href="/admin/finance"><IconChip icon="📒" label="รายรับ-จ่าย" tone="latte" /></Link>
+        <Link href="/admin/pending"><IconChip icon="⏳" label="รอยืนยัน" tone="paper" badge={stats.queue || undefined} /></Link>
+        <Link href="/admin/insights" className="sm:hidden"><IconChip icon="📊" label="สรุปข้อมูล" tone="sage" /></Link>
+        <Link href="/admin/promos" className="sm:hidden"><IconChip icon="✨" label="โปร" tone="honey" /></Link>
+      </nav>
+
       <DateRangePicker
         value={rangeId}
         onChange={setRangeId}
@@ -116,132 +171,86 @@ export default function AdminDashboard() {
         onCustomChange={setCustomRange}
       />
 
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard
-          emoji="💰"
-          label={`รายรับ · ${range.label}`}
-          value={`${stats.financeToday.income.toLocaleString()} ฿`}
-          sub={
-            // ใช้ยอดจากบัญชีรายรับ ไม่ใช่เฉพาะบิล — ขายคอร์ส/เติมเครดิตก็คือเงินเข้าเหมือนกัน
-            // (เมื่อก่อนการ์ดนี้นับเฉพาะบิล เลยไม่ตรงกับ "สุทธิ" ที่นับทุกอย่าง)
-            [
-              `${stats.salesToday.count} บิล`,
-              stats.salesToday.creditTotal > 0
-                ? `ตัดเครดิต ${stats.salesToday.creditTotal.toLocaleString()} ฿`
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" · ")
-          }
-        />
-        <StatCard emoji="⏳" label="คิวรอยืนยัน" value={String(stats.queue)} sub="นัด" />
-        <StatCard emoji="📅" label="นัดวันนี้" value={String(stats.todayAppointments)} sub={`ยืนยัน ${stats.todayConfirmed}`} />
-        <StatCard
-          emoji="📒"
-          label={`สุทธิ · ${range.label}`}
-          value={`${stats.financeToday.net.toLocaleString()} ฿`}
-          sub={
-            stats.financeToday.expense > 0
-              ? `หักรายจ่าย ${stats.financeToday.expense.toLocaleString()} ฿`
-              : "ยังไม่มีรายจ่าย"
-          }
-        />
-      </div>
-
       {/* งานที่ต้องทำ */}
-      {(stats.queue > 0 ||
-        (tasks && (tasks.unpaidCount > 0 || tasks.pendingConsent > 0))) && (
-        <div className="rounded-catcha border border-honey/50 bg-honey/10 p-4">
-          <p className="mb-2 text-sm font-extrabold text-catcha-chocolate">
+      {hasTasks && (
+        <section className="rounded-catcha bg-card p-4 shadow-catcha-sm">
+          <p className="mb-1 px-1 text-sm font-extrabold text-catcha-chocolate">
             📌 งานที่ต้องทำ
           </p>
-          <div className="space-y-1.5 text-sm">
+          <div className="divide-y divide-catcha-line">
             {stats.queue > 0 && (
-              <Link
-                href="/admin/pending"
-                className="flex items-center justify-between rounded-catcha-sm bg-card px-3 py-2"
-              >
-                <span className="font-bold text-brown">⏳ นัดรอยืนยัน</span>
-                <span className="font-extrabold text-wait">{stats.queue} นัด →</span>
+              <Link href="/admin/pending" className="block px-1 py-3">
+                <ListRowContent
+                  icon="⏳"
+                  title="นัดรอยืนยัน"
+                  sub="ลูกค้ายังไม่กดยืนยัน"
+                  value={`${stats.queue} นัด →`}
+                  valueClass="text-wait"
+                />
               </Link>
             )}
             {tasks && tasks.unpaidCount > 0 && (
-              <Link
-                href="/admin/billing"
-                className="flex items-center justify-between rounded-catcha-sm bg-card px-3 py-2"
-              >
-                <span className="font-bold text-brown">💳 บิลค้างชำระ</span>
-                <span className="font-extrabold text-wait">
-                  {tasks.unpaidDue.toLocaleString()} ฿ ({tasks.unpaidCount}) →
-                </span>
+              <Link href="/admin/billing" className="block px-1 py-3">
+                <ListRowContent
+                  icon="💳"
+                  title="บิลค้างชำระ"
+                  sub={`${tasks.unpaidCount} บิล`}
+                  value={`${tasks.unpaidDue.toLocaleString()} ฿ →`}
+                  valueClass="text-wait"
+                />
               </Link>
             )}
             {tasks && tasks.pendingConsent > 0 && (
-              <Link
-                href="/admin/schedule"
-                className="flex items-center justify-between rounded-catcha-sm bg-card px-3 py-2"
-              >
-                <span className="font-bold text-brown">📋 ยังไม่กดยอมรับเงื่อนไข</span>
-                <span className="font-extrabold text-latte-deep">
-                  {tasks.pendingConsent} คน →
-                </span>
+              <Link href="/admin/schedule" className="block px-1 py-3">
+                <ListRowContent
+                  icon="📋"
+                  title="ยังไม่กดยอมรับเงื่อนไข"
+                  sub="ห้องพักที่กำลังจะมาถึง"
+                  value={`${tasks.pendingConsent} คน →`}
+                  valueClass="text-latte-deep"
+                />
               </Link>
             )}
           </div>
-        </div>
+        </section>
       )}
 
       {/* เปิดตารางนัด (แยกหน้า) */}
       <Link
         href="/admin/schedule"
-        className="flex items-center justify-between rounded-catcha bg-card p-4 shadow-catcha-sm"
+        className="flex items-center justify-between gap-3 rounded-catcha bg-card p-4 shadow-catcha-sm"
       >
-        <div>
-          <p className="text-base font-extrabold text-catcha-chocolate">🗓️ ตารางนัด</p>
-          <p className="text-xs text-brown-soft">
-            วันนี้ {stats.todayAppointments} นัด · รอยืนยัน {stats.queue}
-          </p>
-        </div>
-        <span className="rounded-full bg-honey/30 px-4 py-2 text-xs font-extrabold text-catcha-chocolate">
+        <ListRowContent
+          icon="🗓️"
+          title="ตารางนัด"
+          sub={`วันนี้ ${stats.todayAppointments} นัด · รอยืนยัน ${stats.queue}`}
+        />
+        <span className="shrink-0 rounded-full bg-honey/40 px-4 py-2 text-xs font-extrabold text-catcha-chocolate">
           เปิดตาราง →
         </span>
       </Link>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Link href="/admin/bookings/new" className="rounded-catcha-sm bg-latte/25 py-3 text-center text-xs font-bold text-catcha-chocolate">
-          ➕ จองใหม่
-        </Link>
-        <Link href="/admin/billing" className="rounded-catcha-sm bg-honey/30 py-3 text-center text-xs font-bold text-catcha-chocolate">
-          💳 คิดเงิน
-        </Link>
-        <Link href="/admin/customers" className="rounded-catcha-sm bg-paper py-3 text-center text-xs font-bold text-catcha-chocolate">
-          👤 ลูกค้า
-        </Link>
-        <Link href="/admin/finance" className="rounded-catcha-sm bg-latte/20 py-3 text-center text-xs font-bold text-catcha-chocolate">
-          📒 รายรับ-จ่าย
-        </Link>
-      </div>
     </div>
   );
 }
 
-function StatCard({
-  emoji,
+function MiniStat({
   label,
   value,
   sub,
+  highlight,
 }: {
-  emoji: string;
   label: string;
   value: string;
   sub: string;
+  highlight?: boolean;
 }) {
   return (
-    <div className="rounded-catcha-sm bg-card p-4 shadow-catcha-sm">
-      <p className="text-lg">{emoji}</p>
-      <p className="text-lg font-extrabold text-latte-deep">{value}</p>
-      <p className="text-xs font-bold text-brown-soft">{label}</p>
-      <p className="text-[10px] text-brown-faint">{sub}</p>
+    <div className="min-w-0 px-2">
+      <p className="text-[10px] font-bold text-brown-soft">{label}</p>
+      <p className={`truncate text-base font-extrabold ${highlight ? "text-wait" : "text-catcha-chocolate"}`}>
+        {value}
+      </p>
+      <p className="truncate text-[10px] text-brown-faint">{sub}</p>
     </div>
   );
 }

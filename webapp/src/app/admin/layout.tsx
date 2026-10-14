@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { Logo } from "@/components/Logo";
+import { HeaderBand } from "@/components/HeaderBand";
 import {
-  AdminMenuButton,
+  AdminBottomBar,
   AdminNav,
+  AdminSidebar,
   getActiveAdminTabLabel,
   getAllowedMenus,
   isPathAllowed,
@@ -69,47 +71,53 @@ function AdminShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const logout = async () => {
+    // ต้องล้างคุกกี้ที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ล้างใน sessionStorage
+    await fetch("/api/auth/login", { method: "DELETE" }).catch(() => {});
+    sessionStorage.clear();
+    router.push("/admin/login");
+  };
+
+  // แดชบอร์ด: แถบหัวสูง ให้การ์ดสรุปเกยขึ้นไป · หน้าอื่นมีหัวข้อของตัวเองอยู่แล้ว ใช้แถบหัวแบบเตี้ย
+  const isDashboard = pathname === "/admin";
+
   return (
-    <div className="min-h-screen bg-catcha-gradient">
+    <div className="min-h-screen bg-catcha-gradient pb-28 lg:pb-0">
       <Toaster />
-      <header className="sticky top-0 z-50 border-b border-catcha-line bg-card/90 backdrop-blur-md print:hidden">
-        <div className="relative mx-auto max-w-3xl lg:max-w-6xl">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Logo size={40} />
+      <header className="print:hidden">
+        <HeaderBand className={isDashboard ? "pb-10 lg:pb-12" : "pb-4 lg:pb-5"}>
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pb-1 pt-4 lg:max-w-6xl lg:px-6 lg:pt-6">
+            <Logo size={44} />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-brown-soft">CatCha Admin</p>
-              <p className="truncate text-sm font-extrabold text-catcha-chocolate lg:text-base">
-                หลังบ้าน
+              <p className="text-[11px] font-bold text-catcha-chocolate/70">
+                CatCha Admin · หลังบ้าน
               </p>
-              <p className="truncate text-[10px] font-bold text-latte-deep sm:text-xs">
+              <p
+                className={`truncate font-extrabold text-catcha-chocolate ${
+                  isDashboard ? "text-xl lg:text-2xl" : "text-base lg:text-lg"
+                }`}
+              >
                 {getActiveAdminTabLabel(pathname)}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <AdminMenuButton
-                open={menuOpen}
-                onClick={() => setMenuOpen((v) => !v)}
-              />
-              <button
-                type="button"
-                onClick={async () => {
-                  // ต้องล้างคุกกี้ที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ล้างใน sessionStorage
-                  await fetch("/api/auth/login", { method: "DELETE" }).catch(() => {});
-                  sessionStorage.clear();
-                  router.push("/admin/login");
-                }}
-                className="rounded-catcha-sm px-2 py-1.5 text-xs font-bold text-brown-faint hover:bg-honey/15 lg:text-sm"
-              >
-                ออก
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-full bg-card/70 px-3.5 py-1.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm backdrop-blur lg:text-sm"
+            >
+              ออก
+            </button>
           </div>
-          <AdminNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-        </div>
+        </HeaderBand>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-5 lg:max-w-6xl lg:px-6 lg:py-8">
-        {children}
-      </main>
+      <AdminNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+      <div className={`mx-auto max-w-3xl ${isDashboard ? "-mt-6" : "mt-5 lg:mt-6"} px-4 lg:grid lg:max-w-6xl lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6`}>
+        <aside className="print:hidden">
+          <AdminSidebar />
+        </aside>
+        <main className="relative min-w-0 rounded-t-catcha pb-5 lg:pb-8">{children}</main>
+      </div>
+      <AdminBottomBar menuOpen={menuOpen} onMenu={() => setMenuOpen(!menuOpen)} />
     </div>
   );
 }

@@ -162,27 +162,133 @@ export function AdminNav({
       <button
         type="button"
         aria-label="ปิดเมนู"
-        className="fixed inset-0 z-40 bg-catcha-chocolate/25"
+        className="fixed inset-0 z-40 bg-catcha-chocolate/30 lg:hidden"
         onClick={closeMenu}
       />
       <nav
         id="admin-menu"
-        className="absolute left-0 right-0 top-full z-50 border-b border-catcha-line bg-card px-3 py-3 shadow-catcha"
+        className="fixed inset-x-0 bottom-0 z-[44] max-h-[85vh] overflow-y-auto rounded-t-[32px] bg-card px-4 pb-28 pt-3 shadow-catcha lg:hidden"
         aria-label="เมนูหลังบ้าน"
       >
-        <ul className="mx-auto grid max-w-6xl gap-1 sm:grid-cols-2">
-          {visibleTabs.map((tab) => (
-            <li key={tab.href}>
-              <NavLink
-                {...tab}
-                active={isTabActive(pathname, tab.href)}
-                onNavigate={closeMenu}
-                className="w-full px-4 py-3 text-sm"
-              />
-            </li>
-          ))}
+        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-catcha-line" />
+        <p className="mb-3 px-1 text-sm font-extrabold text-catcha-chocolate">เมนูทั้งหมด</p>
+        <ul className="mx-auto grid max-w-lg grid-cols-4 gap-x-2 gap-y-4">
+          {visibleTabs.map((tab) => {
+            const active = isTabActive(pathname, tab.href);
+            return (
+              <li key={tab.href}>
+                <Link
+                  href={tab.href}
+                  onClick={closeMenu}
+                  className="flex flex-col items-center gap-1.5 text-center"
+                >
+                  <span
+                    className={`flex h-14 w-14 items-center justify-center rounded-full border text-2xl ${
+                      active
+                        ? "border-honey-deep bg-honey/50"
+                        : "border-catcha-line bg-paper"
+                    }`}
+                  >
+                    <span aria-hidden className="leading-none">
+                      {tab.icon}
+                    </span>
+                  </span>
+                  <span
+                    className={`text-[11px] font-bold leading-tight ${
+                      active ? "text-catcha-chocolate" : "text-brown"
+                    }`}
+                  >
+                    {tab.label}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </>
+  );
+}
+
+/** แถบเมนูซ้ายบนจอใหญ่ — แสดงทุกเมนูที่ผู้ใช้มีสิทธิ์ */
+export function AdminSidebar() {
+  const pathname = usePathname();
+  const allowed = getAllowedMenus();
+  const visibleTabs = TABS.filter((t) => !allowed || allowed.includes(t.href));
+  return (
+    <nav
+      aria-label="เมนูหลังบ้าน"
+      className="sticky top-6 hidden max-h-[calc(100vh-3rem)] overflow-y-auto rounded-catcha bg-card p-3 shadow-catcha lg:block"
+    >
+      <ul className="space-y-1">
+        {visibleTabs.map((tab) => (
+          <li key={tab.href}>
+            <NavLink
+              {...tab}
+              active={isTabActive(pathname, tab.href)}
+              className="w-full px-3 py-2.5 text-sm"
+            />
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/** แถบเมนูล่างบนมือถือ — 4 เมนูหลัก + ปุ่ม "เมนู" เปิดทั้งหมด */
+const BOTTOM_TABS = ["/admin", "/admin/schedule", "/admin/bookings/new", "/admin/customers"];
+
+export function AdminBottomBar({
+  menuOpen,
+  onMenu,
+}: {
+  menuOpen: boolean;
+  onMenu: () => void;
+}) {
+  const pathname = usePathname();
+  const allowed = getAllowedMenus();
+  const tabs = TABS.filter(
+    (t) => BOTTOM_TABS.includes(t.href) && (!allowed || allowed.includes(t.href))
+  );
+  const anyActive = tabs.some((t) => isTabActive(pathname, t.href));
+  return (
+    <nav
+      aria-label="เมนูลัด"
+      className="fixed inset-x-0 bottom-0 z-[45] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] print:hidden lg:hidden"
+    >
+      <div className="mx-auto flex max-w-lg items-stretch justify-between gap-1 rounded-catcha border border-catcha-line bg-card/95 px-2 py-2 shadow-catcha backdrop-blur-md">
+        {tabs.map((tab) => {
+          const active = !menuOpen && isTabActive(pathname, tab.href);
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-catcha-sm px-1 py-1.5 text-[10px] font-extrabold transition ${
+                active ? "bg-honey/35 text-catcha-chocolate" : "text-brown-soft"
+              }`}
+            >
+              <span aria-hidden className="text-xl leading-none">
+                {tab.icon}
+              </span>
+              <span className="truncate leading-tight">{tab.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="admin-menu"
+          onClick={onMenu}
+          className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-catcha-sm px-1 py-1.5 text-[10px] font-extrabold transition ${
+            menuOpen || !anyActive ? "bg-honey/35 text-catcha-chocolate" : "text-brown-soft"
+          }`}
+        >
+          <span aria-hidden className="text-xl leading-none">
+            ☰
+          </span>
+          <span className="truncate leading-tight">เมนู</span>
+        </button>
+      </div>
+    </nav>
   );
 }
