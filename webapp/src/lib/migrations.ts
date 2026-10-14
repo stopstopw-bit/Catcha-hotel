@@ -57,6 +57,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "bookings", column: "room_unit", feature: "ระบุห้องจริงตอนจอง" },
   { table: "room_plans", column: "payments", feature: "แพ็กห้องรายเดือน (แบ่งจ่าย)" },
   { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
+  { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
 ];
 
 export type SchemaCheckRow = {
@@ -412,6 +413,13 @@ where staff_note like '%🎁%';`,
       create table if not exists room_plans (id text primary key, customer_id text, customer_name text, line_user_id text, name text, items jsonb not null default '[]'::jsonb, full_price numeric not null default 0, discount_pct numeric not null default 0, price numeric not null default 0, installments integer not null default 1, payments jsonb not null default '[]'::jsonb, status text not null default 'active', created_at timestamptz not null default now());
       alter table room_plans enable row level security;
     `,
+  },
+  {
+    // 🔁 เครดิตจากบิลที่ยกเลิกนัด — เงินเข้าร้านไปแล้วตอนจ่ายบิลเดิม จึงไม่ลงรายรับ/ไม่ให้แต้มซ้ำ
+    // source_invoice_id = เลขบิลเดิม (ไว้โชว์ในประวัติเครดิต + กันแปลงบิลเดียวกันซ้ำ)
+    // เพิ่มคอลัมน์อย่างเดียว ไม่แก้ข้อมูลเดิม (แถวเก่าได้ค่าเริ่มต้น false / null)
+    name: "member_topups.cancel_credit",
+    sql: "alter table member_topups add column if not exists is_cancel_credit boolean not null default false, add column if not exists source_invoice_id text;",
   },
 ];
 

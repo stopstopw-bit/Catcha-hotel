@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "@/components/Toast";
+import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 
 type Inv = {
   id: string;
@@ -168,6 +169,16 @@ export function InvoiceActionButtons({
           🧾 ไปหน้าบิล
         </Link>
       </div>
+      {inv.status === "paid" && inv.customerId && (
+        <CancelToCreditButton
+          invoiceId={inv.id}
+          total={inv.total}
+          onDone={() => {
+            reload();
+            onDone?.();
+          }}
+        />
+      )}
       {remaining > 0 && inv.status === "pending" && hasDeposit && (
         <p className="mt-1 text-[10px] font-bold text-wait">
           คงเหลือ {remaining.toLocaleString()} บาท

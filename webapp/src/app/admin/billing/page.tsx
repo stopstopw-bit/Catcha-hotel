@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SERVICE_PRESETS, type ServicePreset } from "@/lib/service-presets";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
+import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 import { toast } from "@/components/Toast";
 import { groupBookings, groupCatNames } from "@/lib/booking-group";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
@@ -1076,7 +1077,14 @@ export default function BillingPage() {
         if (editingId === id) resetForm();
         load();
       } else {
-        toast(data.error === "already_received" ? "รับมัดจำบิลนี้ไปแล้ว" : "ไม่สำเร็จ", "error");
+        toast(
+          data.error === "already_received"
+            ? "รับมัดจำบิลนี้ไปแล้ว"
+            : typeof data.error === "string" && /[\u0E00-\u0E7F]/.test(data.error)
+              ? data.error
+              : "ไม่สำเร็จ",
+          "error"
+        );
       }
     } finally {
       setInvoiceBusy("");
@@ -2299,7 +2307,15 @@ export default function BillingPage() {
               </div>
             )}
             {inv.status === "paid" && (
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {inv.customerId && (
+                  <CancelToCreditButton
+                    invoiceId={inv.id}
+                    total={inv.total}
+                    size="md"
+                    onDone={load}
+                  />
+                )}
                 <button
                   type="button"
                   disabled={invoiceBusy === `${inv.id}:unmark_paid`}
