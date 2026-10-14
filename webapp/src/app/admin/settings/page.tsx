@@ -9,6 +9,7 @@ import { GROOM_SIZES, resolveGroomPrograms, type GroomProgram, type GroomSize } 
 import { adminJson } from "@/lib/admin-fetch";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
+import { Icon } from "@/components/Icon";
 
 type Tab =
   | "shop"
@@ -25,6 +26,44 @@ type Tab =
   | "points"
   | "crm"
   | "advanced";
+
+/** หน้าตั้งค่าแบบแอป: เปิดมาเป็นรายการหมวด แตะเข้าไปทีละหมวด (แทนแท็บ 14 อันที่ต้องเลื่อนข้าง) */
+const TAB_GROUPS: { title: string; items: { id: Tab; icon: string; hint?: string }[] }[] = [
+  {
+    title: "Shop",
+    items: [
+      { id: "shop", icon: "home", hint: "ชื่อร้าน ช่องทางติดต่อ ที่อยู่" },
+      { id: "payment", icon: "wallet", hint: "บัญชีรับโอน" },
+      { id: "lists", icon: "doc" },
+      { id: "points", icon: "star", hint: "อัตราแต้มสะสม" },
+      { id: "crm", icon: "users" },
+    ],
+  },
+  {
+    title: "Hotel",
+    items: [
+      { id: "rooms", icon: "bed", hint: "ประเภทห้องและราคา" },
+      { id: "boardingRules", icon: "receipt", hint: "หน้ากฎการฝากของลูกค้า" },
+      { id: "roomsPageBlocks", icon: "grid", hint: "เนื้อหาท้ายหน้าห้องพัก" },
+    ],
+  },
+  {
+    title: "Grooming",
+    items: [
+      { id: "grooming", icon: "bath" },
+      { id: "groomPrograms", icon: "sparkle", hint: "โปรแกรมและราคาอาบน้ำ" },
+      { id: "groomingPageBlocks", icon: "grid", hint: "เนื้อหาท้ายหน้าอาบน้ำ" },
+    ],
+  },
+  {
+    title: "Messages",
+    items: [
+      { id: "messages", icon: "message" },
+      { id: "automation", icon: "clock" },
+    ],
+  },
+  { title: "System", items: [{ id: "advanced", icon: "settings", hint: "แก้ค่าทั้งหมดแบบ JSON" }] },
+];
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "shop", label: "ร้าน", icon: "🏪" },
@@ -45,7 +84,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 
 export default function SettingsPage() {
   const [config, setConfig] = useState<SiteConfig | null>(null);
-  const [tab, setTab] = useState<Tab>("shop");
+  const [tab, setTab] = useState<Tab | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -142,27 +181,61 @@ export default function SettingsPage() {
         </p>
       )}
 
-      <div className="mb-4 flex gap-1 overflow-x-auto pb-1">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
-              tab === t.id ? "bg-honey/45 text-catcha-chocolate" : "bg-paper text-brown-soft"
-            }`}
+      {tab === null ? (
+        <div className="space-y-4">
+          {TAB_GROUPS.map((g) => (
+            <section key={g.title}>
+              <p className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
+                {g.title}
+              </p>
+              <ul className="divide-y divide-catcha-line overflow-hidden rounded-catcha bg-card shadow-catcha-sm">
+                {g.items.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      type="button"
+                      onClick={() => setTab(it.id)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-honey/30 text-catcha-chocolate">
+                        <Icon name={it.icon} size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-catcha-chocolate">
+                          {TABS.find((t) => t.id === it.id)?.label}
+                        </span>
+                        {it.hint ? (
+                          <span className="block truncate text-[11px] text-brown-soft">{it.hint}</span>
+                        ) : null}
+                      </span>
+                      <Icon name="chevron" size={16} className="text-brown-faint" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          <Link
+            href="/admin/promos"
+            className="flex items-center gap-3 rounded-catcha bg-card px-4 py-3 shadow-catcha-sm"
           >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
-      <Link
-        href="/admin/promos"
-        className="mb-4 block rounded-catcha-sm border border-catcha-line bg-card px-4 py-3 text-xs font-bold text-latte-deep"
-      >
-        ✨ จัดการโปรโมชั่น (แยกหน้า) →
-      </Link>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-latte/30 text-catcha-chocolate">
+              <Icon name="sparkle" size={18} />
+            </span>
+            <span className="flex-1 text-sm font-bold text-catcha-chocolate">จัดการโปรโมชั่น</span>
+            <Icon name="chevron" size={16} className="text-brown-faint" />
+          </Link>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setTab(null)}
+          className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-card px-3.5 py-2 text-xs font-bold text-catcha-chocolate shadow-catcha-sm"
+        >
+          <Icon name="back" size={16} />
+          ตั้งค่าทั้งหมด
+          <span className="text-brown-faint">· {TABS.find((t) => t.id === tab)?.label}</span>
+        </button>
+      )}
 
       {tab === "shop" && (
         <ShopTab config={config} saving={saving} onSave={save} />

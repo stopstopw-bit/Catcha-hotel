@@ -1096,22 +1096,23 @@ export default function CardsStudioPage() {
         </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {CARDS.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onClick={() => setActiveKey(c.key)}
-            className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-              activeKey === c.key
-                ? "bg-latte-deep text-white"
-                : "bg-card text-brown-soft border border-catcha-line"
-            }`}
-          >
-            {c.name}
-          </button>
-        ))}
-      </div>
+      {/* เลือกการ์ดจากรายการเดียว แทนปุ่ม 15 ปุ่มเรียงกัน */}
+      <label className="mb-4 block rounded-catcha bg-card px-4 py-3 shadow-catcha-sm">
+        <span className="block text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
+          Card · {CARDS.findIndex((c) => c.key === activeKey) + 1}/{CARDS.length}
+        </span>
+        <select
+          value={activeKey}
+          onChange={(e) => setActiveKey(e.target.value as typeof activeKey)}
+          className="mt-1 w-full border-0 bg-transparent p-0 text-base font-extrabold text-catcha-chocolate focus:shadow-none"
+        >
+          {CARDS.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         {/* ── ตัวแก้ไข ── */}
