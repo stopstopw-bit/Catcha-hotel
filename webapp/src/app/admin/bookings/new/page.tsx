@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { RoomType } from "@/lib/business";
 import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
+import { Icon } from "@/components/Icon";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import {
   typeAvailability,
@@ -20,33 +21,49 @@ type CustomerListItem = CustomerRecord & { upcomingAppointments?: number };
 
 const FREEBIE_OPTIONS = ["กล้องวงจรปิด (CCTV)", "น้ำพุแมว", "รับ-ส่ง", "ขนม/ทรีท"];
 
-function CustomerPicker({
-  onSelect,
+/**
+ * เลือกลูกค้า + น้องแมว แบบแอปจองคิวทั่วไป (Fresha / Booksy / แอปโรงแรมสัตว์เลี้ยง)
+ * 1) ค้นหา → แตะแถวลูกค้า → กลายเป็นการ์ดลูกค้าที่เลือกแล้ว (กด "เปลี่ยน" ได้)
+ * 2) น้องแมวของลูกค้าขึ้นเป็นชิปให้แตะเลือก/ยกเลิกได้ทันที ไม่ต้องกดยืนยันซ้ำ
+ * ไม่เจอในระบบ → แตะ "ลูกค้าใหม่" ใช้ชื่อที่พิมพ์ แล้วพิมพ์ชื่อน้องเองได้
+ */
+function ClientPetPicker({
+  picked,
+  customerName,
+  catNames,
+  catInput,
+  setCatInput,
+  onPickCustomer,
+  onNewCustomer,
+  onClearCustomer,
+  onToggleCat,
+  onAddTyped,
+  onAddUnknown,
+  onRemoveCat,
+  onSelectAll,
 }: {
-  onSelect: (data: {
-    customerId: string;
-    customerName: string;
-    catNames: string[];
-    lineUserId?: string;
-  }) => void;
+  picked: CustomerListItem | null;
+  customerName: string;
+  catNames: string[];
+  catInput: string;
+  setCatInput: (v: string) => void;
+  onPickCustomer: (c: CustomerListItem) => void;
+  onNewCustomer: (name: string) => void;
+  onClearCustomer: () => void;
+  onToggleCat: (name: string) => void;
+  onAddTyped: () => void;
+  onAddUnknown: () => void;
+  onRemoveCat: (name: string) => void;
+  onSelectAll: (names: string[]) => void;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CustomerListItem[]>([]);
   const [recent, setRecent] = useState<CustomerListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  // เก็บทั้งก้อนลูกค้าที่เปิดอยู่ ไม่ใช่แค่ id — ผลค้นหาโหลดช้า/รีเฟรชแล้วทับลิสต์ได้
-  // ถ้าเปิดจาก id อย่างเดียว แผงติ๊กแมวจะหายไปกลางทางจนเหมือน "กดแล้วไม่ติด"
-  const [openCustomer_, setOpenCustomer_] = useState<CustomerListItem | null>(null);
-  const openCustomerId = openCustomer_?.id ?? null;
-  const setOpenCustomerId = (id: string | null) => {
-    if (id === null) setOpenCustomer_(null);
-  };
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const recentRef = useRef<CustomerListItem[]>([]);
-  // แมวบางตัวข้อมูลเก่าไม่มี id — ใช้ชื่อแทน ไม่งั้นทุกตัวใช้ key เดียวกัน ติ๊กตัวหนึ่งกลายเป็นติ๊กหมด/ไม่ติด
-  const catKey = (cat: { id?: string; name: string }) => cat.id || `name:${cat.name}`;
+  const [typing, setTyping] = useState(false);
+  const [recentLoaded, setRecentLoaded] = useState(false);
 
-  // โหลดลูกค้าสมัครล่าสุดไว้ล่วงหน้า — โชว์เป็นลิสต์ให้เลือกได้ทันทีโดยไม่ต้องพิมพ์ค้นหา
+  // ลูกค้าล่าสุดโหลดไว้ก่อน — เปิดหน้ามาก็แตะเลือกได้เลยโดยไม่ต้องพิมพ์
   useEffect(() => {
     fetch("/api/customers")
       .then((r) => r.json())
@@ -54,180 +71,276 @@ function CustomerPicker({
         const sorted = [...((d.customers || []) as CustomerListItem[])].sort(
           (a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")
         );
-        const top = sorted.slice(0, 20);
-        setRecent(top);
-        recentRef.current = top;
-        setResults((prev) => (prev.length === 0 ? top : prev));
+        setRecent(sorted.slice(0, 8));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setRecentLoaded(true));
   }, []);
 
-  const search = useCallback(
-    async (query: string) => {
-      const trimmed = query.trim();
-      if (!trimmed) {
-        setResults(recentRef.current);
-        return;
-      }
-      setLoading(true);
-      const res = await fetch(`/api/customers?q=${encodeURIComponent(trimmed)}`);
-      const data = await res.json();
-      setResults(data.customers || []);
-      setLoading(false);
-    },
-    []
-  );
-
   useEffect(() => {
-    const t = setTimeout(() => search(q), 250);
-    return () => clearTimeout(t);
-  }, [q, search]);
-
-  const openCustomer = (c: CustomerListItem) => {
-    if (c.cats.length === 0) {
-      onSelect({
-        customerId: c.id,
-        customerName: c.name,
-        catNames: [],
-        lineUserId: c.lineUserId,
-      });
-      setQ("");
-      setResults(recentRef.current);
+    const query = q.trim();
+    if (!query) {
+      setResults([]);
+      setLoading(false);
       return;
     }
-    setOpenCustomer_(c);
-    setChecked({});
-  };
+    setLoading(true);
+    let alive = true;
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/customers?q=${encodeURIComponent(query)}`).catch(() => null);
+      const data = res ? await res.json().catch(() => ({})) : {};
+      if (!alive) return;
+      setResults((data.customers || []).slice(0, 20));
+      setLoading(false);
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [q]);
 
-  const confirmPick = (c: CustomerListItem) => {
-    const names = c.cats.filter((cat) => checked[catKey(cat)]).map((cat) => cat.name);
-    onSelect({
-      customerId: c.id,
-      customerName: c.name,
-      catNames: names,
-      lineUserId: c.lineUserId,
-    });
+  const hasCustomer = !!picked || !!customerName.trim();
+  const list = q.trim() ? results : recent;
+  const knownCats = picked?.cats.map((c) => c.name) ?? [];
+  const extraCats = catNames.filter((n) => !knownCats.includes(n));
+
+  const pick = (c: CustomerListItem) => {
+    onPickCustomer(c);
     setQ("");
-    setResults(recentRef.current);
-    setOpenCustomerId(null);
-    setChecked({});
   };
 
   return (
-    <div className="rounded-catcha-sm border border-latte/40 bg-honey/10 p-3">
-      <label className="block text-xs font-extrabold text-catcha-chocolate">
-        🔍 ค้นหาลูกค้า (ชื่อแมว / ชื่อใน LINE)
-        <input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpenCustomerId(null);
-          }}
-          placeholder="เช่น น้องจู๊ด หรือ ชื่อที่เห็นใน LINE"
-          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
-        />
-      </label>
-      <p className="mt-1 text-[10px] text-brown-soft">
-        เลือกลูกค้า → ติ๊กแมวที่มา (เลือกได้หลายตัว/ทั้งบ้าน) → ระบบผูกนัดให้อัตโนมัติ
-      </p>
-
-      {loading && <p className="mt-2 text-[10px] text-brown-faint">กำลังค้นหา…</p>}
-
-      {!loading && !q.trim() && results.length > 0 && (
-        <p className="mt-2 text-[10px] font-bold text-latte-deep">
-          🆕 ลูกค้าสมัครล่าสุด — เลือกจากลิสต์ได้เลย
+    <div className="space-y-5">
+      {/* ── 1. ลูกค้า ── */}
+      <section>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
+          Customer · ลูกค้า
         </p>
-      )}
-
-      {results.length > 0 && (
-        <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-          {(openCustomer_ && !results.some((r) => r.id === openCustomer_.id)
-            ? [openCustomer_, ...results]
-            : results
-          ).map((c) => (
-            <li key={c.id}>
-              {openCustomerId === c.id ? (
-                <div className="rounded-catcha-sm border border-honey/50 bg-card p-2.5">
-                  <p className="mb-1.5 text-xs font-extrabold text-catcha-chocolate">
-                    {c.name}
-                    {c.lineUserId && (
-                      <span className="ml-1 text-[10px] text-ok">LINE ✓</span>
-                    )}
-                  </p>
-                  <div className="space-y-1">
-                    {c.cats.map((cat) => (
-                      <label
-                        key={catKey(cat)}
-                        className="flex items-center gap-2 rounded-catcha-sm bg-paper px-2.5 py-1.5 text-xs"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!checked[catKey(cat)]}
-                          onChange={(e) =>
-                            setChecked((prev) => ({ ...prev, [catKey(cat)]: e.target.checked }))
-                          }
-                        />
-                        <span className="font-bold text-brown">🐱 {cat.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setChecked(
-                          Object.fromEntries(c.cats.map((cat) => [catKey(cat), true]))
-                        )
-                      }
-                      className="rounded-full bg-honey/30 px-3 py-1 text-[10px] font-bold text-catcha-chocolate"
-                    >
-                      ✅ เลือกทั้งบ้าน ({c.cats.length} ตัว)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => confirmPick(c)}
-                      disabled={!Object.values(checked).some(Boolean)}
-                      className="rounded-full bg-latte-deep px-3 py-1 text-[10px] font-extrabold text-white disabled:opacity-40"
-                    >
-                      ➕ ใช้แมวที่เลือก
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOpenCustomerId(null)}
-                      className="rounded-full bg-paper px-3 py-1 text-[10px] font-bold text-brown-soft"
-                    >
-                      ยกเลิก
-                    </button>
-                  </div>
-                </div>
-              ) : (
+        {hasCustomer ? (
+          <div className="flex items-center gap-3 rounded-catcha-sm border border-honey/60 bg-honey/10 px-3 py-3">
+            <Avatar name={picked?.name || customerName} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-extrabold text-catcha-chocolate">
+                {picked?.name || customerName}
+              </p>
+              <p className="truncate text-[11px] text-brown-soft">
+                {picked
+                  ? [picked.phone, picked.lineUserId ? "LINE ✓" : "ยังไม่ผูก LINE"]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "ลูกค้าใหม่ (ยังไม่มีในระบบ)"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearCustomer}
+              className="shrink-0 rounded-full bg-card px-3 py-1.5 text-xs font-bold text-latte-deep shadow-catcha-sm"
+            >
+              เปลี่ยน
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 rounded-full border border-catcha-line bg-paper px-4 py-2.5 focus-within:border-honey-deep">
+              <Icon name="search" size={18} className="text-brown-soft" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="ค้นหาชื่อ เบอร์ หรือชื่อน้องแมว"
+                className="min-w-0 flex-1 !border-0 !bg-transparent p-0 text-sm !shadow-none !outline-none"
+              />
+              {q && (
                 <button
                   type="button"
-                  onClick={() => openCustomer(c)}
-                  className="w-full rounded-catcha-sm bg-card px-3 py-2 text-left text-xs hover:bg-paper"
+                  aria-label="ล้างคำค้น"
+                  onClick={() => setQ("")}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-brown-faint/30 text-[11px] font-bold text-brown"
                 >
-                  <span className="font-bold text-brown">{c.name}</span>
-                  {c.lineUserId && (
-                    <span className="ml-1 text-[10px] text-ok">LINE ✓</span>
-                  )}
-                  <span className="block text-[10px] text-brown-faint">
-                    {c.cats.length > 0
-                      ? `🐱 ${c.cats.map((cat) => cat.name).join(", ")}`
-                      : "ยังไม่มีชื่อแมวในระบบ"}
-                  </span>
+                  ✕
                 </button>
               )}
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
 
-      {q.trim() && !loading && results.length === 0 && (
-        <p className="mt-2 text-[10px] text-brown-faint">
-          ไม่พบในระบบ — กรอกชื่อแมวด้านล่างได้เลย (ชื่อเจ้าของใส่ทีหลังในประวัติ)
+            <p className="mb-1 mt-3 px-1 text-[11px] font-bold text-brown-soft">
+              {q.trim() ? (loading ? "กำลังค้นหา…" : `ผลการค้นหา ${results.length} ราย`) : "ลูกค้าล่าสุด"}
+            </p>
+            <ul className="max-h-80 divide-y divide-catcha-line overflow-y-auto rounded-catcha-sm border border-catcha-line bg-card">
+              {list.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => pick(c)}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-paper"
+                  >
+                    <Avatar name={c.name} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate text-sm font-bold text-catcha-chocolate">{c.name}</span>
+                        {c.lineUserId && (
+                          <span className="shrink-0 rounded-full bg-ok/15 px-1.5 py-px text-[9px] font-bold text-ok">
+                            LINE
+                          </span>
+                        )}
+                      </span>
+                      <span className="block truncate text-[11px] text-brown-soft">
+                        {[c.phone, c.cats.length ? c.cats.map((cat) => cat.name).join(", ") : "ยังไม่มีน้องในระบบ"]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                    <Icon name="chevron" size={16} className="text-brown-faint" />
+                  </button>
+                </li>
+              ))}
+              {q.trim() && !loading && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNewCustomer(q.trim());
+                      setQ("");
+                    }}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-dashed border-latte-deep text-latte-deep">
+                      <Icon name="plus" size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-latte-deep">
+                        ลูกค้าใหม่ “{q.trim()}”
+                      </span>
+                      <span className="block text-[11px] text-brown-soft">
+                        ยังไม่มีในระบบ ใส่ข้อมูลเพิ่มทีหลังได้
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )}
+              {!q.trim() && list.length === 0 && (
+                <li className="px-3 py-4 text-center text-xs text-brown-faint">
+                  {recentLoaded ? "พิมพ์ค้นหาด้านบน หรือพิมพ์ชื่อลูกค้าใหม่ได้เลย" : "กำลังโหลด…"}
+                </li>
+              )}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {/* ── 2. น้องแมว ── */}
+      <section>
+        <div className="mb-2 flex items-end justify-between gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
+            Cats · น้องแมวที่มา *
+          </p>
+          {knownCats.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onSelectAll(knownCats)}
+              className="text-xs font-bold text-latte-deep"
+            >
+              เลือกทั้งบ้าน ({knownCats.length})
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {knownCats.map((name) => {
+            const on = catNames.includes(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onToggleCat(name)}
+                className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-bold transition ${
+                  on
+                    ? "border-catcha-chocolate bg-catcha-chocolate text-card"
+                    : "border-catcha-line bg-card text-brown"
+                }`}
+              >
+                {on ? <Icon name="check" size={15} strokeWidth={2.4} /> : <Icon name="paw" size={15} />}
+                {name}
+              </button>
+            );
+          })}
+          {extraCats.map((name) => (
+            <span
+              key={name}
+              className="flex items-center gap-1.5 rounded-full border border-catcha-chocolate bg-catcha-chocolate py-2 pl-3.5 pr-2 text-sm font-bold text-card"
+            >
+              <Icon name="check" size={15} strokeWidth={2.4} />
+              {name}
+              <button
+                type="button"
+                onClick={() => onRemoveCat(name)}
+                aria-label={`เอา ${name} ออก`}
+                className="flex h-5 w-5 items-center justify-center rounded-full bg-card/20 text-[10px]"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          {typing ? (
+            <span className="flex items-center gap-1 rounded-full border border-honey-deep bg-card py-1 pl-3 pr-1">
+              <input
+                autoFocus
+                value={catInput}
+                onChange={(e) => setCatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onAddTyped();
+                  }
+                  if (e.key === "Escape") setTyping(false);
+                }}
+                placeholder="ชื่อน้อง"
+                className="w-24 !border-0 !bg-transparent p-0 text-sm !shadow-none !outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  onAddTyped();
+                  setTyping(false);
+                }}
+                disabled={!catInput.trim()}
+                className="rounded-full bg-catcha-chocolate px-3 py-1 text-xs font-bold text-card disabled:opacity-40"
+              >
+                เพิ่ม
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setTyping(true)}
+              className="flex items-center gap-1 rounded-full border border-dashed border-latte-deep px-3.5 py-2 text-sm font-bold text-latte-deep"
+            >
+              <Icon name="plus" size={15} />
+              {knownCats.length ? "น้องตัวใหม่" : "พิมพ์ชื่อน้อง"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onAddUnknown}
+            className="rounded-full border border-dashed border-catcha-line px-3.5 py-2 text-sm font-bold text-brown-soft"
+          >
+            ยังไม่ทราบตัว
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] text-brown-faint">
+          {catNames.length > 0
+            ? `เลือกแล้ว ${catNames.length} ตัว · ระบบสร้างนัดให้ทีละตัวและผูกเป็นบ้านเดียวกัน`
+            : "แตะชื่อน้องเพื่อเลือก เลือกได้หลายตัว · ไม่รู้ว่าตัวไหนมา กด “ยังไม่ทราบตัว”"}
         </p>
-      )}
+      </section>
     </div>
+  );
+}
+
+function Avatar({ name }: { name: string }) {
+  const initial = (name || "?").trim().replace(/^(คุณ|น้อง)/, "").charAt(0) || "?";
+  return (
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-honey/40 text-sm font-extrabold text-catcha-chocolate">
+      {initial}
+    </span>
   );
 }
 
@@ -250,6 +363,7 @@ export default function NewBookingPage() {
   const [groomPrograms, setGroomPrograms] = useState<GroomProgram[]>(GROOM_PROGRAMS);
   const [freebies_, setFreebies_] = useState<string[]>(FREEBIE_OPTIONS);
   const [customerId, setCustomerId] = useState("");
+  const [pickedCustomer, setPickedCustomer] = useState<CustomerListItem | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [catNames, setCatNames] = useState<string[]>([]);
   const [catInput, setCatInput] = useState("");
@@ -448,6 +562,7 @@ export default function NewBookingPage() {
       setSaved(true);
       setLastBookings(created);
       setCustomerId("");
+      setPickedCustomer(null);
       setCustomerName("");
       setCatNames([]);
       setCatInput("");
@@ -540,86 +655,46 @@ export default function NewBookingPage() {
       </div>
 
       <form onSubmit={submit} className="space-y-4 rounded-catcha bg-card p-5 shadow-catcha-sm">
-        <CustomerPicker
-          onSelect={(data) => {
-            setCustomerId(data.customerId);
-            setCustomerName(data.customerName);
-            setLineUserId(data.lineUserId || "");
-            setCatNames((prev) => {
-              const merged = [...prev];
-              for (const n of data.catNames) {
-                if (!merged.includes(n)) merged.push(n);
-              }
-              return merged;
-            });
+        <ClientPetPicker
+          picked={pickedCustomer}
+          customerName={customerName}
+          catNames={catNames}
+          catInput={catInput}
+          setCatInput={setCatInput}
+          onPickCustomer={(c) => {
+            setPickedCustomer(c);
+            setCustomerId(c.id);
+            setCustomerName(c.name);
+            setLineUserId(c.lineUserId || "");
+            // มีน้องตัวเดียว เลือกให้เลย — ลดการแตะหนึ่งครั้ง
+            setCatNames(c.cats.length === 1 ? [c.cats[0].name] : []);
           }}
+          onNewCustomer={(name) => {
+            setPickedCustomer(null);
+            setCustomerId("");
+            setCustomerName(name);
+            setLineUserId("");
+            setCatNames([]);
+          }}
+          onClearCustomer={() => {
+            setPickedCustomer(null);
+            setCustomerId("");
+            setCustomerName("");
+            setLineUserId("");
+            setCatNames([]);
+          }}
+          onToggleCat={(name) =>
+            setCatNames((prev) =>
+              prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+            )
+          }
+          onAddTyped={addCatFromInput}
+          onAddUnknown={addUnknownCat}
+          onRemoveCat={removeCat}
+          onSelectAll={(names) =>
+            setCatNames((prev) => [...prev, ...names.filter((n) => !prev.includes(n))])
+          }
         />
-
-        <Field
-          label="ชื่อใน LINE (ไม่บังคับ — เลือกจากค้นหาด้านบนได้)"
-          name="customer"
-          value={customerName}
-          onChange={setCustomerName}
-          placeholder="ชื่อที่เห็นใน LINE"
-        />
-
-        <div>
-          <label className="block text-xs font-bold text-brown-soft">น้องแมวที่มา *</label>
-
-          {catNames.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {catNames.map((name) => (
-                <span
-                  key={name}
-                  className="flex items-center gap-1 rounded-full bg-honey/30 px-3 py-1 text-xs font-bold text-catcha-chocolate"
-                >
-                  🐱 {name}
-                  <button
-                    type="button"
-                    onClick={() => removeCat(name)}
-                    className="ml-0.5 text-brown-faint hover:text-wait"
-                    aria-label={`เอา ${name} ออก`}
-                  >
-                    ✕
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-1.5 flex gap-2">
-            <input
-              value={catInput}
-              onChange={(e) => setCatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addCatFromInput();
-                }
-              }}
-              placeholder="พิมพ์ชื่อแมว แล้วกด Enter หรือ ➕"
-              className="min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-latte-deep"
-            />
-            <button
-              type="button"
-              onClick={addCatFromInput}
-              disabled={!catInput.trim()}
-              className="shrink-0 rounded-catcha-sm bg-latte/25 px-3 py-2.5 text-sm font-extrabold text-catcha-chocolate disabled:opacity-40"
-            >
-              ➕
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={addUnknownCat}
-            className="mt-1.5 rounded-full bg-paper px-3 py-1.5 text-[11px] font-bold text-brown-soft"
-          >
-            ❓ ยังไม่ทราบตัว (จะแจ้งภายหลัง)
-          </button>
-          <p className="mt-1 text-[10px] text-brown-faint">
-            ทราบว่ามากี่ตัวแต่ไม่รู้ว่าตัวไหน กดปุ่มนี้ได้เลย — ใส่ชื่อจริงทีหลังตอนเช็คอินได้
-          </p>
-        </div>
 
         {lineUserId && (
           <p className="rounded-catcha-sm bg-sage/15 px-3 py-2 text-[10px] font-bold text-ok">
