@@ -12,7 +12,15 @@ import { bookingOnDate } from "@/lib/booking-customer-match";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { groupBookings } from "@/lib/booking-group";
-import { buildRoomBoard, roomCapacity, freeUnitsForRange, compositionOf } from "@/lib/room-board";
+import {
+  attachClosures,
+  buildRoomBoard,
+  roomCapacity,
+  freeUnitsForRange,
+  compositionOf,
+  type RoomClosure,
+} from "@/lib/room-board";
+import { RoomClosureSheet } from "@/components/RoomClosureSheet";
 import { BOOKING_STATUS_LABELS, type BookingStatus } from "@/lib/business";
 import { effectiveBookingStatus } from "@/lib/booking-status";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
@@ -227,8 +235,12 @@ export function BookingCalendar() {
       count: number;
       cats?: { th: string };
       extra?: { th: string };
+      closures?: RoomClosure[];
     }[]
   >([]);
+  const [roomClosures, setRoomClosures] = useState<RoomClosure[]>([]);
+  /** ห้องที่กำลังตั้งปิด/เปิด (แตะห้องว่างหรือห้องที่ปิดในผังห้อง) */
+  const [closingUnit, setClosingUnit] = useState<{ typeId: string; typeName: string; unit: number; current?: RoomClosure } | null>(null);
   const [groomSlots, setGroomSlots] = useState<string[]>(["09:30", "12:30", "15:30"]);
   const [groomPrograms, setGroomPrograms] = useState<GroomProgram[]>(GROOM_PROGRAMS);
   /** วันที่ร้านปิด — ประจำสัปดาห์ (จากตั้งค่า) และเฉพาะวัน (กดจากตารางนี้ได้เลย) */
@@ -346,6 +358,7 @@ export function BookingCalendar() {
         name: r.name,
         count: r.count || 0,
         maxCats: roomCapacity(r),
+        closures: r.closures,
       }));
       const free = freeUnitsForRange(
         boardRooms,
@@ -421,7 +434,8 @@ export function BookingCalendar() {
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
-        if (d.config?.rooms) setRooms(d.config.rooms);
+        if (d.config?.rooms) setRooms(attachClosures(d.config.rooms, d.config.roomClosures));
+        setRoomClosures(d.config?.roomClosures || []);
         if (d.config?.groomSlots) setGroomSlots(d.config.groomSlots);
         setGroomPrograms(resolveGroomPrograms(d.config?.groomPricePrograms));
         setClosedWeekdays(d.config?.closedWeekdays || []);
@@ -469,6 +483,28 @@ export function BookingCalendar() {
       toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง", "error");
     }
     setTogglingClosed(false);
+  };
+  /**
+   * บันทึกการปิดห้อง — อ่าน config ล่าสุดก่อนแก้ กันทับการปิดห้องที่เครื่องอื่นเพิ่งตั้ง
+   * change: รับรายการล่าสุด คืนรายการใหม่
+   */
+  const saveClosures = async (change: (list: RoomClosure[]) => RoomClosure[], done: string) => {
+    try {
+      const latest = await fetch("/api/config").then((r) => r.json());
+      const next = change((latest.config?.roomClosures as RoomClosure[] | undefined) || []);
+      const res = await fetch("/api/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: { roomClosures: next } }),
+      });
+      if (!res.ok) throw new Error("save_failed");
+      setRoomClosures(next);
+      setRooms((cur) => attachClosures(cur, next));
+      setClosingUnit(null);
+      toast(done, "success");
+    } catch {
+      toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง", "error");
+    }
   };
   const [viewMonth, setViewMonth] = useState(() => today.slice(0, 7));
   /** มุมมองตาราง — เดือนดูภาพรวม, สัปดาห์วางแผน, วันทำงานหน้าร้าน, ห้องดูที่ว่าง */
@@ -681,6 +717,7 @@ export function BookingCalendar() {
       name: r.name,
       count: r.count,
       maxCats: roomCapacity(r),
+      closures: r.closures,
     })),
     liveBookings,
     activeDate
@@ -797,6 +834,35 @@ export function BookingCalendar() {
             </div>
           </div>
         </div>
+      )}
+      {closingUnit && (
+        <RoomClosureSheet
+          typeName={closingUnit.typeName}
+          unit={closingUnit.unit}
+          date={activeDate}
+          current={closingUnit.current}
+          onClose={() => setClosingUnit(null)}
+          onSave={(c) =>
+            saveClosures(
+              (list) => [
+                ...list.filter((x) => x.id !== closingUnit.current?.id),
+                {
+                  id: closingUnit.current?.id || `rc_${Date.now().toString(36)}`,
+                  typeId: closingUnit.typeId,
+                  unit: closingUnit.unit,
+                  ...c,
+                },
+              ],
+              `ปิดห้อง ${closingUnit.typeName} #${closingUnit.unit} แล้ว`
+            )
+          }
+          onReopen={() =>
+            saveClosures(
+              (list) => list.filter((x) => x.id !== closingUnit.current?.id),
+              `เปิดห้อง ${closingUnit.typeName} #${closingUnit.unit} แล้ว`
+            )
+          }
+        />
       )}
       {editing && (
         <BookingEditModal
@@ -973,11 +1039,14 @@ export function BookingCalendar() {
                   {board.isFull ? "ห้องเต็มแล้ว" : `ว่าง ${board.free} ห้อง`}
                 </p>
                 <p className="text-[10px] text-brown-soft">
-                  ใช้อยู่ {board.occupied} / {board.totalUnits} ห้อง ·{" "}
+                  ใช้อยู่ {board.occupied} / {board.totalUnits} ห้อง
+                  {board.closed > 0 && ` · ปิด ${board.closed}`} ·{" "}
                   {formatThaiDate(activeDate)}
                 </p>
               </div>
             </div>
+
+            <p className="-mt-1 mb-3 px-1 text-[10px] text-brown-faint">แตะห้องว่างเพื่อปิดห้อง (ซ่อม/ใช้งานไม่ได้) · แตะห้องที่ปิดเพื่อเปิด</p>
 
             {/* จองเกินจำนวนห้อง — ต้องเห็นก่อนเพื่อน */}
             {board.overflow.length > 0 && (
@@ -1061,6 +1130,7 @@ export function BookingCalendar() {
                       }`}
                     >
                       {t.free === 0 ? "เต็ม" : `ว่าง ${t.free}`} / {t.total} ห้อง
+                      {t.closed > 0 && ` · ปิด ${t.closed}`}
                       {t.cats > 0 && ` · ${t.cats} ตัว`}
                     </p>
                   </div>
@@ -1072,14 +1142,21 @@ export function BookingCalendar() {
                         <button
                           key={u.unit}
                           type="button"
-                          onClick={() => host && openEdit(host as CalendarDay, u.staying as CalendarDay[])}
-                          disabled={!host}
+                          onClick={() =>
+                            host
+                              ? openEdit(host as CalendarDay, u.staying as CalendarDay[])
+                              : !u.partOf &&
+                                setClosingUnit({ typeId: t.typeId, typeName: t.typeName, unit: u.unit, current: u.closed })
+                          }
+                          aria-label={host ? undefined : u.closed ? `ห้อง #${u.unit} ปิดอยู่ แตะเพื่อเปิดหรือแก้` : `ห้อง #${u.unit} ว่าง แตะเพื่อปิดห้อง`}
                           className={`min-h-[62px] rounded-xl px-2 py-1.5 text-left transition ${
                             u.turnover
                               ? "bg-wait/20 ring-1 ring-wait"
                               : busy
                                 ? "bg-latte/25 ring-1 ring-latte-deep/40 hover:bg-latte/35"
-                                : "bg-paper/50 ring-1 ring-dashed ring-catcha-line"
+                                : u.closed
+                                  ? "bg-[repeating-linear-gradient(135deg,rgba(0,0,0,0.04)_0_6px,transparent_6px_12px)] ring-1 ring-brown-faint/50"
+                                  : "bg-paper/50 ring-1 ring-dashed ring-catcha-line hover:bg-paper"
                           }`}
                         >
                           <p className="text-[9px] font-bold text-brown-faint">
@@ -1110,9 +1187,24 @@ export function BookingCalendar() {
                             <p className="pt-1 text-center text-[9px] text-brown-faint">
                               (ห้องที่เชื่อมอยู่)
                             </p>
+                          ) : u.closed ? (
+                            <>
+                              <p className="flex items-center gap-1 truncate text-[11px] font-extrabold text-brown">
+                                <Icon name="x" size={11} strokeWidth={2.6} />
+                                ปิด · {u.closed.reason}
+                              </p>
+                              <p className="truncate text-[9px] text-brown-faint">
+                                {u.closed.to ? `ถึง ${u.closed.to}` : "จนกว่าจะเปิด"}
+                              </p>
+                            </>
                           ) : (
                             <p className="pt-2 text-center text-[10px] font-bold text-brown-faint">
                               ว่าง
+                            </p>
+                          )}
+                          {host && u.closed && (
+                            <p className="mt-0.5 truncate text-[9px] font-bold text-red-600">
+                              ห้องปิด ({u.closed.reason}) แต่มีแมวอยู่
                             </p>
                           )}
                           {u.leaving.length > 0 && (
