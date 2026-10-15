@@ -356,11 +356,42 @@ function ShopTab({
       />
       <Field label="ที่อยู่ (ไทย)" value={form.location.th} onChange={(v) => setForm({ ...form, location: { ...form.location, th: v } })} />
       <Field label="ที่อยู่ (EN)" value={form.location.en} onChange={(v) => setForm({ ...form, location: { ...form.location, en: v } })} />
-      <Field
-        label="เลขประจำตัวผู้เสียภาษี (โชว์บนเอกสารภาษี · ไม่บังคับ)"
-        value={form.taxId || ""}
-        onChange={(v) => setForm({ ...form, taxId: v })}
-      />
+      <div className="rounded-catcha-sm border border-catcha-line bg-paper px-3 py-3">
+        <p className="mb-1 text-xs font-extrabold text-catcha-chocolate">เอกสารภาษี · ใบเสร็จ / ใบเสนอราคา</p>
+        <p className="mb-2 text-[10px] text-brown-faint">
+          ข้อมูลผู้ขายที่โชว์บนใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จรับเงิน (ออกได้จากเมนู ⋯ ของแต่ละบิล)
+        </p>
+        <div className="space-y-2">
+          <Field
+            label="ชื่อตามทะเบียน (ไม่ใส่ = ใช้ชื่อร้าน)"
+            value={form.legalName || ""}
+            onChange={(v) => setForm({ ...form, legalName: v })}
+          />
+          <Field
+            label="เลขประจำตัวผู้เสียภาษี (13 หลัก)"
+            value={form.taxId || ""}
+            onChange={(v) => setForm({ ...form, taxId: v })}
+          />
+          <Field
+            label="สาขา (เช่น สำนักงานใหญ่)"
+            value={form.taxBranch || ""}
+            onChange={(v) => setForm({ ...form, taxBranch: v })}
+          />
+          <Toggle
+            label="จดทะเบียน VAT แล้ว (ใบเสร็จเป็นใบกำกับภาษี แยก VAT)"
+            checked={!!form.vatRegistered}
+            onChange={(v) => setForm({ ...form, vatRegistered: v })}
+          />
+          {form.vatRegistered && (
+            <Field
+              label="อัตรา VAT (%) — ราคาในร้านถือว่ารวม VAT แล้ว"
+              type="number"
+              value={String(form.vatRate ?? 7)}
+              onChange={(v) => setForm({ ...form, vatRate: Math.min(30, Math.max(0, Number(v) || 0)) })}
+            />
+          )}
+        </div>
+      </div>
       <Field
         label="อัตราแต้ม (บาท = 1 แต้ม)"
         type="number"

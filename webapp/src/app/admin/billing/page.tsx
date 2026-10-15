@@ -2317,8 +2317,11 @@ export default function BillingPage() {
               "ลบบิลแล้ว 🗑️",
               `ลบบิลนี้? (${inv.total.toLocaleString()} บาท) — ลบรายการบัญชีที่ผูกด้วย กู้คืนไม่ได้`
             );
+          // เอกสารทางการ (ใบเสร็จ/ใบกำกับภาษี · ใบเสนอราคา · ใบแจ้งหนี้) ออกในนามบริษัทได้
+          const openDocs = () => window.open(`/admin/billing/doc/${inv.id}`, "_self");
           const menu = paid
             ? [
+                { label: "ใบเสร็จ / ใบกำกับภาษี", icon: "receipt", onClick: openDocs },
                 {
                   label: "ยกเลิกการชำระ (กดผิด)",
                   icon: "back",
@@ -2335,6 +2338,7 @@ export default function BillingPage() {
               ]
             : [
                 { label: "ส่ง LINE หาลูกค้า", icon: "send", onClick: openSend },
+                { label: "ใบเสนอราคา / ใบแจ้งหนี้", icon: "doc", onClick: openDocs },
                 { label: "แก้ไขบิล", icon: "edit", onClick: () => editInvoice(inv) },
                 { label: "ลบบิล", icon: "trash", danger: true, disabled: invoiceBusy === `${inv.id}:delete`, onClick: del },
               ];
