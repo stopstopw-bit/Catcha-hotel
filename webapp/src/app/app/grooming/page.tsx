@@ -6,6 +6,12 @@ import { useConfig } from "@/components/ConfigProvider";
 import { BookingOnlyNotice, LineBookingCta, PageHeader } from "@/components/PageHeader";
 import { ContentBlocks } from "@/components/ContentBlocks";
 
+const GROOMING_MENU_POSTER = "/catalog/grooming/grooming-menu.jpg";
+const LEGACY_POSTERS = new Set([
+  "/catalog/grooming/bath-menu.jpg",
+  "/catalog/grooming/advance-menu.jpg",
+]);
+
 export default function GroomingPage() {
   const { locale } = useLocale();
   const { config } = useConfig();
@@ -16,10 +22,12 @@ export default function GroomingPage() {
     advance?: { poster?: string };
   };
 
-  const posters = [
-    menus.bath?.poster || "/catalog/grooming/bath-menu.jpg",
-    menus.advance?.poster || "/catalog/grooming/advance-menu.jpg",
-  ].filter(Boolean);
+  // เมนูชุดใหม่รวมทุกโปรแกรมไว้ในรูปเดียว — รูปเก่า 2 ใบที่ติดมากับระบบถือว่า "ไม่ได้ตั้ง"
+  // ร้านอัปโปสเตอร์เองในตั้งค่า (รูปอื่นที่ไม่ใช่ของเดิม) ยังใช้ของร้านเหมือนเดิม
+  const custom = [menus.bath?.poster, menus.advance?.poster].filter(
+    (p): p is string => !!p && !LEGACY_POSTERS.has(p)
+  );
+  const posters = custom.length ? custom : [GROOMING_MENU_POSTER];
 
   return (
     <div className="px-4 pb-6 pt-5">

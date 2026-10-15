@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     siteName: "CatCha Hotel",
     title: "อาบน้ำแมว บางนา–ศรีนครินทร์–พัฒนาการ | CatCha Hotel เริ่ม 400.-",
     description: "อาบแบบ Private รับทีละบ้าน แชมพูพรีเมียม เป่าแห้งถึงชั้นใน",
-    images: [{ url: "/catalog/grooming/bath-menu.jpg", width: 1080, height: 1080, alt: "อาบน้ำแมวโซนบางนา CatCha Hotel" }],
+    images: [{ url: "/catalog/grooming/grooming-menu.jpg", width: 853, height: 1280, alt: "อาบน้ำแมวโซนบางนา CatCha Hotel" }],
   },
   robots: { index: true, follow: true },
 };
@@ -193,14 +193,14 @@ export default async function CatBathBangnaPage() {
       </p>
 
       {/* เมนูรูป */}
-      <div className="mt-6">
-        <a href="/catalog/grooming/bath-menu.jpg" target="_blank" rel="noopener noreferrer">
+      <div className="mx-auto mt-6 max-w-md">
+        <a href="/catalog/grooming/grooming-menu.jpg" target="_blank" rel="noopener noreferrer">
           <Image
-            src="/catalog/grooming/bath-menu.jpg"
+            src="/catalog/grooming/grooming-menu.jpg"
             alt="เมนูราคาอาบน้ำแมว โซนบางนา ศรีนครินทร์ พัฒนาการ CatCha Hotel"
-            width={900}
-            height={900}
-            sizes="(max-width: 640px) 100vw, 640px"
+            width={853}
+            height={1280}
+            sizes="(max-width: 640px) 100vw, 448px"
             className="h-auto w-full rounded-catcha border border-catcha-line shadow-catcha-sm"
           />
         </a>
