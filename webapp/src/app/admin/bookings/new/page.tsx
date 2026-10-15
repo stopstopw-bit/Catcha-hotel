@@ -8,6 +8,7 @@ import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
+import { Avatar, SearchField } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import {
   typeAvailability,
@@ -141,25 +142,7 @@ function ClientPetPicker({
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 rounded-full border border-catcha-line bg-paper px-4 py-2.5 focus-within:border-honey-deep">
-              <Icon name="search" size={18} className="text-brown-soft" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="ค้นหาชื่อ เบอร์ หรือชื่อน้องแมว"
-                className="min-w-0 flex-1 !border-0 !bg-transparent p-0 text-sm !shadow-none !outline-none"
-              />
-              {q && (
-                <button
-                  type="button"
-                  aria-label="ล้างคำค้น"
-                  onClick={() => setQ("")}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-brown-faint/30 text-[11px] font-bold text-brown"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            <SearchField value={q} onChange={setQ} placeholder="ค้นหาชื่อ เบอร์ หรือชื่อน้องแมว" />
 
             <p className="mb-1 mt-3 px-1 text-[11px] font-bold text-brown-soft">
               {q.trim() ? (loading ? "กำลังค้นหา…" : `ผลการค้นหา ${results.length} ราย`) : "ลูกค้าล่าสุด"}
@@ -332,15 +315,6 @@ function ClientPetPicker({
         </p>
       </section>
     </div>
-  );
-}
-
-function Avatar({ name }: { name: string }) {
-  const initial = (name || "?").trim().replace(/^(คุณ|น้อง)/, "").charAt(0) || "?";
-  return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-honey/40 text-sm font-extrabold text-catcha-chocolate">
-      {initial}
-    </span>
   );
 }
 

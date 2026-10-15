@@ -141,6 +141,61 @@ const PATHS: Record<string, React.ReactNode> = {
     </>
   ),
   x: <path d="M6 6l12 12M18 6L6 18" />,
+  more: (
+    <>
+      <circle cx="5.5" cy="12" r="1.3" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+      <circle cx="18.5" cy="12" r="1.3" fill="currentColor" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />
+      <path d="M15.5 8.5V5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 5v9A1.5 1.5 0 0 0 5 15.5h3.5" />
+    </>
+  ),
+  send: (
+    <>
+      <path d="M21 3 10.5 13.5" />
+      <path d="M21 3l-6.5 18-4-7.5L3 9.5z" />
+    </>
+  ),
+  filter: <path d="M4 5h16l-6 7.5V19l-4 1.5v-8z" />,
+  phone: (
+    <path d="M5 3.5h3.5l1.5 4.5-2.2 1.4a11 11 0 0 0 6.8 6.8l1.4-2.2 4.5 1.5V19a1.5 1.5 0 0 1-1.6 1.5C10.6 20 4 13.4 3.5 5.1A1.5 1.5 0 0 1 5 3.5z" />
+  ),
+  download: (
+    <>
+      <path d="M12 3.5v12M7 11l5 5 5-5" />
+      <path d="M4 20.5h16" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <circle cx="9" cy="10" r="1.8" />
+      <path d="M21 16l-5-5-9 9" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 3.5 2.5 20h19z" />
+      <path d="M12 10v4.5M12 17.2v.1" />
+    </>
+  ),
+  money: (
+    <>
+      <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M6 9.5v.1M18 14.5v.1" />
+    </>
+  ),
   chevron: <path d="M9 5l7 7-7 7" />,
   back: <path d="M15 5l-7 7 7 7" />,
   logout: (
