@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ADMIN_TABS } from "@/components/AdminNav";
+import { ADMIN_TAB_ICONS, Icon } from "@/components/Icon";
+import { Avatar, EmptyState, MoreMenu, SectionLabel } from "@/components/ui";
 
 export type StaffItem = {
   id: string;
@@ -73,12 +75,12 @@ export function StaffSection() {
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        setMsg(`✅ เพิ่ม "${newName}" แล้ว — ให้พนักงานใช้รหัสนี้ล็อกอินได้เลย`);
+        setMsg(`เพิ่ม "${newName}" แล้ว — ให้พนักงานใช้รหัสนี้ล็อกอินได้เลย`);
         setNewName("");
         setNewCode("");
         load();
       } else {
-        setMsg(`❌ ${d.error || "เพิ่มไม่สำเร็จ"}`);
+        setMsg(`${d.error || "เพิ่มไม่สำเร็จ"}`);
       }
     } finally {
       setBusy(false);
@@ -108,123 +110,130 @@ export function StaffSection() {
   }
   if (!isOwner) {
     return (
-      <p className="rounded-catcha bg-card p-4 text-xs font-bold text-brown-soft shadow-catcha-sm">
-        🔒 หน้านี้สำหรับเจ้าของร้านเท่านั้นค่ะ
-      </p>
+      <div className="rounded-catcha bg-card shadow-catcha-sm">
+        <EmptyState icon="alert" title="หน้านี้สำหรับเจ้าของร้านเท่านั้น" />
+      </div>
     );
   }
 
   const menuPicker = (selected: string[], onToggle: (href: string) => void) => (
-    <div className="grid grid-cols-2 gap-1.5">
+    <div className="grid grid-cols-2 gap-x-2">
       {ADMIN_TABS.map((t) => (
-        <label key={t.href} className="flex items-center gap-1.5 text-[11px] text-brown">
+        <label key={t.href} className="flex min-h-[40px] items-center gap-2 text-xs text-brown">
           <input
             type="checkbox"
             checked={selected.includes(t.href)}
             onChange={() => onToggle(t.href)}
-            className="h-3.5 w-3.5 accent-[#4A7348]"
+            className="h-4 w-4 shrink-0 accent-[#4A7348]"
           />
-          {t.icon} {t.label}
+          <Icon name={ADMIN_TAB_ICONS[t.href] || "grid"} size={14} className="text-brown-soft" />
+          <span className="min-w-0 truncate">{t.label}</span>
         </label>
       ))}
     </div>
   );
 
+  const field = "w-full min-w-0 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm";
+
   return (
-    <div className="space-y-4">
-      <section className="rounded-catcha bg-card p-4 shadow-catcha-sm">
-        <h2 className="text-sm font-extrabold text-catcha-chocolate">
-          👥 บัญชีพนักงาน ({staff.length})
-        </h2>
-        <p className="mb-3 text-[10px] text-brown-soft">
-          สร้างรหัสให้พนักงานแต่ละคน แล้วติ๊กเลือกว่าให้เห็นเมนูไหนบ้าง —
+    <div className="space-y-5">
+      <section>
+        <SectionLabel>Staff · บัญชีพนักงาน ({staff.length})</SectionLabel>
+        <div className="rounded-catcha bg-card shadow-catcha-sm">
+          {staff.length === 0 ? (
+            <EmptyState icon="team" title="ยังไม่มีพนักงาน" sub="เพิ่มคนแรกได้ที่ช่องด้านล่าง" />
+          ) : (
+            <ul className="divide-y divide-catcha-line">
+              {staff.map((s) => (
+                <li key={s.id}>
+                  <details className="group [&_summary::-webkit-details-marker]:hidden">
+                    <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-2.5">
+                      <Avatar name={s.name} size={36} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-extrabold text-catcha-chocolate">{s.name}</span>
+                          {!s.active && (
+                            <span className="shrink-0 rounded-full bg-paper px-1.5 text-[10px] font-bold leading-4 text-brown-faint">
+                              พักใช้งาน
+                            </span>
+                          )}
+                        </span>
+                        <span className="block truncate text-[11px] text-brown-soft">
+                          รหัส {s.code} · เห็น {s.menus.length} เมนู
+                        </span>
+                      </span>
+                      <Icon name="chevron" size={16} className="text-brown-faint transition group-open:rotate-90" />
+                    </summary>
+                    <div className="space-y-3 bg-paper/50 px-4 pb-3 pt-2">
+                      <p className="text-[11px] font-bold text-brown-soft">เมนูที่ให้เห็น</p>
+                      {menuPicker(s.menus, (href) =>
+                        patchStaff(s.id, { menus: toggleMenu(s.menus, href) })
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const code = prompt("ตั้งรหัสใหม่ (อย่างน้อย 4 ตัว):", s.code);
+                            if (code && code.trim().length >= 4) patchStaff(s.id, { code: code.trim() });
+                          }}
+                          className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-card text-xs font-bold text-brown"
+                        >
+                          <Icon name="edit" size={14} />
+                          เปลี่ยนรหัส
+                        </button>
+                        <MoreMenu
+                          items={[
+                            {
+                              label: s.active ? "พักการใช้งาน" : "เปิดใช้งาน",
+                              icon: s.active ? "clock" : "check",
+                              onClick: () => patchStaff(s.id, { active: !s.active }),
+                            },
+                            { label: "ลบบัญชี", icon: "trash", danger: true, onClick: () => removeStaff(s) },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <p className="mt-1.5 px-1 text-[10px] text-brown-faint">
           พนักงานล็อกอินด้วยรหัสของตัวเองที่หน้าเดิม จะเห็นเฉพาะเมนูที่เลือกไว้
         </p>
-
-        {staff.length === 0 && (
-          <p className="mb-2 rounded-catcha-sm bg-paper/60 px-3 py-2.5 text-xs text-brown-soft">
-            ยังไม่มีพนักงาน — เพิ่มคนแรกได้ที่ช่องด้านล่างเลยค่ะ
-          </p>
-        )}
-
-        {staff.map((s) => (
-          <details
-            key={s.id}
-            className="mb-2 rounded-catcha-sm border border-catcha-line bg-paper/50 p-2.5"
-          >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-xs font-bold text-brown">
-                {s.active ? "🟢" : "⏸️"} {s.name}
-                <span className="ml-2 font-normal text-brown-faint">
-                  รหัส: {s.code} · เห็น {s.menus.length} เมนู
-                </span>
-              </span>
-              <span className="shrink-0 text-[10px] font-bold text-latte-deep">แก้ไข ▾</span>
-            </summary>
-            <div className="mt-2 space-y-2 border-t border-catcha-line pt-2">
-              {menuPicker(s.menus, (href) =>
-                patchStaff(s.id, { menus: toggleMenu(s.menus, href) })
-              )}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => patchStaff(s.id, { active: !s.active })}
-                  className="rounded-full bg-card px-3 py-1 text-[10px] font-bold text-brown-soft"
-                >
-                  {s.active ? "⏸️ พักการใช้งาน" : "▶️ เปิดใช้งาน"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const code = prompt("ตั้งรหัสใหม่ (อย่างน้อย 4 ตัว):", s.code);
-                    if (code && code.trim().length >= 4) patchStaff(s.id, { code: code.trim() });
-                  }}
-                  className="rounded-full bg-card px-3 py-1 text-[10px] font-bold text-brown-soft"
-                >
-                  🔑 เปลี่ยนรหัส
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeStaff(s)}
-                  className="rounded-full bg-wait/10 px-3 py-1 text-[10px] font-bold text-wait"
-                >
-                  🗑️ ลบ
-                </button>
-              </div>
-            </div>
-          </details>
-        ))}
       </section>
 
-      <section className="rounded-catcha bg-card p-4 shadow-catcha-sm">
-        <h2 className="mb-2 text-sm font-extrabold text-catcha-chocolate">
-          ➕ เพิ่มพนักงานใหม่
-        </h2>
-        <div className="mb-2 grid gap-2 sm:grid-cols-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="ชื่อพนักงาน"
-            className="rounded-catcha-sm border border-catcha-line bg-paper px-2.5 py-2 text-xs"
-          />
-          <input
-            value={newCode}
-            onChange={(e) => setNewCode(e.target.value)}
-            placeholder="รหัสเข้าใช้ (4 ตัวขึ้นไป)"
-            className="rounded-catcha-sm border border-catcha-line bg-paper px-2.5 py-2 text-xs"
-          />
+      <section>
+        <SectionLabel>New · เพิ่มพนักงานใหม่</SectionLabel>
+        <div className="space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="ชื่อพนักงาน"
+              className={field}
+            />
+            <input
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+              placeholder="รหัสเข้าใช้ (4 ตัวขึ้นไป)"
+              className={field}
+            />
+          </div>
+          <p className="text-[11px] font-bold text-brown-soft">เมนูที่ให้เห็น</p>
+          {menuPicker(newMenus, (href) => setNewMenus((prev) => toggleMenu(prev, href)))}
+          <button
+            type="button"
+            disabled={busy || !newName.trim() || newCode.trim().length < 4}
+            onClick={addStaff}
+            className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-catcha-chocolate text-sm font-extrabold text-card disabled:opacity-40"
+          >
+            <Icon name="plus" size={18} />
+            {busy ? "กำลังเพิ่ม…" : "เพิ่มพนักงาน"}
+          </button>
+          {msg && <p className="text-[11px] font-bold text-brown">{msg}</p>}
         </div>
-        <p className="mb-1 text-[10px] font-bold text-brown-soft">เมนูที่ให้เห็น:</p>
-        {menuPicker(newMenus, (href) => setNewMenus((prev) => toggleMenu(prev, href)))}
-        <button
-          type="button"
-          disabled={busy || !newName.trim() || newCode.trim().length < 4}
-          onClick={addStaff}
-          className="mt-2 w-full rounded-catcha-sm bg-latte-deep py-2.5 text-xs font-extrabold text-card disabled:opacity-40"
-        >
-          {busy ? "กำลังเพิ่ม…" : "➕ เพิ่มพนักงาน"}
-        </button>
-        {msg && <p className="mt-2 text-[11px] font-bold text-brown">{msg}</p>}
       </section>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { useCallback, useEffect, useState } from "react";
 
 type GoogleStatus = {
@@ -49,9 +50,12 @@ export function GoogleSetupSection({ adminCode }: { adminCode: string }) {
   }
 
   return (
-    <section className="mb-4 space-y-3 rounded-catcha border border-latte/40 bg-card p-4 shadow-catcha-sm">
-      <h2 className="text-sm font-extrabold text-catcha-chocolate">
-        📅 Google Calendar + Sheets
+    <section className="mb-4 space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm">
+      <h2 className="flex items-center gap-2.5 text-sm font-extrabold text-catcha-chocolate">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-honey/30 text-catcha-chocolate">
+          <Icon name="calendar" size={16} />
+        </span>
+        Google Calendar + Sheets
       </h2>
       <p className="text-xs text-brown-soft">
         วาง 3 อย่างแล้วกดบันทึก — <b>ไม่ต้องใส่ Vercel</b> (เก็บในระบบให้)
@@ -59,7 +63,7 @@ export function GoogleSetupSection({ adminCode }: { adminCode: string }) {
 
       {status?.configured ? (
         <div className="rounded-catcha-sm bg-sage/15 px-3 py-2 text-xs">
-          <p className="font-bold text-ok">✅ Google พร้อมแล้ว ({status.source})</p>
+          <p className="font-bold text-ok">Google พร้อมแล้ว ({status.source})</p>
           {status.serviceAccountEmail && (
             <p className="mt-1 text-brown-soft">Service: {status.serviceAccountEmail}</p>
           )}
@@ -114,9 +118,9 @@ export function GoogleSetupSection({ adminCode }: { adminCode: string }) {
         type="button"
         disabled={saving || !jsonText.trim()}
         onClick={save}
-        className="w-full rounded-catcha-sm bg-gradient-to-r from-latte/40 to-sage/30 py-3 text-sm font-extrabold text-catcha-chocolate disabled:opacity-40"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-catcha-chocolate text-sm font-extrabold text-card disabled:opacity-50"
       >
-        {saving ? "กำลังทดสอบและบันทึก…" : "💾 บันทึก Google (ทดสอบอัตโนมัติ)"}
+        {saving ? "กำลังทดสอบและบันทึก…" : "บันทึก Google (ทดสอบอัตโนมัติ)"}
       </button>
 
       {status?.test?.messages?.length ? (
