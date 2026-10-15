@@ -5,6 +5,8 @@ import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/LocaleProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import { BookingOnlyNotice, PageHeader } from "@/components/PageHeader";
+import { ListRowContent } from "@/components/HeaderBand";
+import { Icon } from "@/components/Icon";
 
 export default function ServicesPage() {
   const { locale } = useLocale();
@@ -14,7 +16,7 @@ export default function ServicesPage() {
   const cards = [
     {
       href: "/app/rooms",
-      icon: "🛏️",
+      icon: "bed",
       title: m.room,
       desc:
         locale === "th"
@@ -23,7 +25,7 @@ export default function ServicesPage() {
     },
     {
       href: "/app/grooming",
-      icon: "🛁",
+      icon: "bath",
       title: m.groom,
       desc:
         locale === "th"
@@ -35,7 +37,7 @@ export default function ServicesPage() {
       ? [
           {
             href: "/app/boarding-rules",
-            icon: "📜",
+            icon: "doc",
             title: locale === "th" ? "กฎระเบียบการฝาก" : "Boarding rules",
             desc:
               locale === "th"
@@ -49,27 +51,27 @@ export default function ServicesPage() {
   return (
     <div className="px-4 pb-6 pt-5">
       <PageHeader
-        title={`✨ ${m.services}`}
+        eyebrow="Services"
+        title={m.services}
         back="/app"
         backLabel={locale === "th" ? "หน้าหลัก" : "Home"}
       />
       <BookingOnlyNotice locale={locale} />
-      <div className="grid gap-4">
+      <ul className="divide-y divide-catcha-line overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
         {cards.map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className="flex items-center gap-4 rounded-catcha border border-catcha-line bg-card p-5 shadow-catcha-sm transition active:scale-[0.98]"
-          >
-            <span className="text-3xl">{c.icon}</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-base font-extrabold text-catcha-chocolate">{c.title}</p>
-              <p className="mt-0.5 text-xs text-brown-soft">{c.desc}</p>
-            </div>
-            <span className="text-brown-faint">→</span>
-          </Link>
+          <li key={c.href}>
+            <Link
+              href={c.href}
+              className="flex min-h-[64px] items-center gap-2 px-4 py-3 transition active:bg-paper"
+            >
+              <span className="min-w-0 flex-1">
+                <ListRowContent icon={c.icon} title={c.title} sub={c.desc} />
+              </span>
+              <Icon name="chevron" size={18} className="text-brown-faint" />
+            </Link>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

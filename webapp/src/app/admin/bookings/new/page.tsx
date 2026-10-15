@@ -8,7 +8,7 @@ import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
-import { Avatar, SearchField } from "@/components/ui";
+import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import {
   typeAvailability,
@@ -558,34 +558,46 @@ export default function NewBookingPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-lg font-extrabold text-catcha-chocolate">
-        ➕ บันทึกจองให้ลูกค้า
-      </h1>
+      <div className="mb-4">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">New booking</p>
+        <h1 className="text-xl font-extrabold text-catcha-chocolate">บันทึกจองให้ลูกค้า</h1>
+      </div>
 
       {/* จองเสร็จแล้ว → ทำต่อได้เลยจากตรงนี้ */}
       {lastBookings.length > 0 && (
-        <div className="mb-4 space-y-3 rounded-catcha border border-sage/50 bg-sage/10 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-extrabold text-ok">
-              ✅ จองแล้ว {lastBookings.length} ตัว: {lastBookings.map((b) => b.catName).join(", ")}
-            </p>
+        <div className="mb-4 space-y-3 rounded-catcha border border-sage/50 bg-sage/10 p-4 shadow-catcha-sm">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ok text-card">
+              <Icon name="check" size={22} strokeWidth={2.4} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-ok">จองแล้ว {lastBookings.length} ตัว</p>
+              <p className="truncate text-xs text-brown-soft">
+                {lastBookings.map((b) => b.catName).join(", ")}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setLastBookings([])}
-              className="shrink-0 rounded-catcha-sm bg-paper px-3 py-2 text-xs font-bold text-brown-soft"
+              className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full bg-card px-3.5 text-xs font-bold text-brown shadow-catcha-sm"
             >
+              <Icon name="plus" size={16} />
               จองอีกคน
             </button>
           </div>
           {lastBookings.map((b) => (
             <div key={b.id} className="rounded-catcha-sm border border-sage/30 bg-card p-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-extrabold text-catcha-chocolate">🐱 {b.catName}</p>
+                <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-catcha-chocolate">
+                  <Icon name="paw" size={16} className="text-brown-soft" />
+                  <span className="truncate">{b.catName}</span>
+                </p>
                 <Link
                   href={`/admin/billing?bookingId=${b.id}`}
-                  className="shrink-0 rounded-catcha-sm bg-honey/45 px-3 py-1.5 text-[11px] font-extrabold text-catcha-chocolate"
+                  className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full bg-catcha-chocolate px-3.5 text-xs font-extrabold text-card"
                 >
-                  🧾 ออกบิลเลย
+                  <Icon name="receipt" size={16} />
+                  ออกบิลเลย
                 </Link>
               </div>
               <div className="mt-2 border-t border-catcha-line pt-2">
@@ -601,34 +613,23 @@ export default function NewBookingPage() {
         </div>
       )}
       {appointmentDate && (
-        <p className="mb-4 text-xs font-bold text-latte-deep">
-          📅 จองวันที่ {appointmentDate}
+        <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-latte/20 px-3 py-1.5 text-xs font-bold text-latte-deep">
+          <Icon name="calendar" size={14} />
+          จองวันที่ {appointmentDate}
         </p>
       )}
 
-      <div className="mb-4 flex gap-2">
-        {(
-          [
-            { id: "groom" as const, label: "🛁 อาบน้ำ" },
-            { id: "room" as const, label: "🏠 ห้องพัก" },
-          ] as const
-        ).map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setService(s.id)}
-            className={`flex-1 rounded-catcha-sm py-3 text-sm font-bold ${
-              service === s.id
-                ? "bg-honey/45 text-catcha-chocolate shadow-catcha-sm"
-                : "bg-paper text-brown-soft"
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={service}
+        onChange={setService}
+        className="mb-4"
+        options={[
+          { id: "groom", label: "อาบน้ำ", icon: "bath" },
+          { id: "room", label: "ห้องพัก", icon: "bed" },
+        ]}
+      />
 
-      <form onSubmit={submit} className="space-y-4 rounded-catcha bg-card p-5 shadow-catcha-sm">
+      <form onSubmit={submit} className="space-y-4 rounded-catcha bg-card p-4 shadow-catcha-sm sm:p-5">
         <ClientPetPicker
           picked={pickedCustomer}
           customerName={customerName}
@@ -671,8 +672,9 @@ export default function NewBookingPage() {
         />
 
         {lineUserId && (
-          <p className="rounded-catcha-sm bg-sage/15 px-3 py-2 text-[10px] font-bold text-ok">
-            ✅ ผูก LINE แล้ว — ลูกค้าเห็นนัดในแอบอัตโนมัติ
+          <p className="flex items-center gap-2 rounded-catcha-sm bg-sage/15 px-3 py-2 text-[11px] font-bold text-ok">
+            <Icon name="check" size={14} strokeWidth={2.4} />
+            ผูก LINE แล้ว — ลูกค้าเห็นนัดในแอปอัตโนมัติ
           </p>
         )}
 
@@ -693,7 +695,7 @@ export default function NewBookingPage() {
                 type="time"
                 list="groom-slots"
                 defaultValue="12:30"
-                className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+                className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown"
               />
               <datalist id="groom-slots">
                 {groomSlots.map((t) => (
@@ -710,7 +712,7 @@ export default function NewBookingPage() {
               <select
                 name="groomProgram"
                 defaultValue=""
-                className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+                className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown"
               >
                 <option value="">— ยังไม่ระบุ (เลือกตอนคิดเงิน) —</option>
                 {groomPrograms.map((p) => (
@@ -745,7 +747,8 @@ export default function NewBookingPage() {
                       type="button"
                       disabled={full}
                       onClick={() => setRoomId(r.id)}
-                      className={`flex w-full items-center justify-between gap-2 rounded-catcha-sm px-3 py-2.5 text-left transition ${
+                      aria-pressed={picked}
+                      className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-catcha-sm px-3 py-2.5 text-left transition ${
                         full
                           ? "cursor-not-allowed bg-paper/50 opacity-60"
                           : picked
@@ -754,9 +757,11 @@ export default function NewBookingPage() {
                       }`}
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-xs font-extrabold text-catcha-chocolate">
-                          {picked && !full ? "✓ " : ""}
-                          {r.name} ({r.size})
+                        <span className="flex items-center gap-1 truncate text-xs font-extrabold text-catcha-chocolate">
+                          {picked && !full && <Icon name="check" size={14} strokeWidth={2.4} />}
+                          <span className="truncate">
+                            {r.name} ({r.size})
+                          </span>
                         </span>
                         <span className="block text-[10px] text-brown-soft">
                           {r.price} บาท/คืน
@@ -780,8 +785,9 @@ export default function NewBookingPage() {
               </div>
               {Object.keys(availability).length > 0 &&
                 Object.values(availability).every((a) => a.free <= 0) && (
-                <p className="mt-2 rounded-catcha-sm bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700">
-                  🔴 ช่วงวันนี้ห้องเต็มทุกแบบ — ต้องเลื่อนวันหรือเช็คห้องที่จะเช็คเอาท์ก่อน
+                <p className="mt-2 flex items-start gap-1.5 rounded-catcha-sm bg-red-50 px-3 py-2 text-[11px] font-bold text-red-700">
+                  <Icon name="alert" size={14} className="mt-px" />
+                  ช่วงวันนี้ห้องเต็มทุกแบบ — ต้องเลื่อนวันหรือเช็คห้องที่จะเช็คเอาท์ก่อน
                 </p>
               )}
 
@@ -789,8 +795,9 @@ export default function NewBookingPage() {
               {roomId && !compositionOf(roomId) && (
                 <div className="mt-3 rounded-catcha-sm border border-catcha-line bg-paper/50 p-3">
                   <input type="hidden" name="roomUnit" value={roomUnit ?? ""} />
-                  <p className="text-xs font-bold text-brown-soft">
-                    🗺️ เลือกห้องจริง (ไม่บังคับ)
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-brown-soft">
+                    <Icon name="grid" size={14} />
+                    เลือกห้องจริง (ไม่บังคับ)
                   </p>
                   <p className="mb-2 text-[10px] text-brown-faint">
                     ไม่เลือก = ให้ระบบจัดห้องให้อัตโนมัติตอนถึงวันจริง
@@ -804,13 +811,15 @@ export default function NewBookingPage() {
                           key={u}
                           type="button"
                           onClick={() => setRoomUnit(roomUnit === u ? null : u)}
-                          className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                          aria-pressed={roomUnit === u}
+                          className={`flex min-h-[40px] items-center gap-1 rounded-full px-3.5 text-xs font-bold transition ${
                             roomUnit === u
-                              ? "bg-honey-deep text-white"
-                              : "bg-card text-brown-soft hover:bg-honey/20"
+                              ? "bg-catcha-chocolate text-card"
+                              : "bg-card text-brown-soft ring-1 ring-catcha-line hover:bg-honey/20"
                           }`}
                         >
-                          {roomUnit === u ? "✓ " : ""}ห้อง {u}
+                          {roomUnit === u && <Icon name="check" size={14} strokeWidth={2.4} />}
+                          ห้อง {u}
                         </button>
                       ))}
                     </div>
@@ -839,8 +848,9 @@ export default function NewBookingPage() {
 
         {service === "room" && (
         <div className="rounded-catcha-sm border border-honey/40 bg-honey/10 p-3">
-          <p className="text-xs font-extrabold text-catcha-chocolate">
-            🎁 ของแถมฟรี (ถ้าตกลงกับลูกค้าไว้)
+          <p className="flex items-center gap-1.5 text-xs font-extrabold text-catcha-chocolate">
+            <Icon name="gift" size={15} />
+            ของแถมฟรี (ถ้าตกลงกับลูกค้าไว้)
           </p>
           <p className="mb-2 text-[10px] text-brown-soft">
             ติ๊กแล้วจะติดไปในใบจอง + การ์ดยืนยันให้ลูกค้าเห็นเลย
@@ -857,13 +867,14 @@ export default function NewBookingPage() {
                       prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]
                     )
                   }
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                  aria-pressed={on}
+                  className={`flex min-h-[40px] items-center gap-1 rounded-full px-3.5 text-xs font-bold ${
                     on
-                      ? "bg-honey text-catcha-chocolate"
-                      : "bg-paper text-brown-soft"
+                      ? "bg-catcha-chocolate text-card"
+                      : "bg-card text-brown-soft ring-1 ring-catcha-line"
                   }`}
                 >
-                  {on ? "✓ " : ""}
+                  {on && <Icon name="check" size={14} strokeWidth={2.4} />}
                   {f}
                 </button>
               );
@@ -876,9 +887,10 @@ export default function NewBookingPage() {
 
         <button
           type="submit"
-          className="w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3.5 text-sm font-extrabold text-catcha-chocolate"
+          className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-honey to-honey-deep text-sm font-extrabold text-catcha-chocolate shadow-catcha-sm"
         >
-          {saved ? "✅ บันทึกแล้ว + สร้างนัด Calendar" : "🗓️ บันทึกการจอง"}
+          <Icon name={saved ? "check" : "calendar"} size={18} strokeWidth={2.2} />
+          {saved ? "บันทึกแล้ว + สร้างนัด Calendar" : "บันทึกการจอง"}
         </button>
       </form>
     </div>
@@ -905,7 +917,7 @@ function Field({
   onChange?: (v: string) => void;
 }) {
   const cls =
-    "mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-latte-deep";
+    "mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown outline-none focus:border-latte-deep";
   return (
     <label className="block text-xs font-bold text-brown-soft">
       {label}

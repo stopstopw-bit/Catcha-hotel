@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "@/components/Toast";
 import { toJpegDataUrl } from "@/lib/image-convert";
+import { Icon } from "@/components/Icon";
+import { EmptyState, MoreMenu, SectionLabel, Segmented } from "@/components/ui";
 
 type PackageKind = "uses" | "credit" | "nights";
 
@@ -93,13 +95,14 @@ function OfferRow({
   };
 
   const field =
-    "w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm";
+    "w-full min-w-0 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm";
 
   if (editing) {
     return (
-      <li className="rounded-catcha-sm border border-latte/50 bg-paper/70 p-3">
-        <p className="mb-2 text-[11px] font-extrabold text-catcha-chocolate">
-          ✏️ {isCredit ? "แก้ไขแพ็กเกจเครดิต Member" : "แก้ไขคอร์ส"}
+      <li className="bg-paper/60 px-4 py-3">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-catcha-chocolate">
+          <Icon name="edit" size={14} />
+          {isCredit ? "แก้ไขแพ็กเกจเครดิต Member" : "แก้ไขคอร์ส"}
         </p>
         <div className="space-y-2">
           <input
@@ -128,7 +131,7 @@ function OfferRow({
                   className={field}
                 />
               </div>
-              <p className="text-[10px] font-bold text-ok">
+              <p className="text-[11px] font-bold text-ok">
                 รวมเครดิตที่ลูกค้าจะได้:{" "}
                 {(
                   Math.round(Number(price) || 0) + Math.round(Number(creditBonus) || 0)
@@ -162,11 +165,11 @@ function OfferRow({
             placeholder="คำโปรย (ถ้ามี)"
             className={field}
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-1">
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="flex-1 rounded-catcha-sm bg-paper py-2 text-xs font-bold text-brown-soft"
+              className="h-10 flex-1 rounded-full bg-card text-xs font-bold text-brown-soft"
             >
               ยกเลิก
             </button>
@@ -174,9 +177,9 @@ function OfferRow({
               type="button"
               disabled={saving}
               onClick={save}
-              className="flex-1 rounded-catcha-sm bg-latte-deep py-2 text-xs font-extrabold text-card disabled:opacity-40"
+              className="h-10 flex-[2] rounded-full bg-catcha-chocolate text-xs font-extrabold text-card disabled:opacity-40"
             >
-              {saving ? "…" : "💾 บันทึก"}
+              {saving ? "…" : "บันทึก"}
             </button>
           </div>
         </div>
@@ -185,104 +188,91 @@ function OfferRow({
   }
 
   return (
-    <li
-      className={`rounded-catcha-sm border px-3 py-2 ${
-        o.active
-          ? "border-catcha-line bg-paper/50"
-          : "border-catcha-line bg-paper/30 opacity-60"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 gap-2">
-          <label className="relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-catcha-sm bg-paper">
-            {o.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={o.imageUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center text-lg">
-                📷
-              </span>
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (!f) return;
-                pickImage(f, (dataUrl) =>
-                  patch(
-                    { action: "set_offer_image", offerId: o.id, image: dataUrl },
-                    "เปลี่ยนรูปแล้ว 📷",
-                    o.id
-                  )
-                );
-              }}
-            />
-          </label>
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-brown">
-              {o.name} {!o.active && "(ปิดขายอยู่)"}
-            </p>
-            <p className="text-[10px] text-brown-soft">
-              {isCredit
-                ? `💎 จ่าย ${o.price.toLocaleString()} รับเพิ่ม ${o.creditBonus.toLocaleString()} · รวม ${(
-                    o.price + o.creditBonus
-                  ).toLocaleString()} เครดิต`
-                : `${o.totalUses} ${unitWord} · ${o.price.toLocaleString()} ฿`}
-              {o.description ? ` · ${o.description}` : ""}
-            </p>
-            <p className="text-[10px] text-brown-faint">
-              แตะรูปเพื่อ{o.imageUrl ? "เปลี่ยน" : "ใส่"}รูป
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <button
-            type="button"
-            onClick={startEdit}
-            className="text-[10px] font-bold text-latte-deep"
-          >
-            ✏️ แก้ไข
-          </button>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                patch(
-                  { action: "set_offer_active", offerId: o.id, active: !o.active },
-                  o.active ? "ปิดขายแล้ว" : "เปิดขายแล้ว",
-                  o.id
-                )
-              }
-              className="text-[10px] font-bold text-latte-deep"
-            >
-              {o.active ? "ปิดขาย" : "เปิดขาย"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!confirm(`ลบ "${o.name}" ออกจากรายการขาย?`)) return;
-                patch(
-                  { action: "delete_offer", offerId: o.id },
-                  "ลบออกจากรายการขายแล้ว",
-                  o.id
-                );
-              }}
-              className="text-[10px] font-bold text-wait"
-            >
-              🗑️
-            </button>
-          </div>
-        </div>
-      </div>
+    <li className="flex items-center gap-3 px-4 py-3">
+      <label
+        className={`relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-paper ${
+          o.active ? "" : "opacity-50"
+        }`}
+        aria-label={o.imageUrl ? "เปลี่ยนรูป" : "ใส่รูป"}
+      >
+        {o.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={o.imageUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-brown-soft">
+            <Icon name="image" size={20} />
+          </span>
+        )}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            pickImage(f, (dataUrl) =>
+              patch(
+                { action: "set_offer_image", offerId: o.id, image: dataUrl },
+                "เปลี่ยนรูปแล้ว 📷",
+                o.id
+              )
+            );
+          }}
+        />
+      </label>
+      <button type="button" onClick={startEdit} className="min-w-0 flex-1 text-left">
+        <span className="flex items-center gap-1.5">
+          <span className={`truncate text-sm font-extrabold ${o.active ? "text-catcha-chocolate" : "text-brown-faint"}`}>
+            {o.name}
+          </span>
+          {!o.active && (
+            <span className="shrink-0 rounded-full bg-paper px-1.5 text-[10px] font-bold leading-4 text-brown-faint">
+              ปิดขาย
+            </span>
+          )}
+        </span>
+        <span className="block truncate text-[11px] text-brown-soft">
+          {isCredit
+            ? `จ่าย ${o.price.toLocaleString()} รับเพิ่ม ${o.creditBonus.toLocaleString()} · รวม ${(
+                o.price + o.creditBonus
+              ).toLocaleString()} เครดิต`
+            : `${o.totalUses} ${unitWord} · ${o.price.toLocaleString()} ฿`}
+        </span>
+        {o.description ? (
+          <span className="block truncate text-[11px] text-brown-faint">{o.description}</span>
+        ) : null}
+      </button>
+      <MoreMenu
+        items={[
+          { label: "แก้ไข", icon: "edit", onClick: startEdit },
+          {
+            label: o.active ? "ปิดขาย" : "เปิดขาย",
+            icon: o.active ? "eye" : "check",
+            onClick: () =>
+              patch(
+                { action: "set_offer_active", offerId: o.id, active: !o.active },
+                o.active ? "ปิดขายแล้ว" : "เปิดขายแล้ว",
+                o.id
+              ),
+          },
+          {
+            label: "ลบออกจากรายการขาย",
+            icon: "trash",
+            danger: true,
+            onClick: () => {
+              if (!confirm(`ลบ "${o.name}" ออกจากรายการขาย?`)) return;
+              patch({ action: "delete_offer", offerId: o.id }, "ลบออกจากรายการขายแล้ว", o.id);
+            },
+          },
+        ]}
+      />
     </li>
   );
 }
 
 /**
- * 🛍️ ขายคอร์สในแอป — ตั้งว่าจะขายอะไร + ยืนยันรับเงินจากออร์เดอร์ที่ลูกค้ากดซื้อ
+ * ขายคอร์สในแอป — ตั้งว่าจะขายอะไร + ยืนยันรับเงินจากออร์เดอร์ที่ลูกค้ากดซื้อ
  * กดยืนยันแล้วระบบจะเพิ่มคอร์สให้ลูกค้า + ลงรายรับให้อัตโนมัติ
  */
 export default function AdminPackagesPage() {
@@ -291,6 +281,7 @@ export default function AdminPackagesPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [zoomSlip, setZoomSlip] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   const [name, setName] = useState("");
   const [kind, setKind] = useState<PackageKind>("uses");
@@ -415,331 +406,333 @@ export default function AdminPackagesPage() {
   const pending = orders.filter((o) => o.status === "pending");
   const done = orders.filter((o) => o.status !== "pending");
   const field =
-    "w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm";
+    "w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm";
 
   if (loading) {
     return <p className="py-10 text-center text-sm text-brown-soft">กำลังโหลด…</p>;
   }
 
+  const unitOf = (k: PackageKind) => (k === "nights" ? "คืน" : "ครั้ง");
+
   return (
-    <div>
-      <h1 className="mb-4 text-lg font-extrabold text-catcha-chocolate">
-        🛍️ ขายคอร์สในแอป
-      </h1>
+    <div className="space-y-5 pb-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Packages</p>
+          <h1 className="text-xl font-extrabold text-catcha-chocolate">ขายคอร์สในแอป</h1>
+          <p className="mt-0.5 text-xs text-brown-soft">ลูกค้าเห็นในหน้าแรกของแอป และกดซื้อได้เลย</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAdd((v) => !v)}
+          className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold shadow-catcha-sm ${
+            showAdd ? "bg-card text-brown" : "bg-catcha-chocolate text-card"
+          }`}
+        >
+          <Icon name={showAdd ? "x" : "plus"} size={18} />
+          {showAdd ? "ปิด" : "เพิ่มคอร์ส"}
+        </button>
+      </div>
 
-      {/* ── ออร์เดอร์รอยืนยัน ── */}
-      <section className="mb-4 rounded-catcha bg-card p-4 shadow-catcha-sm">
-        <h2 className="mb-1 text-sm font-extrabold text-catcha-chocolate">
-          ⏳ รอยืนยันรับเงิน {pending.length > 0 && `(${pending.length})`}
-        </h2>
-        <p className="mb-3 text-[10px] text-brown-faint">
-          กดยืนยันแล้วระบบจะเพิ่มคอร์สให้ลูกค้า + ลงรายรับ + แจ้งลูกค้าให้อัตโนมัติ
-        </p>
-        {pending.length === 0 ? (
-          <p className="text-xs text-brown-soft">ยังไม่มีออร์เดอร์รอยืนยัน</p>
-        ) : (
-          <ul className="space-y-2">
-            {pending.map((o) => (
-              <li
-                key={o.id}
-                className="rounded-catcha-sm border border-wait/40 bg-paper/60 px-3 py-2.5"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/admin/customers?id=${o.customerId}`}
-                      className="text-xs font-extrabold text-latte-deep underline"
-                    >
-                      👤 {o.customerName}
-                    </Link>
-                    <p className="text-xs font-bold text-brown">{o.name}</p>
-                    <p className="text-[10px] text-brown-soft">
-                      {o.kind === "credit"
-                        ? `💎 รับเพิ่ม ${o.creditBonus.toLocaleString()} · รวม ${(
-                            o.price + o.creditBonus
-                          ).toLocaleString()} เครดิต`
-                        : `${o.totalUses} ${o.kind === "nights" ? "คืน" : "ครั้ง"}`}{" "}
-                      · {o.createdAt.slice(0, 10)}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm font-extrabold text-catcha-chocolate">
-                    {o.price.toLocaleString()} ฿
-                  </p>
+      {/* ── เพิ่มคอร์สที่จะขาย ── */}
+      {showAdd && (
+        <section>
+          <SectionLabel>New · เพิ่มคอร์สที่จะขาย</SectionLabel>
+          <div className="space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm">
+            <Segmented
+              value={kind}
+              onChange={setKind}
+              options={[
+                { id: "uses", label: "นับครั้ง", icon: "ticket" },
+                { id: "credit", label: "เครดิต", icon: "wallet" },
+                { id: "nights", label: "วันพัก", icon: "bed" },
+              ]}
+            />
+            {kind === "credit" && (
+              <p className="text-[11px] text-brown-soft">เครดิต Member — ลูกค้าจ่ายแล้วได้เครดิตไว้หักค่าบริการ</p>
+            )}
+            {kind === "nights" && (
+              <p className="rounded-catcha-sm bg-honey/15 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
+                ลูกค้าซื้อจำนวนคืนล่วงหน้าในราคาถูกกว่า แล้วหักตามคืนที่เข้าพักจริง
+                <span className="mt-0.5 block font-normal text-brown-soft">
+                  คลุมเฉพาะค่าห้อง — ค่าอาบน้ำ/ของเสริมในบิลเดียวกันยังคิดตามปกติ · ไม่มีวันหมดอายุ
+                </span>
+              </p>
+            )}
+
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={
+                kind === "credit"
+                  ? "ชื่อแพ็กเกจ เช่น Member Package 10,000"
+                  : kind === "nights"
+                    ? "ชื่อคอร์ส เช่น แพ็กรายเดือน 30 คืน (ลด 30%)"
+                    : "ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"
+              }
+              className={field}
+            />
+            {kind === "credit" ? (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="ลูกค้าจ่าย (บาท)"
+                    className={`${field} min-w-0`}
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    value={creditBonus}
+                    onChange={(e) => setCreditBonus(e.target.value)}
+                    placeholder="ได้เพิ่มฟรี (บาท)"
+                    className={`${field} min-w-0`}
+                  />
                 </div>
-
-                {o.slipUrl ? (
-                  <button
-                    type="button"
-                    onClick={() => setZoomSlip(o.slipUrl!)}
-                    className="mt-2 block w-full rounded-catcha-sm bg-sage/15 py-1.5 text-[10px] font-bold text-ok"
-                  >
-                    🧾 ลูกค้าแนบสลิปแล้ว — แตะดูรูป
-                  </button>
-                ) : (
-                  <p className="mt-2 rounded-catcha-sm bg-honey/20 px-2 py-1.5 text-[10px] font-bold text-wait">
-                    ⏳ ยังไม่ได้แนบสลิป
-                  </p>
-                )}
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => {
-                      if (
-                        !confirm(
-                          `ยืนยันว่าได้รับเงิน ${o.price.toLocaleString()} บาท จาก ${o.customerName}?\n` +
-                            (o.kind === "credit"
-                              ? `ระบบจะเติมเครดิต Member ${(
-                                  o.price + o.creditBonus
-                                ).toLocaleString()} บาท ให้ลูกค้าทันที`
-                              : `ระบบจะเพิ่มคอร์ส "${o.name}" (${o.totalUses} ${o.kind === "nights" ? "คืน" : "ครั้ง"}) ให้ลูกค้าทันที`)
-                        )
-                      )
-                        return;
-                      patch(
-                        { action: "confirm_order", orderId: o.id },
-                        "ยืนยันรับเงินแล้ว — เพิ่มคอร์สให้ลูกค้าเรียบร้อย 🎫",
-                        o.id
-                      );
-                    }}
-                    className="rounded-full bg-sage/25 px-3 py-1.5 text-[11px] font-extrabold text-ok disabled:opacity-40"
-                  >
-                    {busy === o.id ? "…" : "✅ ได้รับเงินแล้ว"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => {
-                      if (!confirm("ยกเลิกออร์เดอร์นี้? (ลูกค้าจะไม่ได้คอร์ส)")) return;
-                      patch(
-                        { action: "cancel_order", orderId: o.id },
-                        "ยกเลิกออร์เดอร์แล้ว",
-                        o.id
-                      );
-                    }}
-                    className="rounded-full bg-wait/15 px-3 py-1.5 text-[11px] font-bold text-wait disabled:opacity-40"
-                  >
-                    ❌ ยกเลิก
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* ── ตั้งว่าจะขายอะไร ── */}
-      <section className="mb-4 rounded-catcha bg-card p-4 shadow-catcha-sm">
-        <h2 className="mb-1 text-sm font-extrabold text-catcha-chocolate">
-          🏷️ คอร์สที่เปิดขายในแอป
-        </h2>
-        <p className="mb-3 text-[10px] text-brown-faint">
-          ลูกค้าจะเห็นรายการนี้ในหน้าแรกของแอป และกดซื้อได้เลย
-        </p>
-
-        {offers.length > 0 && (
-          <ul className="mb-3 space-y-2">
-            {offers.map((o) => (
-              <OfferRow key={o.id} offer={o} patch={patch} pickImage={pickImage} />
-            ))}
-          </ul>
-        )}
-
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setKind("uses")}
-              className={`flex-1 rounded-catcha-sm py-2 text-xs font-extrabold ${
-                kind === "uses" ? "bg-latte-deep text-card" : "bg-paper text-brown-soft"
-              }`}
-            >
-              🎫 คอร์สนับครั้ง
-            </button>
-            <button
-              type="button"
-              onClick={() => setKind("credit")}
-              className={`flex-1 rounded-catcha-sm py-2 text-xs font-extrabold ${
-                kind === "credit" ? "bg-latte-deep text-card" : "bg-paper text-brown-soft"
-              }`}
-            >
-              💎 เครดิต Member
-            </button>
-            <button
-              type="button"
-              onClick={() => setKind("nights")}
-              className={`flex-1 rounded-catcha-sm py-2 text-xs font-extrabold ${
-                kind === "nights" ? "bg-latte-deep text-card" : "bg-paper text-brown-soft"
-              }`}
-            >
-              🏠 ซื้อวันเข้าพัก
-            </button>
-          </div>
-          {kind === "nights" && (
-            <p className="rounded-catcha-sm bg-honey/15 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
-              ลูกค้าซื้อจำนวนคืนล่วงหน้าในราคาถูกกว่า แล้วหักตามคืนที่เข้าพักจริง
-              <span className="mt-0.5 block font-normal text-brown-soft">
-                คลุมเฉพาะค่าห้อง — ค่าอาบน้ำ/ของเสริมในบิลเดียวกันยังคิดตามปกติ · ไม่มีวันหมดอายุ
-              </span>
-            </p>
-          )}
-
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={
-              kind === "credit"
-                ? "ชื่อแพ็กเกจ เช่น Member Package 10,000"
-                : kind === "nights"
-                  ? "ชื่อคอร์ส เช่น แพ็กรายเดือน 30 คืน (ลด 30%)"
-                  : "ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"
-            }
-            className={field}
-          />
-          {kind === "credit" ? (
-            <>
+                <p className="rounded-catcha-sm bg-sage/10 px-3 py-2 text-[11px] font-bold text-ok">
+                  รวมเครดิตที่ลูกค้าจะได้:{" "}
+                  {(
+                    Math.round(Number(price) || 0) + Math.round(Number(creditBonus) || 0)
+                  ).toLocaleString()}{" "}
+                  บาท
+                </p>
+              </>
+            ) : (
               <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={uses}
+                  onChange={(e) => setUses(e.target.value)}
+                  placeholder={kind === "nights" ? "กี่คืน" : "กี่ครั้ง"}
+                  className={`${field} min-w-0`}
+                />
                 <input
                   type="number"
                   min={0}
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  placeholder="ลูกค้าจ่าย (บาท)"
-                  className={field}
-                />
-                <input
-                  type="number"
-                  min={0}
-                  value={creditBonus}
-                  onChange={(e) => setCreditBonus(e.target.value)}
-                  placeholder="ได้เพิ่มฟรี (บาท)"
-                  className={field}
+                  placeholder="ราคา (บาท)"
+                  className={`${field} min-w-0`}
                 />
               </div>
-              <p className="rounded-catcha-sm bg-sage/10 px-3 py-2 text-[11px] font-bold text-ok">
-                รวมเครดิตที่ลูกค้าจะได้:{" "}
-                {(
-                  Math.round(Number(price) || 0) + Math.round(Number(creditBonus) || 0)
-                ).toLocaleString()}{" "}
-                บาท
-              </p>
-            </>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={1}
-                value={uses}
-                onChange={(e) => setUses(e.target.value)}
-                placeholder={kind === "nights" ? "กี่คืน" : "กี่ครั้ง"}
-                className={field}
-              />
-              <input
-                type="number"
-                min={0}
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="ราคา (บาท)"
-                className={field}
-              />
-            </div>
-          )}
-          <input
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="คำโปรย (ถ้ามี) เช่น ประหยัดกว่าซื้อแยก 500฿"
-            className={field}
-          />
-
-          <label className="flex cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2.5">
-            {image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image}
-                alt="รูปหน้าปกคอร์ส"
-                className="h-14 w-14 shrink-0 rounded-catcha-sm object-cover"
-              />
-            ) : (
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-catcha-sm bg-card text-xl">
-                📷
-              </span>
             )}
-            <span className="min-w-0 text-[11px] font-bold text-brown-soft">
-              {image ? "เปลี่ยนรูปหน้าปก" : "ใส่รูปหน้าปก (ถ้ามี)"}
-              <span className="block font-normal text-brown-faint">
-                รูปสวยๆ ช่วยให้ลูกค้ากดซื้อง่ายขึ้นเยอะเลยค่ะ
-              </span>
-            </span>
             <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) pickImage(f, setImage);
-              }}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="คำโปรย (ถ้ามี) เช่น ประหยัดกว่าซื้อแยก 500฿"
+              className={field}
             />
-          </label>
 
-          <button
-            type="button"
-            disabled={busy === "add"}
-            onClick={addOffer}
-            className="w-full rounded-catcha-sm bg-latte/30 py-2.5 text-sm font-extrabold text-catcha-chocolate disabled:opacity-40"
-          >
-            {busy === "add"
-              ? "กำลังเพิ่ม…"
-              : kind === "credit"
-                ? "➕ เพิ่มแพ็กเกจเครดิตที่จะขาย"
-                : "➕ เพิ่มคอร์สที่จะขาย"}
-          </button>
+            <label className="flex cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2.5">
+              {image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image} alt="รูปหน้าปกคอร์ส" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card text-brown-soft">
+                  <Icon name="image" size={20} />
+                </span>
+              )}
+              <span className="min-w-0 text-xs font-bold text-brown">
+                {image ? "เปลี่ยนรูปหน้าปก" : "ใส่รูปหน้าปก (ถ้ามี)"}
+                <span className="block text-[11px] font-normal text-brown-faint">
+                  รูปสวยๆ ช่วยให้ลูกค้ากดซื้อง่ายขึ้น
+                </span>
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) pickImage(f, setImage);
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={busy === "add"}
+              onClick={addOffer}
+              className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-catcha-chocolate text-sm font-extrabold text-card disabled:opacity-40"
+            >
+              <Icon name="plus" size={18} />
+              {busy === "add"
+                ? "กำลังเพิ่ม…"
+                : kind === "credit"
+                  ? "เพิ่มแพ็กเกจเครดิตที่จะขาย"
+                  : "เพิ่มคอร์สที่จะขาย"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* ── ออร์เดอร์รอยืนยัน ── */}
+      <section>
+        <SectionLabel>Pending · รอยืนยันรับเงิน{pending.length > 0 ? ` (${pending.length})` : ""}</SectionLabel>
+        <div className="rounded-catcha bg-card shadow-catcha-sm">
+          {pending.length === 0 ? (
+            <EmptyState
+              icon="check"
+              title="ไม่มีออร์เดอร์รอยืนยัน"
+              sub="กดยืนยันแล้วระบบเพิ่มคอร์ส + ลงรายรับ + แจ้งลูกค้าให้อัตโนมัติ"
+            />
+          ) : (
+            <ul className="divide-y divide-catcha-line">
+              {pending.map((o) => (
+                <li key={o.id} className="px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/30 text-catcha-chocolate">
+                      <Icon name={o.kind === "credit" ? "wallet" : o.kind === "nights" ? "bed" : "ticket"} size={20} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-extrabold text-catcha-chocolate">{o.name}</p>
+                      <Link
+                        href={`/admin/customers?id=${o.customerId}`}
+                        className="block truncate text-xs font-bold text-latte-deep underline-offset-2 hover:underline"
+                      >
+                        {o.customerName}
+                      </Link>
+                      <p className="truncate text-[11px] text-brown-soft">
+                        {o.kind === "credit"
+                          ? `รับเพิ่ม ${o.creditBonus.toLocaleString()} · รวม ${(
+                              o.price + o.creditBonus
+                            ).toLocaleString()} เครดิต`
+                          : `${o.totalUses} ${unitOf(o.kind)}`}{" "}
+                        · {o.createdAt.slice(0, 10)}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-extrabold text-catcha-chocolate">
+                      {o.price.toLocaleString()} ฿
+                    </p>
+                  </div>
+
+                  <div className="mt-2.5 flex items-center gap-2 pl-[52px]">
+                    {o.slipUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setZoomSlip(o.slipUrl!)}
+                        className="flex h-10 items-center gap-1.5 rounded-full bg-sage/20 px-3 text-xs font-bold text-ok"
+                      >
+                        <Icon name="receipt" size={16} />
+                        ดูสลิป
+                      </button>
+                    ) : (
+                      <span className="flex h-10 items-center gap-1.5 rounded-full bg-honey/20 px-3 text-xs font-bold text-wait">
+                        <Icon name="clock" size={16} />
+                        ยังไม่แนบสลิป
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `ยืนยันว่าได้รับเงิน ${o.price.toLocaleString()} บาท จาก ${o.customerName}?\n` +
+                              (o.kind === "credit"
+                                ? `ระบบจะเติมเครดิต Member ${(
+                                    o.price + o.creditBonus
+                                  ).toLocaleString()} บาท ให้ลูกค้าทันที`
+                                : `ระบบจะเพิ่มคอร์ส "${o.name}" (${o.totalUses} ${o.kind === "nights" ? "คืน" : "ครั้ง"}) ให้ลูกค้าทันที`)
+                          )
+                        )
+                          return;
+                        patch(
+                          { action: "confirm_order", orderId: o.id },
+                          "ยืนยันรับเงินแล้ว — เพิ่มคอร์สให้ลูกค้าเรียบร้อย 🎫",
+                          o.id
+                        );
+                      }}
+                      className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-catcha-chocolate text-xs font-extrabold text-card disabled:opacity-40"
+                    >
+                      <Icon name="check" size={16} strokeWidth={2.2} />
+                      {busy === o.id ? "…" : "ได้รับเงินแล้ว"}
+                    </button>
+                    <MoreMenu
+                      items={[
+                        {
+                          label: "ยกเลิกออร์เดอร์",
+                          icon: "x",
+                          danger: true,
+                          disabled: !!busy,
+                          onClick: () => {
+                            if (!confirm("ยกเลิกออร์เดอร์นี้? (ลูกค้าจะไม่ได้คอร์ส)")) return;
+                            patch({ action: "cancel_order", orderId: o.id }, "ยกเลิกออร์เดอร์แล้ว", o.id);
+                          },
+                        },
+                      ]}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
+      </section>
+
+      {/* ── คอร์สที่เปิดขาย ── */}
+      <section>
+        <SectionLabel>For sale · คอร์สที่เปิดขาย ({offers.length})</SectionLabel>
+        <div className="rounded-catcha bg-card shadow-catcha-sm">
+          {offers.length === 0 ? (
+            <EmptyState icon="bag" title="ยังไม่มีคอร์สที่เปิดขาย" sub="กด “เพิ่มคอร์ส” ด้านบนเพื่อเริ่มขาย" />
+          ) : (
+            <ul className="divide-y divide-catcha-line">
+              {offers.map((o) => (
+                <OfferRow key={o.id} offer={o} patch={patch} pickImage={pickImage} />
+              ))}
+            </ul>
+          )}
+        </div>
+        {offers.length > 0 && (
+          <p className="mt-1.5 px-1 text-[10px] text-brown-faint">แตะรูปเพื่อเปลี่ยนรูป · แตะชื่อเพื่อแก้ไข</p>
+        )}
       </section>
 
       {/* ── ประวัติออร์เดอร์ ── */}
       {done.length > 0 && (
-        <section className="rounded-catcha bg-card p-4 shadow-catcha-sm">
-          <h2 className="mb-2 text-sm font-extrabold text-catcha-chocolate">
-            📋 ออร์เดอร์ที่จบแล้ว
-          </h2>
-          <ul className="space-y-1">
+        <details className="group rounded-catcha bg-card shadow-catcha-sm [&_summary::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-[48px] cursor-pointer list-none items-center gap-3 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-paper text-brown">
+              <Icon name="doc" size={18} />
+            </span>
+            <span className="flex-1 text-sm font-extrabold text-catcha-chocolate">
+              ออร์เดอร์ที่จบแล้ว ({done.length})
+            </span>
+            <Icon name="chevron" size={16} className="text-brown-faint transition group-open:rotate-90" />
+          </summary>
+          <ul className="divide-y divide-catcha-line border-t border-catcha-line">
             {done.map((o) => (
-              <li
-                key={o.id}
-                className="flex items-center justify-between gap-2 rounded-catcha-sm bg-paper/50 px-2.5 py-1 text-[11px]"
-              >
-                <span className="min-w-0 truncate text-brown-soft">
-                  {(o.paidAt || o.createdAt).slice(0, 10)} · {o.customerName} · {o.name}
-                </span>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  <span
-                    className={`font-bold ${o.status === "paid" ? "text-ok" : "text-wait"}`}
-                  >
-                    {o.status === "paid" ? `✅ ${o.price.toLocaleString()}฿` : "ยกเลิก"}
+              <li key={o.id} className="flex items-center gap-2 py-1 pl-4 pr-2 text-xs">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-bold text-brown">{o.name}</span>
+                  <span className="block truncate text-[11px] text-brown-soft">
+                    {(o.paidAt || o.createdAt).slice(0, 10)} · {o.customerName}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!confirm("ลบออร์เดอร์นี้ออกจากประวัติ? (ไม่กระทบคอร์สที่ลูกค้าได้ไปแล้ว)"))
-                        return;
-                      patch(
-                        { action: "delete_order", orderId: o.id },
-                        "ลบออกจากประวัติแล้ว",
-                        o.id
-                      );
-                    }}
-                    className="text-[11px] text-brown-faint hover:text-wait"
-                    aria-label="ลบออร์เดอร์นี้"
-                  >
-                    🗑️
-                  </button>
                 </span>
+                <span className={`shrink-0 font-bold ${o.status === "paid" ? "text-ok" : "text-wait"}`}>
+                  {o.status === "paid" ? `${o.price.toLocaleString()} ฿` : "ยกเลิก"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!confirm("ลบออร์เดอร์นี้ออกจากประวัติ? (ไม่กระทบคอร์สที่ลูกค้าได้ไปแล้ว)")) return;
+                    patch({ action: "delete_order", orderId: o.id }, "ลบออกจากประวัติแล้ว", o.id);
+                  }}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-brown-faint hover:text-wait"
+                  aria-label="ลบออร์เดอร์นี้"
+                >
+                  <Icon name="trash" size={16} />
+                </button>
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
 
       {/* ดูสลิปเต็มจอ */}
@@ -750,11 +743,7 @@ export default function AdminPackagesPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={zoomSlip}
-            alt="สลิปโอนเงิน"
-            className="max-h-full max-w-full rounded-catcha object-contain"
-          />
+          <img src={zoomSlip} alt="สลิปโอนเงิน" className="max-h-full max-w-full rounded-catcha object-contain" />
         </button>
       )}
     </div>

@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import { BirthdayPicker } from "@/components/BirthdayPicker";
+import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
+import { SectionLabel } from "@/components/ui";
+import { Icon } from "@/components/Icon";
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 type CatGender = "male" | "female";
 type CatInput = {
@@ -161,41 +165,37 @@ export default function RegisterPage() {
   };
 
   if (!ready) {
-    return (
-      <p className="px-4 py-10 text-center text-sm text-brown-soft">
-        กำลังเชื่อมต่อ LINE…
-      </p>
-    );
+    return <LoadingScreen message="กำลังเชื่อมต่อ LINE…" />;
   }
 
   const fieldClass =
-    "w-full rounded-catcha-sm border border-catcha-line bg-card px-3 py-2.5 text-sm";
+    "min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm";
   const subFieldClass =
-    "w-full rounded-lg border border-catcha-line bg-paper px-3 py-2 text-sm";
+    "min-h-[44px] w-full rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm";
 
   return (
     <div className="px-4 pb-6 pt-5">
-      <div className="mb-5 rounded-catcha bg-sage/20 p-4 text-center">
-        <p className="text-2xl">🐾</p>
-        <h1 className="mt-2 font-extrabold leading-tight text-catcha-chocolate">
-          <span className="block text-2xl">สมัครสมาชิก</span>
-          <span className="mt-0.5 block text-sm text-latte-deep">
-            เพื่อรับสิทธิพิเศษ
-          </span>
-        </h1>
-        <p className="mt-1 text-xs text-brown-soft">
-          กรอกข้อมูลครั้งเดียว — ใช้ยืนยันนัด แต้มสะสม และโปรโมชั่น
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Sign up"
+        title="สมัครสมาชิก เพื่อรับสิทธิพิเศษ"
+        subtitle="กรอกข้อมูลครั้งเดียว — ใช้ยืนยันนัด แต้มสะสม และโปรโมชั่น"
+        back="/app"
+        backLabel="กลับหน้าแรก"
+        showLang={false}
+      />
 
       {referralCode && (
-        <div className="mb-4 rounded-catcha-sm border border-honey/50 bg-honey/15 px-4 py-3 text-center text-xs font-extrabold text-catcha-chocolate">
-          🎁 สมัครผ่านเพื่อนแนะนำ — มาใช้บริการครั้งแรก รับคูปองส่วนลด <span className="text-latte-deep">100฿</span> ทั้งคุณและเพื่อน!
+        <div className="mb-4 flex items-start gap-2 rounded-catcha border border-honey/50 bg-honey/20 px-4 py-3 text-xs font-extrabold text-catcha-chocolate">
+          <Icon name="gift" size={16} className="mt-px" />
+          <span>สมัครผ่านเพื่อนแนะนำ — มาใช้บริการครั้งแรก รับคูปองส่วนลด <span className="text-latte-deep">100฿</span> ทั้งคุณและเพื่อน!</span>
         </div>
       )}
 
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit} className="space-y-6">
         {/* ── ข้อมูลผู้ปกครอง ── */}
+        <section>
+        <SectionLabel>Owner · ข้อมูลผู้ปกครอง</SectionLabel>
+        <div className="space-y-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
         <label className="block">
           <span className="mb-1 block text-xs font-bold text-brown">
             ชื่อผู้ปกครอง{" "}
@@ -264,25 +264,24 @@ export default function RegisterPage() {
             className={fieldClass}
           />
         </label>
+        </div>
+        </section>
 
         {/* ── น้องแมว ── */}
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-brown">น้องแมว</span>
-            <button
-              type="button"
-              onClick={addCat}
-              className="flex items-center gap-1 rounded-full bg-latte-deep px-3 py-1.5 text-xs font-extrabold text-white shadow-catcha-sm active:scale-[.97]"
-            >
-              <span className="text-sm">＋</span> เพิ่มน้องแมว
-            </button>
-          </div>
+        <section>
+          <SectionLabel>My cats · น้องแมว</SectionLabel>
           <ul className="space-y-3">
             {cats.map((cat, idx) => (
               <li
                 key={idx}
-                className="space-y-2 rounded-catcha-sm border border-catcha-line bg-card p-3"
+                className="space-y-2.5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm"
               >
+                {cats.length > 1 && (
+                  <p className="flex items-center gap-1.5 text-xs font-extrabold text-catcha-chocolate">
+                    <Icon name="paw" size={14} />
+                    ตัวที่ {idx + 1}
+                  </p>
+                )}
                 <input
                   required={idx === 0}
                   value={cat.name}
@@ -291,7 +290,7 @@ export default function RegisterPage() {
                   className={subFieldClass}
                 />
 
-                <div className="flex gap-2">
+                <div className="flex gap-1 rounded-full bg-paper p-1">
                   {(
                     [
                       ["male", "♂ ผู้"],
@@ -306,10 +305,11 @@ export default function RegisterPage() {
                           gender: cat.gender === value ? undefined : value,
                         })
                       }
-                      className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
+                      aria-pressed={cat.gender === value}
+                      className={`min-h-[40px] flex-1 rounded-full text-sm font-bold transition ${
                         cat.gender === value
-                          ? "bg-latte/40 text-catcha-chocolate ring-1 ring-latte-deep"
-                          : "bg-paper text-brown-faint"
+                          ? "bg-card text-catcha-chocolate shadow-catcha-sm"
+                          : "text-brown-soft"
                       }`}
                     >
                       {label}
@@ -345,24 +345,25 @@ export default function RegisterPage() {
                   />
                 )}
                 <div>
-                  <span className="mb-1 block text-[10px] font-bold text-brown-soft">
+                  <span className="mb-1 block text-[11px] font-bold text-brown-soft">
                     ลักษณะขน
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1 rounded-full bg-paper p-1">
                     {(
                       [
-                        ["short", "✂️ ขนสั้น"],
-                        ["long", "🧵 ขนยาว"],
+                        ["short", "ขนสั้น"],
+                        ["long", "ขนยาว"],
                       ] as const
                     ).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
                         onClick={() => updateCat(idx, { furLength: value })}
-                        className={`flex-1 rounded-lg border px-3 py-2 text-xs font-bold ${
+                        aria-pressed={cat.furLength === value}
+                        className={`min-h-[40px] flex-1 rounded-full text-sm font-bold transition ${
                           cat.furLength === value
-                            ? "border-latte-deep bg-latte-deep text-card"
-                            : "border-catcha-line bg-paper text-brown-soft"
+                            ? "bg-card text-catcha-chocolate shadow-catcha-sm"
+                            : "text-brown-soft"
                         }`}
                       >
                         {label}
@@ -384,7 +385,7 @@ export default function RegisterPage() {
                     value={cat.ageValue}
                     onChange={(e) => updateCat(idx, { ageValue: e.target.value })}
                     placeholder="อายุ"
-                    className="min-w-0 flex-1 rounded-lg border border-catcha-line bg-paper px-3 py-2 text-sm"
+                    className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm"
                   />
                   <select
                     value={cat.ageUnit}
@@ -393,13 +394,13 @@ export default function RegisterPage() {
                         ageUnit: e.target.value as "year" | "month",
                       })
                     }
-                    className="w-24 shrink-0 rounded-lg border border-catcha-line bg-paper px-3 py-2 text-sm"
+                    className="min-h-[44px] w-24 shrink-0 rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm"
                   >
                     <option value="year">ปี</option>
                     <option value="month">เดือน</option>
                   </select>
                 </div>
-                <div className="text-[10px] font-bold text-brown-soft">
+                <div className="text-[11px] font-bold text-brown-soft">
                   วันเกิดน้องแมว{" "}
                   <span className="font-normal text-brown-faint">
                     (ถ้าทราบ · ไม่บังคับ)
@@ -423,8 +424,9 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => removeCat(idx)}
-                    className="text-[10px] font-bold text-brown-faint"
+                    className="-ml-1 flex min-h-[44px] items-center gap-1.5 px-1 text-xs font-bold text-brown-soft"
                   >
+                    <Icon name="trash" size={15} />
                     ลบน้องแมวตัวนี้
                   </button>
                 )}
@@ -435,47 +437,48 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={addCat}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-catcha-sm bg-latte-deep py-3.5 text-sm font-extrabold text-white shadow-catcha-sm transition active:scale-[.98]"
+            className="mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-catcha-sm border-2 border-dashed border-latte/60 bg-card/60 text-sm font-extrabold text-latte-deep transition active:scale-[.98]"
           >
-            <span className="text-lg">🐱</span> เพิ่มน้องแมวอีกตัว
-            <span className="text-lg">🐾</span>
+            <Icon name="plus" size={18} strokeWidth={2.2} />
+            เพิ่มน้องแมวอีกตัว
           </button>
-        </div>
+        </section>
 
         {/* ── รู้จักเราจากทางไหน ── */}
-        <div>
-          <span className="mb-2 block text-xs font-bold text-brown">
-            รู้จักเราจากทางไหน? <span className="text-red-600">*</span>
-          </span>
-          <div className="flex flex-wrap gap-2">
+        <section>
+          <SectionLabel>
+            Referral · รู้จักเราจากทางไหน? <span className="text-red-600">*</span>
+          </SectionLabel>
+          <div className="flex flex-wrap gap-2 rounded-catcha border border-catcha-line bg-card p-3 shadow-catcha-sm">
             {referrals.map((opt) => (
               <button
                 key={opt}
                 type="button"
+                aria-pressed={referral === opt}
                 onClick={() => setReferral((prev) => (prev === opt ? "" : opt))}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                className={`min-h-[44px] rounded-full px-4 text-xs font-bold transition ${
                   referral === opt
                     ? "bg-latte/40 text-catcha-chocolate ring-1 ring-latte-deep"
-                    : "bg-paper text-brown-faint"
+                    : "bg-paper text-brown-soft"
                 }`}
               >
                 {opt}
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* ── ยินยอมรับข่าวสาร ── */}
-        <label className="flex items-start gap-3 rounded-catcha-sm border border-catcha-line bg-card p-3">
+        <label className="flex cursor-pointer items-start gap-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
           <input
             type="checkbox"
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
-            className="mt-0.5 h-4 w-4 flex-none accent-[#4A7348]"
+            className="mt-0.5 h-5 w-5 flex-none accent-[#4A7348]"
           />
           <span className="text-xs text-brown">
             ยินยอมให้ส่งข่าวสาร โปรโมชั่น และสิทธิพิเศษ
-            <span className="mt-0.5 block text-[10px] text-brown-faint">
+            <span className="mt-0.5 block text-[11px] text-brown-faint">
               ถ้าไม่ยินยอม จะไม่ได้รับโปร/ข่าวสาร แต่ยังได้รับการยืนยันนัดและแจ้งชำระเงินตามปกติ
             </span>
           </span>
@@ -490,9 +493,9 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={saving}
-          className="w-full rounded-catcha-sm bg-gradient-to-r from-sage to-[#4A7348] py-3.5 text-sm font-extrabold text-white disabled:opacity-60"
+          className={BTN_PRIMARY}
         >
-          {saving ? "กำลังบันทึก…" : "✅ บันทึกข้อมูล"}
+          {saving ? "กำลังบันทึก…" : "บันทึกข้อมูล"}
         </button>
       </form>
     </div>

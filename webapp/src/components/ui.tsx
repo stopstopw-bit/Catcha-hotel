@@ -139,7 +139,7 @@ export function MoreMenu({
     <details className="relative [&_summary::-webkit-details-marker]:hidden">
       <summary
         aria-label={label}
-        className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full bg-paper text-brown"
+        className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full bg-paper text-brown"
       >
         <Icon name="more" size={18} />
       </summary>

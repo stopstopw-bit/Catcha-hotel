@@ -6,7 +6,10 @@ import { type Booking } from "@/lib/business";
 import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/LocaleProvider";
 import { useLiff } from "@/components/LiffProvider";
-import { LangSwitch } from "@/components/LangSwitch";
+import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/ui";
+import { Icon } from "@/components/Icon";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { groupBookings, groupCatNames } from "@/lib/booking-group";
 
 const CHECKIN_TIMES = ["10:00", "12:00", "14:00", "16:00", "18:00"];
@@ -97,17 +100,14 @@ function BookingsContent() {
 
   return (
     <div className="px-4 pb-6 pt-5">
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-xl font-extrabold text-catcha-chocolate">📅 {m.title}</h1>
-        <LangSwitch />
-      </div>
+      <PageHeader eyebrow="Bookings" title={m.title} />
 
       {loading ? (
-        <p className="text-center text-sm text-brown-soft py-8">{t(locale).common.loading}</p>
+        <LoadingScreen message={t(locale).common.loading} />
       ) : bookings.length === 0 ? (
-        <p className="rounded-catcha bg-card p-6 text-center text-sm text-brown-soft shadow-catcha">
-          {m.empty}
-        </p>
+        <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
+          <EmptyState icon="calendar" title={m.empty} />
+        </div>
       ) : (
         <ul className="space-y-3">
           {groupBookings(bookings).map((group) => {
@@ -130,13 +130,16 @@ function BookingsContent() {
                     : "border-catcha-line"
                 }`}
               >
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-bold text-brown">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/25 text-catcha-chocolate">
+                    <Icon name={primary.service === "groom" ? "bath" : "bed"} size={20} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-extrabold text-catcha-chocolate">
                       {catLabel}{" "}
                       <span className="font-medium text-brown-soft">· {primary.customerName}</span>
                     </p>
-                    <p className="mt-1 text-xs text-brown-soft">
+                    <p className="mt-0.5 text-xs text-brown-soft">
                       {primary.service === "groom" ? m.groom : m.room} · {primary.date}
                       {primary.time ? ` · ${primary.time}` : ""}
                     </p>
@@ -159,27 +162,33 @@ function BookingsContent() {
                 </div>
 
                 {!combine && group.length > 1 && (
-                  <ul className="mb-2 space-y-1 text-xs text-brown-soft">
+                  <ul className="mt-2 space-y-1 pl-[52px] text-xs text-brown-soft">
                     {group.slice(1).map((x) => (
-                      <li key={x.id}>🐱 {x.catName}</li>
+                      <li key={x.id} className="flex items-center gap-1.5">
+                        <Icon name="paw" size={13} />
+                        {x.catName}
+                      </li>
                     ))}
                   </ul>
                 )}
 
                 {primary.status === "pending" && (
-                  <>
+                  <div className="mt-3">
                     {primary.service === "room" && pickId === primary.id && (
                       <div className="mb-3 rounded-catcha-sm bg-paper p-3">
-                        <p className="mb-2 text-xs font-bold text-brown">{m.checkin}</p>
-                        <div className="flex flex-wrap gap-2">
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-brown">
+                          <Icon name="clock" size={14} />
+                          {m.checkin}
+                        </p>
+                        <div className="grid grid-cols-5 gap-1.5">
                           {CHECKIN_TIMES.map((time) => (
                             <button
                               key={time}
                               type="button"
                               onClick={() => setCheckin(time)}
-                              className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                              className={`min-h-[44px] rounded-xl text-xs font-bold transition ${
                                 checkin === time
-                                  ? "bg-latte-deep text-white"
+                                  ? "bg-latte-deep text-white shadow-catcha-sm"
                                   : "bg-card text-brown-soft"
                               }`}
                             >
@@ -197,7 +206,7 @@ function BookingsContent() {
                           ? setPickId(primary.id)
                           : confirmGroup(combine ? ids : [primary.id], primary)
                       }
-                      className="flex w-full items-center justify-center gap-2 rounded-catcha-sm bg-gradient-to-r from-latte to-latte-deep py-3 text-sm font-extrabold text-white disabled:opacity-70"
+                      className={BTN_PRIMARY}
                     >
                       {confirmingId === primary.id ? (
                         <>
@@ -206,16 +215,18 @@ function BookingsContent() {
                         </>
                       ) : (
                         <>
-                          🐾 {m.confirm}
+                          <Icon name="check" size={18} strokeWidth={2.2} />
+                          {m.confirm}
                           {combine ? ` (${group.length} ตัว)` : ""}
                         </>
                       )}
                     </button>
-                  </>
+                  </div>
                 )}
                 {primary.checkinTime && (
-                  <p className="mt-2 text-xs font-semibold text-ok">
-                    ✓ Check-in {primary.checkinTime}
+                  <p className="mt-3 flex items-center gap-1.5 pl-[52px] text-xs font-semibold text-ok">
+                    <Icon name="clock" size={14} />
+                    Check-in {primary.checkinTime}
                   </p>
                 )}
               </li>
@@ -232,11 +243,7 @@ export default function BookingsPage() {
   const m = t(locale).bookings;
   return (
     <Suspense
-      fallback={
-        <p className="px-4 py-10 text-center text-sm text-brown-soft">
-          {m.title}…
-        </p>
-      }
+      fallback={<LoadingScreen message={`${m.title}…`} />}
     >
       <BookingsContent />
     </Suspense>

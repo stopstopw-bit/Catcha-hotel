@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toast";
+import { Icon } from "@/components/Icon";
+import { MoreMenu } from "@/components/ui";
 
 type PlanView = {
   id: string;
@@ -229,18 +231,31 @@ export function RoomPlanSection({
     }
   };
 
-  const field = "w-full rounded-lg border border-catcha-line bg-paper px-2.5 py-1.5 text-sm";
+  const field =
+    "mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm text-brown";
 
   return (
-    <section className="mb-4 rounded-catcha bg-card p-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-extrabold">🏠 แพ็กห้องรายเดือน</h2>
+    <section className="mb-4 rounded-catcha bg-card p-4 shadow-catcha-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/25 text-catcha-chocolate">
+            <Icon name="bed" size={20} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Room plans</p>
+            <h2 className="truncate text-sm font-extrabold text-catcha-chocolate">แพ็กห้องรายเดือน</h2>
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-full bg-honey/40 px-3 py-1 text-xs font-bold text-catcha-chocolate"
+          aria-expanded={open}
+          className={`flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full px-3.5 text-xs font-bold ${
+            open ? "bg-paper text-brown" : "bg-honey/40 text-catcha-chocolate"
+          }`}
         >
-          {open ? "ปิด" : "+ ขายแพ็กใหม่"}
+          <Icon name={open ? "x" : "plus"} size={16} strokeWidth={2.2} />
+          {open ? "ปิด" : "ขายแพ็กใหม่"}
         </button>
       </div>
 
@@ -252,7 +267,7 @@ export function RoomPlanSection({
             <b>ต้องจ่ายครบทุกงวดก่อนถึงจะเริ่มใช้คืนได้</b>
           </p>
           {rooms.map((r) => (
-            <label key={r.id} className="flex items-center gap-2 text-xs">
+            <label key={r.id} className="flex min-h-[44px] items-center gap-2 text-xs">
               <span className="min-w-0 flex-1 truncate font-bold text-brown">
                 ห้อง {r.name}{" "}
                 <span className="font-normal text-brown-faint">({r.price.toLocaleString()}/คืน)</span>
@@ -264,7 +279,7 @@ export function RoomPlanSection({
                 placeholder="0"
                 value={nights[r.id] || ""}
                 onChange={(e) => setNights({ ...nights, [r.id]: e.target.value })}
-                className="w-20 rounded-lg border border-catcha-line bg-paper px-2 py-1 text-right text-sm"
+                className="min-h-[40px] w-20 rounded-catcha-sm border border-catcha-line bg-card px-2.5 text-right text-sm"
               />
               <span className="text-brown-faint">คืน</span>
             </label>
@@ -355,12 +370,12 @@ export function RoomPlanSection({
             ไม่ใส่ = รับงวดแรกตามยอดแนะนำ · ใส่ 0 = ยังไม่รับเงินวันนี้
           </p>
           {hasLine && (
-            <label className="flex items-center gap-2 text-[11px] font-bold text-brown-soft">
+            <label className="flex min-h-[40px] items-center gap-2.5 text-xs font-bold text-brown-soft">
               <input
                 type="checkbox"
                 checked={notify}
                 onChange={(e) => setNotify(e.target.checked)}
-                className="h-3.5 w-3.5 accent-latte-deep"
+                className="h-4 w-4 shrink-0 accent-latte-deep"
               />
               ส่งการ์ดสรุปให้ลูกค้าทาง LINE
             </label>
@@ -369,15 +384,20 @@ export function RoomPlanSection({
             type="button"
             disabled={!quote?.ok || busy === "sell"}
             onClick={sell}
-            className="w-full rounded-catcha-sm bg-honey/50 py-2 text-sm font-extrabold text-catcha-chocolate disabled:opacity-40"
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-catcha-chocolate text-sm font-extrabold text-card shadow-catcha-sm disabled:opacity-40"
           >
+            <Icon name="check" size={18} strokeWidth={2.2} />
             {busy === "sell" ? "กำลังบันทึก..." : "ขายแพ็กห้อง"}
           </button>
         </div>
       )}
 
       {plans.length === 0 ? (
-        !open && <p className="text-xs text-brown-faint">ยังไม่มีแพ็กห้อง</p>
+        !open && (
+          <p className="rounded-catcha-sm border border-dashed border-catcha-line py-4 text-center text-xs text-brown-faint">
+            ยังไม่มีแพ็กห้อง
+          </p>
+        )
       ) : (
         <ul className="space-y-2">
           {plans.map((p) => {
@@ -415,12 +435,16 @@ export function RoomPlanSection({
                     <>
                       {" "}
                       · ค้าง <b className="text-wait">{baht(p.remaining)}</b> · เหลือ {p.installmentsLeft} งวด
-                      <span className="block text-[10px] font-bold text-wait">
-                        🔒 ยังใช้คืนไม่ได้จนกว่าจะจ่ายครบ
+                      <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-wait">
+                        <Icon name="alert" size={12} />
+                        ยังใช้คืนไม่ได้จนกว่าจะจ่ายครบ
                       </span>
                     </>
                   ) : (
-                    " · ✅ ครบแล้ว ใช้คืนได้"
+                    <span className="mt-0.5 flex items-center gap-1 font-bold text-ok">
+                      <Icon name="check" size={12} strokeWidth={2.4} />
+                      ครบแล้ว ใช้คืนได้
+                    </span>
                   )}
                 </div>
                 {p.payments.length > 0 && (
@@ -431,35 +455,52 @@ export function RoomPlanSection({
                   </p>
                 )}
                 {!off && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {p.remaining > 0 && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    {p.remaining > 0 ? (
                       <button
                         type="button"
                         disabled={!!busy}
                         onClick={() => pay(p)}
-                        className="rounded-full bg-sage/20 px-3 py-1 font-bold text-ok disabled:opacity-50"
+                        className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-full bg-catcha-chocolate px-3 text-xs font-extrabold text-card disabled:opacity-50"
                       >
-                        💵 รับเงินงวด
+                        <Icon name="money" size={16} />
+                        รับเงินงวด
                       </button>
-                    )}
-                    {hasLine && (
+                    ) : hasLine ? (
                       <button
                         type="button"
                         disabled={!!busy}
                         onClick={() => sendCard(p)}
-                        className="rounded-full bg-honey/30 px-3 py-1 font-bold disabled:opacity-50"
+                        className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-full bg-honey/40 px-3 text-xs font-extrabold text-catcha-chocolate disabled:opacity-50"
                       >
-                        📨 ส่งการ์ดคืนคงเหลือ
+                        <Icon name="send" size={16} />
+                        ส่งการ์ดคืนคงเหลือ
                       </button>
+                    ) : (
+                      <span className="flex-1" />
                     )}
-                    <button
-                      type="button"
-                      disabled={!!busy}
-                      onClick={() => cancel(p)}
-                      className="rounded-full bg-paper px-3 py-1 font-bold text-brown-faint disabled:opacity-50"
-                    >
-                      ยกเลิกแพ็ก
-                    </button>
+                    <MoreMenu
+                      label="จัดการแพ็ก"
+                      items={[
+                        ...(p.remaining > 0 && hasLine
+                          ? [
+                              {
+                                label: "ส่งการ์ดคืนคงเหลือ",
+                                icon: "send",
+                                disabled: !!busy,
+                                onClick: () => sendCard(p),
+                              },
+                            ]
+                          : []),
+                        {
+                          label: "ยกเลิกแพ็ก",
+                          icon: "trash",
+                          danger: true,
+                          disabled: !!busy,
+                          onClick: () => cancel(p),
+                        },
+                      ]}
+                    />
                   </div>
                 )}
               </li>

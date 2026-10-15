@@ -9,8 +9,6 @@ import {
   AdminBottomBar,
   AdminNav,
   AdminSidebar,
-  getActiveAdminTabEn,
-  getActiveAdminTabLabel,
   getAllowedMenus,
   isPathAllowed,
 } from "@/components/AdminNav";
@@ -138,12 +136,9 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5 lg:max-w-6xl lg:px-6">
             <Logo size={34} />
             <div className="min-w-0 flex-1 leading-tight">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-latte-deep">
-                {getActiveAdminTabEn(pathname) || "CatCha Admin"}
-              </p>
-              <p className="truncate text-sm font-extrabold text-catcha-chocolate">
-                {getActiveAdminTabLabel(pathname)}
-              </p>
+              {/* ชื่อหน้าอยู่ที่หัวของแต่ละหน้าแล้ว แถบนี้จึงแสดงแค่ชื่อร้าน ไม่ให้หัวซ้ำสองชั้น */}
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-latte-deep">Back office</p>
+              <p className="truncate text-sm font-extrabold text-catcha-chocolate">CatCha Hotel</p>
             </div>
             <LogoutButton onClick={logout} subtle />
           </div>
