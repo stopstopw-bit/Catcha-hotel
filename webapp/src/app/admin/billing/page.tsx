@@ -1373,11 +1373,21 @@ export default function BillingPage() {
     <div>
       <CreditConfirmModal />
       <PaySheet />
-      <div className="mb-4">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Billing</p>
-        <h1 className="text-lg font-extrabold text-catcha-chocolate">
-          {editingId ? "แก้ไขบิล" : "คิดเงิน · ออกบิล"}
-        </h1>
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Billing</p>
+          <h1 className="text-lg font-extrabold text-catcha-chocolate">
+            {editingId ? "แก้ไขบิล" : "คิดเงิน · ออกบิล"}
+          </h1>
+        </div>
+        {/* เรียกดูใบเสร็จ / ใบกำกับภาษี / ใบเสนอราคา ที่เคยออกไปแล้ว */}
+        <a
+          href="/admin/billing/docs"
+          className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
+        >
+          <Icon name="doc" size={15} />
+          เอกสารที่ออกแล้ว
+        </a>
       </div>
 
       <div className="mb-6 space-y-5 rounded-catcha bg-card p-4 shadow-catcha-sm">

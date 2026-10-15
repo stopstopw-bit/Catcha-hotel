@@ -218,3 +218,21 @@ export async function issueDocNumber(
   }
   return { ok: false, error: "number_conflict" };
 }
+
+/** เอกสารที่ออกเลขที่ไปแล้ว (อย่างน้อยหนึ่งแบบ) ใหม่สุดก่อน — ไว้เรียกดู/พิมพ์ซ้ำย้อนหลัง */
+export async function listIssuedDocs(limit = 1000): Promise<InvoiceDoc[]> {
+  const sb = getSupabase();
+  if (!sb) {
+    return [...mem.values()].filter((d) => d.quoteNo || d.invoiceNo || d.receiptNo).reverse();
+  }
+  const { data } = await withTable(async () => {
+    const r = await sb
+      .from("invoice_docs")
+      .select("*")
+      .or("quote_no.not.is.null,invoice_no.not.is.null,receipt_no.not.is.null")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    return { data: (r.data as Row[] | null) || [], error: r.error };
+  });
+  return (data || []).map(fromRow);
+}
