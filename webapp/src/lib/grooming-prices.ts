@@ -7,7 +7,7 @@ export type GroomSize = "kitten" | "m" | "l";
 
 export const GROOM_SIZES: { id: GroomSize; label: string }[] = [
   { id: "kitten", label: "ลูกแมว (≤2 กก.)" },
-  { id: "m", label: "M (≤6 กก.)" },
+  { id: "m", label: "M (2–6 กก.)" },
   { id: "l", label: "L (6 กก.+)" },
 ];
 
@@ -51,25 +51,25 @@ export const GROOM_PROGRAMS: GroomProgram[] = [
   },
   {
     id: "premium",
-    name: "Catcha Premium (แนะนำ)",
+    name: "Catcha Premium",
     breeds: [
       { breed: "แมวพันธุ์ขนสั้น", prices: { kitten: 700, m: 900, l: 1100 } },
       { breed: "แมวพันธุ์ขนยาว", prices: { kitten: 800, m: 1000, l: 1250 } },
       {
         breed: "แรคดอล/เมนคูน/ขนหนาฟู",
-        prices: { kitten: 1000, m: 1200, l: 1450 },
+        prices: { kitten: 900, m: 1200, l: 1450 },
       },
     ],
   },
   {
     id: "malaseb",
-    name: "Malaseb (ยับยั้งเชื้อรา)",
+    name: "ยับยั้งเชื้อรา (แชมพู Malaseb)",
     breeds: [
       { breed: "แมวพันธุ์ขนสั้น", prices: { kitten: 700, m: 900, l: 1100 } },
       { breed: "แมวพันธุ์ขนยาว", prices: { kitten: 800, m: 1000, l: 1250 } },
       {
         breed: "แรคดอล/เมนคูน/ขนหนาฟู",
-        prices: { kitten: 1000, m: 1200, l: 1450 },
+        prices: { kitten: 900, m: 1200, l: 1450 },
       },
     ],
   },
