@@ -30,6 +30,8 @@ export type PackageOffer = {
   description?: string;
   /** รูปหน้าปกที่ลูกค้าเห็นในแอป — ไม่มีก็ไม่เป็นไร แอปจะโชว์แบบไม่มีรูปแทน */
   imageUrl?: string;
+  /** เฉพาะ kind==="uses" — ผูกโปรแกรมอาบน้ำ (id ในตั้งค่า) ไม่ระบุ = ใช้ได้ทุกโปรแกรม */
+  groomProgram?: string;
   active: boolean;
   createdAt: string;
 };
@@ -48,6 +50,8 @@ export type PackageOrder = {
   totalUses: number;
   price: number;
   creditBonus: number;
+  /** ก๊อปจากคอร์สที่ขาย ณ ตอนสั่ง */
+  groomProgram?: string;
   status: PackageOrderStatus;
   slipUrl?: string;
   /** id ของคอร์สที่สร้างให้ตอนยืนยัน — กันยืนยันซ้ำแล้วได้คอร์สสองใบ (kind="uses" เท่านั้น) */
@@ -67,6 +71,7 @@ type OfferRow = {
   /** เพิ่งเพิ่มมาทีหลัง (credit_kind migration) — ร้านเก่ายังไม่มีคอลัมน์ก็ไม่พัง */
   kind?: string | null;
   credit_bonus?: number | null;
+  groom_program?: string | null;
   active: boolean;
   created_at: string;
 };
@@ -82,6 +87,7 @@ type OrderRow = {
   price: number;
   kind?: string | null;
   credit_bonus?: number | null;
+  groom_program?: string | null;
   status: string;
   slip_url: string | null;
   package_id: string | null;
@@ -102,6 +108,7 @@ function rowToOffer(r: OfferRow): PackageOffer {
     creditBonus: Number(r.credit_bonus) || 0,
     description: r.description || undefined,
     imageUrl: r.image_url || undefined,
+    groomProgram: r.groom_program || undefined,
     active: r.active !== false,
     createdAt: r.created_at,
   };
@@ -119,12 +126,37 @@ function rowToOrder(r: OrderRow): PackageOrder {
     totalUses: Number(r.total_uses) || 0,
     price: Number(r.price) || 0,
     creditBonus: Number(r.credit_bonus) || 0,
+    groomProgram: r.groom_program || undefined,
     status: (r.status as PackageOrderStatus) || "pending",
     slipUrl: r.slip_url || undefined,
     packageId: r.package_id || undefined,
     createdAt: r.created_at,
     paidAt: r.paid_at || undefined,
   };
+}
+
+/**
+ * เขียนโปรแกรมอาบน้ำที่ผูกกับคอร์ส — คอลัมน์เพิ่มมาทีหลัง เขียนแยกจากแถวหลัก
+ * ถ้ายังไม่มีคอลัมน์ ลองอัปเดตฐานข้อมูลให้เองก่อนแล้วเขียนใหม่
+ */
+async function writeGroomProgram(
+  table: "package_offers" | "package_orders",
+  id: string,
+  groomProgram: string | null
+) {
+  const sb = getSupabase();
+  if (!sb) return;
+  try {
+    const { error } = await sb.from(table).update({ groom_program: groomProgram }).eq("id", id);
+    if (error) {
+      const { ensureMigration } = await import("./migrations");
+      if (await ensureMigration("packages.groom_program")) {
+        await sb.from(table).update({ groom_program: groomProgram }).eq("id", id);
+      }
+    }
+  } catch {
+    /* ยังไม่มีคอลัมน์ — คอร์สยังขายได้ แค่กลายเป็นใช้ได้ทุกโปรแกรม */
+  }
 }
 
 /* ───────── แพ็กเกจที่เปิดขาย ───────── */
@@ -157,6 +189,8 @@ export async function createPackageOffer(data: {
   /** เฉพาะ kind==="credit" */
   creditBonus?: number;
   description?: string;
+  /** เฉพาะ kind==="uses" */
+  groomProgram?: string;
   /** data URL จากช่องอัปโหลด — จะถูกเก็บขึ้น Storage ให้ ไม่ยัด base64 ลง DB */
   image?: string;
 }): Promise<PackageOffer | null> {
@@ -191,6 +225,7 @@ export async function createPackageOffer(data: {
     creditBonus,
     description: data.description?.trim() || undefined,
     imageUrl,
+    groomProgram: kind === "uses" ? data.groomProgram || undefined : undefined,
     active: true,
     createdAt: new Date().toISOString(),
   };
@@ -224,6 +259,7 @@ export async function createPackageOffer(data: {
     } catch {
       /* ยังไม่มีคอลัมน์ kind/credit_bonus — คอร์สแบบครั้งยังใช้ได้ปกติ แค่แบบเครดิตจะพังตอนยืนยัน */
     }
+    if (offer.groomProgram) await writeGroomProgram("package_offers", offer.id, offer.groomProgram);
     if (offer.imageUrl) {
       try {
         const { error } = await sb
@@ -296,6 +332,8 @@ export async function updatePackageOffer(
     price?: number;
     creditBonus?: number;
     description?: string;
+    /** "" = ใช้ได้ทุกโปรแกรม */
+    groomProgram?: string;
   }
 ) {
   const patch: Record<string, unknown> = {};
@@ -311,10 +349,13 @@ export async function updatePackageOffer(
   if (data.creditBonus !== undefined)
     patch.credit_bonus = Math.max(0, Math.round(data.creditBonus) || 0);
   if (data.description !== undefined) patch.description = data.description.trim() || null;
-  if (Object.keys(patch).length === 0) return { ok: true as const };
+  const groomProgram =
+    data.groomProgram !== undefined ? data.groomProgram.trim() || null : undefined;
+  if (Object.keys(patch).length === 0 && groomProgram === undefined) return { ok: true as const };
 
   const sb = getSupabase();
   if (sb) {
+    if (groomProgram !== undefined) await writeGroomProgram("package_offers", id, groomProgram);
     // kind/credit_bonus เพิ่งเพิ่มมาทีหลัง — แยกเขียนกันร้านที่ยังไม่รัน migration
     const { kind, credit_bonus, ...basePatch } = patch;
     if (Object.keys(basePatch).length > 0) {
@@ -345,6 +386,7 @@ export async function updatePackageOffer(
       if (patch.price !== undefined) o.price = patch.price as number;
       if (patch.credit_bonus !== undefined) o.creditBonus = patch.credit_bonus as number;
       if (patch.description !== undefined) o.description = (patch.description as string) || undefined;
+      if (groomProgram !== undefined) o.groomProgram = groomProgram || undefined;
     }
   }
   return { ok: true as const };
@@ -443,6 +485,7 @@ export async function createPackageOrder(data: {
     totalUses: data.offer.totalUses,
     price: data.offer.price,
     creditBonus: data.offer.creditBonus,
+    groomProgram: data.offer.kind === "uses" ? data.offer.groomProgram : undefined,
     status: "pending",
     createdAt: new Date().toISOString(),
   };
@@ -479,6 +522,7 @@ export async function createPackageOrder(data: {
     } catch {
       /* ยังไม่มีคอลัมน์ — คอร์สแบบครั้งยังสั่งซื้อได้ปกติ */
     }
+    if (order.groomProgram) await writeGroomProgram("package_orders", order.id, order.groomProgram);
   } else {
     memOrders.unshift(order);
   }
@@ -574,6 +618,7 @@ export async function confirmPackageOrder(
     price: order.price,
     // ซื้อวันเข้าพัก = หน่วยเป็นคืน หักตามจำนวนคืนที่พักจริงตอนคิดเงิน
     unit: order.kind === "nights" ? "night" : "use",
+    groomProgram: order.kind === "uses" ? order.groomProgram : undefined,
     isLegacy: opts?.isLegacy,
   });
 

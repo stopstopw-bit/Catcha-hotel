@@ -24,6 +24,8 @@ import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { BirthdayPicker } from "@/components/BirthdayPicker";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { Icon } from "@/components/Icon";
+import { GroomProgramPicker, useGroomPrograms } from "@/components/GroomProgramPicker";
+import { groomProgramName } from "@/lib/grooming-prices";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
 
 type Summary = {
@@ -1167,9 +1169,19 @@ function CustomerSummaryCard({
 
   // ── คอร์ส/แพ็กเกจ ──
   const [packages, setPackages] = useState<
-    { id: string; name: string; totalUses: number; usedUses: number; status: string }[]
+    {
+      id: string;
+      name: string;
+      totalUses: number;
+      usedUses: number;
+      status: string;
+      groomProgram?: string;
+    }[]
   >([]);
   const [pkgName, setPkgName] = useState("");
+  /** "" = ใช้ได้ทุกโปรแกรม */
+  const [pkgProgram, setPkgProgram] = useState("");
+  const groomPrograms = useGroomPrograms();
   const [pkgUses, setPkgUses] = useState("");
   const [pkgPrice, setPkgPrice] = useState("");
   const [pkgBusy, setPkgBusy] = useState(false);
@@ -1203,6 +1215,7 @@ function CustomerSummaryCard({
       price,
       isLegacy: pkgLegacy,
       notify: pkgNotify,
+      groomProgram: pkgProgram || undefined,
     };
   };
 
@@ -1229,6 +1242,7 @@ function CustomerSummaryCard({
               : "")
         );
         setPkgName("");
+        setPkgProgram("");
         setPkgUses("");
         setPkgPrice("");
         setPkgLegacy(false);
@@ -1639,7 +1653,14 @@ function CustomerSummaryCard({
                 const left = p.totalUses - p.usedUses;
                 return (
                   <li key={p.id} className="flex min-h-[48px] items-center gap-2 py-1 pl-3 pr-1.5 text-xs">
-                    <span className="min-w-0 flex-1 truncate font-bold text-brown">{p.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-bold text-brown">
+                      {p.name}
+                      {p.groomProgram && (
+                        <span className="block truncate text-[10px] font-normal text-brown-faint">
+                          ใช้กับ {groomProgramName(p.groomProgram, groomPrograms) || "โปรแกรมที่ลบไปแล้ว"}
+                        </span>
+                      )}
+                    </span>
                     <span className={`shrink-0 font-extrabold ${left > 0 ? "text-ok" : "text-brown-faint"}`}>
                       เหลือ {left}/{p.totalUses}
                     </span>
@@ -1659,6 +1680,9 @@ function CustomerSummaryCard({
           placeholder="ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"
           className={inputCls}
         />
+        <div className="mt-2">
+          <GroomProgramPicker value={pkgProgram} onChange={setPkgProgram} programs={groomPrograms} />
+        </div>
         <div className="mt-2 flex gap-2">
           <input
             type="number"
@@ -1717,7 +1741,7 @@ function CustomerSummaryCard({
         </button>
 
         <p className="mt-1.5 text-[10px] text-brown-faint">
-          เวลาลูกค้ามาใช้ กดหักที่หน้าคิดเงิน (บิลนั้นฟรี) · ลูกค้าดูครั้งคงเหลือเองได้ในแอป
+          เวลาลูกค้ามาใช้ กดหักที่หน้าคิดเงิน · ลูกค้าดูครั้งคงเหลือเองได้ในแอป
         </p>
       </div>
 

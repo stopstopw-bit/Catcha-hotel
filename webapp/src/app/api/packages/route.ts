@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
   const totalUses = Math.round(Number(body.totalUses) || 0);
   const price = Math.round(Number(body.price) || 0);
   const isLegacy = Boolean(body.isLegacy);
+  const groomProgram = String(body.groomProgram || "").trim() || undefined;
   const notify = body.notify === true;
   const preview = body.preview === true;
   if (!customerId || !name || totalUses <= 0) {
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
     totalUses,
     price,
     isLegacy,
+    groomProgram,
   });
   await sendTelegram(
     formatBookingTelegram(isLegacy ? "🕰️ ยกคอร์สมาจากระบบเก่า" : "🎫 ขายคอร์สให้ลูกค้า", {

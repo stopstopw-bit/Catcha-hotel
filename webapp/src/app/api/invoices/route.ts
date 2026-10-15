@@ -184,6 +184,21 @@ export async function POST(req: NextRequest) {
           );
         }
       }
+      // คอร์สอาบน้ำผูกโปรแกรม — หักได้ไม่เกินจำนวนตัวที่อาบโปรแกรมนั้นในบิลนี้
+      if (pk && pk.unit !== "night" && pk.groomProgram) {
+        const items: { kind?: string; program?: string; qty?: number }[] = Array.isArray(body.items)
+          ? body.items
+          : [];
+        const usesOfProgram = items
+          .filter((it) => it.kind === "grooming" && it.program === pk.groomProgram)
+          .reduce((n, it) => n + Math.max(1, Math.round(Number(it.qty) || 1)), 0);
+        if (usesOfProgram < packageUnits) {
+          return NextResponse.json(
+            { error: `คอร์สนี้ใช้ได้กับโปรแกรมที่ผูกไว้เท่านั้น (บิลนี้มี ${usesOfProgram} ครั้ง)` },
+            { status: 400 }
+          );
+        }
+      }
       try {
         const used = await consumePackage(String(body.packageId), packageUnits);
         if (used.ok) consumedPackageId = String(body.packageId);

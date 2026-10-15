@@ -16,6 +16,7 @@ import {
   groomSizeLabel,
   groomBreedCategoryFor,
   resolveGroomPrograms,
+  groomProgramName,
   type GroomSize,
   type GroomProgram,
 } from "@/lib/grooming-prices";
@@ -365,6 +366,8 @@ export default function BillingPage() {
       /** คอร์สคืนที่ผูกประเภทห้อง (แพ็กห้องรายเดือน) — หักได้เฉพาะห้องประเภทนี้ */
       roomType?: string;
       roomLabel?: string;
+      /** คอร์สนับครั้งที่ผูกโปรแกรมอาบน้ำ — หักตามจำนวนตัวที่อาบโปรแกรมนี้ในบิล */
+      groomProgram?: string;
       /** แพ็กห้องรายเดือนที่ยังจ่ายไม่ครบ — ยังใช้ไม่ได้ */
       locked?: boolean;
       outstanding?: number;
@@ -594,6 +597,36 @@ export default function BillingPage() {
     return covered;
   })();
 
+  /**
+   * คอร์สนับครั้งผูกโปรแกรม: หักตามจำนวนตัว (qty) ที่อาบโปรแกรมนั้นในบิล
+   * บ้านมา 2 ตัวอาบโปรแกรมเดียวกัน = หัก 2 ครั้ง · คลุมเฉพาะค่าโปรแกรมนั้น
+   * โปรแกรมอื่น/ห้องพัก/ของเสริมในบิลเดียวกันยังคิดตามปกติ
+   */
+  const groomLinesOf = (pk?: { groomProgram?: string }) =>
+    pk?.groomProgram
+      ? lines.filter(
+          (_, i) => items[i]?.kind === "grooming" && items[i]?.program === pk.groomProgram
+        )
+      : [];
+  const programLines = groomLinesOf(pickedPackage);
+  const programUsesOnBill = programLines.reduce((n, l) => n + Math.max(1, l.qty || 1), 0);
+  const programUsesToUse = pickedPackage?.groomProgram
+    ? Math.min(packageLeft, programUsesOnBill)
+    : 0;
+  const programCover = (() => {
+    let left = programUsesToUse;
+    let covered = 0;
+    for (const l of programLines) {
+      if (left <= 0) break;
+      const take = Math.min(left, Math.max(1, l.qty || 1));
+      covered += take * (l.unitAmount || 0);
+      left -= take;
+    }
+    return covered;
+  })();
+  /** หน่วยที่จะหักจากคอร์สในบิลนี้ (คืน หรือ ครั้งของโปรแกรม) — ไม่ระบุ = 1 แบบเดิม */
+  const packageUnitsToUse = nightsToUse || programUsesToUse;
+
   // ลูกค้ามีแพ็กห้องรายเดือนตรงกับห้องในบิล → เลือกคอร์สให้เลย (แบบ Member ที่หักอัตโนมัติ)
   // ถ้ามีหลายห้องในบิล เลือกคอร์สที่คลุมคืนได้มากสุด · พนักงานกดยกเลิกได้ ไม่เลือกทับอีก
   const autoRoomPackageId = (() => {
@@ -601,11 +634,19 @@ export default function BillingPage() {
     let best = "";
     let bestNights = 0;
     for (const pk of customerPackages) {
-      if (pk.unit !== "night" || !pk.roomType || pk.locked) continue;
+      if (pk.locked) continue;
+      const isRoomPack = pk.unit === "night" && !!pk.roomType;
+      // คอร์สอาบน้ำที่ผูกโปรแกรม เลือกให้อัตโนมัติด้วย (หักตามตัวที่อาบโปรแกรมนั้น)
+      const isProgramPack = pk.unit !== "night" && !!pk.groomProgram;
+      if (!isRoomPack && !isProgramPack) continue;
       const left = pk.totalUses - pk.usedUses;
-      const onBill = items
-        .filter((it) => lineMatchesRoom(it, pk))
-        .reduce((n, it) => n + Math.max(1, it.nights || 1), 0);
+      const onBill = isRoomPack
+        ? items
+            .filter((it) => lineMatchesRoom(it, pk))
+            .reduce((n, it) => n + Math.max(1, it.nights || 1), 0)
+        : items
+            .filter((it) => it.kind === "grooming" && it.program === pk.groomProgram)
+            .reduce((n, it) => n + Math.max(1, Math.round(it.qty || 1)), 0);
       const n = Math.min(left, onBill);
       if (n > bestNights) {
         best = pk.id;
@@ -623,7 +664,9 @@ export default function BillingPage() {
     ? 0
     : pickedPackage?.unit === "night"
       ? Math.min(nightsCover, Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount))
-      : Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount);
+      : pickedPackage?.groomProgram
+        ? Math.min(programCover, Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount))
+        : Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount);
   const total = Math.max(
     0,
     subtotal - promoDiscount - manualDiscount - couponAmount - packageCovers
@@ -935,8 +978,13 @@ export default function BillingPage() {
     const cat =
       billedCatNames.join(CAT_SEP) || selected.cats[0]?.name || "น้องแมว";
     // เก็บของแถม (ฟรี) ด้วย — label มี แต่ยอด 0
+    // โปรแกรมอาบน้ำติดไปกับรายการ — ให้เซิร์ฟเวอร์เช็คคอร์สที่ผูกโปรแกรมได้
     const payloadItems = items
-      .map((it, i) => ({ ...lines[i], kind: it.kind }))
+      .map((it, i) => ({
+        ...lines[i],
+        kind: it.kind,
+        ...(it.kind === "grooming" ? { program: it.program } : {}),
+      }))
       .filter((l) => l.label.trim());
 
     if (editingId) {
@@ -983,7 +1031,7 @@ export default function BillingPage() {
         bookingId: bookingId || undefined,
         couponId: couponId || undefined,
         packageId: packageId || undefined,
-        packageUnits: nightsToUse || undefined,
+        packageUnits: packageUnitsToUse || undefined,
       }),
     });
     const data = await res.json();
@@ -2027,7 +2075,7 @@ export default function BillingPage() {
             <div>
               <span className="mb-1.5 flex items-start gap-1.5 text-xs font-bold text-brown-soft">
                 <Icon name="ticket" size={14} />
-                คอร์สของลูกค้า (นับครั้ง = บิลนี้ฟรี · นับคืน = หักตามคืนที่พัก)
+                คอร์สของลูกค้า (ใช้ร่วมกันได้ทั้งบ้าน)
               </span>
               <div className="flex flex-wrap gap-2">
                 {customerPackages.map((pk) => (
@@ -2050,7 +2098,11 @@ export default function BillingPage() {
                   >
                     {packageId === pk.id && <Icon name="check" size={13} strokeWidth={2.4} />}
                     {pk.roomType && <Icon name="bed" size={14} />}
-                    {pk.roomType ? pk.roomLabel || pk.name : pk.name} (เหลือ{" "}
+                    {pk.roomType ? pk.roomLabel || pk.name : pk.name}
+                    {pk.groomProgram &&
+                      !pk.name.includes(groomProgramName(pk.groomProgram, groomPrograms) || "\u0000") &&
+                      ` · ${groomProgramName(pk.groomProgram, groomPrograms) || "โปรแกรมที่ลบไปแล้ว"}`}{" "}
+                    (เหลือ{" "}
                     {pk.totalUses - pk.usedUses}/{pk.totalUses} {pk.unit === "night" ? "คืน" : "ครั้ง"})
                     {pk.locked && ` · ค้างจ่าย ${(pk.outstanding || 0).toLocaleString()}`}
                   </button>
@@ -2074,6 +2126,23 @@ export default function BillingPage() {
             {nightsToUse > 0 && nightsOnBill > nightsToUse && (
               <span className="block font-normal text-brown-soft">
                 บิลนี้พัก {nightsOnBill} คืน แต่คอร์สเหลือ {nightsToUse} คืน — ส่วนที่เกินคิดเงินตามปกติ
+              </span>
+            )}
+          </p>
+        )}
+
+        {pickedPackage?.groomProgram && (
+          <p className="rounded-catcha-sm bg-sage/15 px-3 py-2 text-[11px] font-bold text-ok">
+            {programUsesToUse > 0
+              ? `หักคอร์ส ${programUsesToUse} ครั้ง (คลุมค่า${
+                  groomProgramName(pickedPackage.groomProgram, groomPrograms) || "โปรแกรมนี้"
+                } ${programCover.toLocaleString()} บาท)`
+              : `คอร์สนี้ใช้ได้กับ${
+                  groomProgramName(pickedPackage.groomProgram, groomPrograms) || "โปรแกรมอื่น"
+                }เท่านั้น — บิลนี้ยังไม่มีรายการโปรแกรมนี้`}
+            {programUsesToUse > 0 && programUsesOnBill > programUsesToUse && (
+              <span className="block font-normal text-brown-soft">
+                บิลนี้อาบ {programUsesOnBill} ครั้ง แต่คอร์สเหลือ {programUsesToUse} ครั้ง — ส่วนที่เกินคิดเงินตามปกติ
               </span>
             )}
           </p>
