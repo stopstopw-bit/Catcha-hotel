@@ -437,10 +437,16 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={addCat}
-            className="mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-catcha-sm border-2 border-dashed border-latte/60 bg-card/60 text-sm font-extrabold text-latte-deep transition active:scale-[.98]"
+            className="mt-3 flex min-h-[60px] w-full items-center gap-3 rounded-catcha border-2 border-honey-deep bg-honey/45 px-4 text-left text-catcha-chocolate shadow-catcha-sm transition active:scale-[.98]"
           >
-            <Icon name="plus" size={18} strokeWidth={2.2} />
-            เพิ่มน้องแมวอีกตัว
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-catcha-chocolate text-card">
+              <Icon name="plus" size={20} strokeWidth={2.4} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold">เพิ่มน้องแมวอีกตัว</span>
+              <span className="block text-[11px] text-catcha-chocolate/70">มีหลายตัว เพิ่มได้ทุกตัวเลยค่ะ</span>
+            </span>
+            <Icon name="paw" size={22} className="text-catcha-chocolate/60" />
           </button>
         </section>
 

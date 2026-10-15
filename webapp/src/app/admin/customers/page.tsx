@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { CatRecord, CustomerRecord, MemberCreditUsageRecord, MemberTopupRecord, PackageUsageRecord } from "@/lib/customers-store";
 import type { CustomerTier } from "@/lib/customer-tier";
 import { toJpegDataUrl } from "@/lib/image-convert";
+import { CatPhoto } from "@/components/CatPhoto";
 import { CatMediaGallery } from "@/components/CatMediaGallery";
 import { TIER_LABELS, tierBadgeClass } from "@/lib/customer-tier";
 import { RegistrationQrSection } from "@/components/LineSetupSection";
@@ -1428,14 +1429,7 @@ function CustomerSummaryCard({
       )}
       <div className="mb-3 flex items-start gap-3">
         {heroCat?.photoDataUrl ? (
-          <Image
-            src={heroCat.photoDataUrl}
-            alt={heroCat.name}
-            width={64}
-            height={64}
-            className="h-16 w-16 shrink-0 rounded-catcha-sm object-cover ring-2 ring-white/70"
-            unoptimized
-          />
+          <CatPhoto src={heroCat.photoDataUrl} name={heroCat.name} size={64} />
         ) : (
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-catcha-sm bg-card/80 text-catcha-chocolate ring-2 ring-white/70">
             <Icon name={customer.cats.length > 0 ? "paw" : "user"} size={28} />
@@ -2362,13 +2356,17 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
 
   return (
     <>
+      {/* ปุ่มเพิ่มน้องให้เห็นชัด — ต่อท้ายรายการน้องของบ้านนี้ */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex min-h-[40px] items-center gap-1 rounded-full bg-card px-3.5 py-2 text-xs font-extrabold text-latte-deep shadow-catcha-sm"
+        className="mt-3 flex min-h-[56px] w-full items-center gap-3 rounded-catcha border-2 border-honey-deep bg-honey/45 px-4 text-left text-catcha-chocolate shadow-catcha-sm transition active:scale-[.98]"
       >
-        <Icon name="plus" size={15} strokeWidth={2.2} />
-        เพิ่มน้องแมว
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-catcha-chocolate text-card">
+          <Icon name="plus" size={20} strokeWidth={2.4} />
+        </span>
+        <span className="flex-1 text-sm font-extrabold">เพิ่มน้องแมวอีกตัว</span>
+        <Icon name="paw" size={22} className="text-catcha-chocolate/60" />
       </button>
 
       {open && (
@@ -2748,48 +2746,19 @@ export default function CustomersPage() {
         />
 
         <section className="mb-4">
-          <SectionLabel action={<AddCatForm customerId={c.id} onAdded={() => open(c.id)} />}>
-            Cats · น้องแมว ({c.cats.length})
-          </SectionLabel>
+          <SectionLabel>Cats · น้องแมว ({c.cats.length})</SectionLabel>
 
           {c.cats.length === 0 && (
             <div className="rounded-catcha bg-card shadow-catcha-sm">
-              <EmptyState icon="paw" title="ยังไม่มีน้องแมว" sub="กด “เพิ่มน้องแมว” ด้านบนเพื่อเพิ่ม" />
+              <EmptyState icon="paw" title="ยังไม่มีน้องแมว" sub="กด “เพิ่มน้องแมวอีกตัว” ด้านล่างเพื่อเพิ่ม" />
             </div>
           )}
           <div className="space-y-3">
           {c.cats.map((cat) => (
             <div key={cat.id} className="rounded-catcha bg-card shadow-catcha-sm">
               <div className="flex items-center gap-3 p-4 pb-3">
-                {/* แตะรูปเพื่อเปลี่ยนรูปโปรไฟล์ (ลูกค้าเห็นในแอปด้วย) */}
-                <label className="relative shrink-0 cursor-pointer" title="เปลี่ยนรูปโปรไฟล์ (ลูกค้าเห็นในแอปด้วย)">
-                  {cat.photoDataUrl ? (
-                    <Image
-                      src={cat.photoDataUrl}
-                      alt={cat.name}
-                      width={64}
-                      height={64}
-                      className="h-16 w-16 rounded-catcha-sm object-cover ring-2 ring-latte/30"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-catcha-sm bg-paper text-brown-soft ring-2 ring-latte/30">
-                      <Icon name="paw" size={26} />
-                    </div>
-                  )}
-                  <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-catcha-chocolate text-card shadow-catcha-sm">
-                    <Icon name="image" size={14} />
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) onPhoto(cat, f);
-                    }}
-                  />
-                </label>
+                {/* แตะรูปเพื่อดูเต็มจอ · ปุ่มกล้องเพื่อเปลี่ยนรูป (ลูกค้าเห็นในแอปด้วย) */}
+                <CatPhoto src={cat.photoDataUrl} name={cat.name} size={72} onPick={(f) => onPhoto(cat, f)} />
                 <label className="block min-w-0 flex-1 text-[11px] font-bold text-brown-soft">
                   <span className="mb-1 block">ชื่อน้องแมว</span>
                   <input
@@ -2807,7 +2776,7 @@ export default function CustomersPage() {
                   ]}
                 />
               </div>
-              <p className="-mt-1 px-4 pb-2 text-[10px] text-brown-faint">แตะรูปเพื่อเปลี่ยนรูปโปรไฟล์ (ลูกค้าเห็นในแอปด้วย)</p>
+              <p className="-mt-1 px-4 pb-2 text-[10px] text-brown-faint">แตะรูปเพื่อดูเต็มจอ · ปุ่มกล้องเพื่อเปลี่ยนรูป (ลูกค้าเห็นในแอปด้วย)</p>
 
               <div className="space-y-3 border-t border-catcha-line p-4">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2960,6 +2929,7 @@ export default function CustomersPage() {
             </div>
           ))}
           </div>
+          <AddCatForm customerId={c.id} onAdded={() => open(c.id)} />
         </section>
 
         <RoomPlanSection

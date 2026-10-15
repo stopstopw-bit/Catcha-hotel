@@ -10,6 +10,8 @@ import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState, SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { CatPhoto } from "@/components/CatPhoto";
+import { toJpegDataUrl } from "@/lib/image-convert";
 
 const REFERRAL_FALLBACK = [
   "Facebook",
@@ -54,6 +56,10 @@ export default function ProfilePage() {
   const [postalCode, setPostalCode] = useState("");
   const [consent, setConsent] = useState(true);
   const [cats, setCats] = useState<CatForm[]>([]);
+  // รูปน้องแยกโหลด/อัปทีละตัว (ไม่ผูกกับปุ่มบันทึก) — อัปแล้วขึ้นทันที
+  const [photos, setPhotos] = useState<Record<string, string | null>>({});
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -97,6 +103,39 @@ export default function ProfilePage() {
       })
       .finally(() => setLoading(false));
   }, [profile?.lineUserId, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadPhotos = async (lineUserId: string) => {
+    const d = await fetch(`/api/customers/cat-photo?lineUserId=${encodeURIComponent(lineUserId)}`)
+      .then((r) => r.json())
+      .catch(() => ({ cats: [] }));
+    const map: Record<string, string | null> = {};
+    for (const c of (d.cats || []) as { id: string; photoDataUrl?: string | null }[]) map[c.id] = c.photoDataUrl || null;
+    setPhotos(map);
+  };
+
+  useEffect(() => {
+    if (profile?.lineUserId) loadPhotos(profile.lineUserId);
+  }, [profile?.lineUserId, reloadKey]);
+
+  const uploadPhoto = async (catId: string, file: File) => {
+    if (!profile?.lineUserId) return;
+    setPhotoError("");
+    setUploadingId(catId);
+    try {
+      const photoDataUrl = await toJpegDataUrl(file);
+      const res = await fetch("/api/customers/cat-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lineUserId: profile.lineUserId, catId, photoDataUrl }),
+      });
+      if (!res.ok) throw new Error("อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+      await loadPhotos(profile.lineUserId);
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : "อัปโหลดรูปไม่สำเร็จ");
+    } finally {
+      setUploadingId(null);
+    }
+  };
 
   const updateCat = (idx: number, patch: Partial<CatForm>) =>
     setCats((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
@@ -255,6 +294,20 @@ export default function ProfilePage() {
             <SectionLabel>My cats · น้องแมวของฉัน</SectionLabel>
             {cats.map((cat, idx) => (
               <div key={cat.id || `new-${idx}`} className="space-y-2.5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
+                {cat.id ? (
+                  <CatPhoto
+                    src={photos[cat.id]}
+                    name={cat.name || "น้องแมว"}
+                    size={0}
+                    onPick={(f) => uploadPhoto(cat.id, f)}
+                    uploading={uploadingId === cat.id}
+                  />
+                ) : (
+                  <p className="flex items-center gap-2 rounded-catcha-sm bg-paper px-3 py-2.5 text-[11px] font-bold text-brown-soft">
+                    <Icon name="image" size={16} />
+                    กดบันทึกก่อน แล้วจะเพิ่มรูปน้องตัวนี้ได้
+                  </p>
+                )}
                 {cat.needsConfirm && (
                   <p className="flex gap-2 rounded-catcha-sm bg-honey/20 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
                     <Icon name="alert" size={15} className="mt-px" />
@@ -333,13 +386,26 @@ export default function ProfilePage() {
                 )}
               </div>
             ))}
+            {photoError && (
+              <p className="flex items-center gap-2 text-xs font-bold text-wait">
+                <Icon name="alert" size={15} />
+                {photoError}
+              </p>
+            )}
+            {/* ปุ่มเพิ่มน้องต้องเห็นชัด — ลูกค้าหลายบ้านมีแมวมากกว่าหนึ่งตัว */}
             <button
               type="button"
               onClick={addNewCat}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-catcha-sm border-2 border-dashed border-latte/60 bg-card/60 text-sm font-extrabold text-latte-deep transition active:scale-[.98]"
+              className="flex min-h-[60px] w-full items-center gap-3 rounded-catcha border-2 border-honey-deep bg-honey/45 px-4 text-left text-catcha-chocolate shadow-catcha-sm transition active:scale-[.98]"
             >
-              <Icon name="plus" size={18} strokeWidth={2.2} />
-              เพิ่มน้องแมวอีกตัว
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-catcha-chocolate text-card">
+                <Icon name="plus" size={20} strokeWidth={2.4} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-extrabold">เพิ่มน้องแมวอีกตัว</span>
+                <span className="block text-[11px] text-catcha-chocolate/70">มีหลายตัว เพิ่มได้ทุกตัวเลยค่ะ</span>
+              </span>
+              <Icon name="paw" size={22} className="text-catcha-chocolate/60" />
             </button>
             <p className="text-[11px] text-brown-faint">
               กรอกข้อมูลน้องใหม่แล้วกด “บันทึก” ด้านล่างเพื่อเพิ่มเข้าระบบ 🧡

@@ -22,6 +22,9 @@ type CustomerListItem = CustomerRecord & { upcomingAppointments?: number };
 
 const FREEBIE_OPTIONS = ["กล้องวงจรปิด (CCTV)", "น้ำพุแมว", "รับ-ส่ง", "ขนม/ทรีท"];
 
+const UNKNOWN_CAT = "น้องไม่ระบุชื่อ";
+const isUnknownCat = (name: string) => name === UNKNOWN_CAT || name.startsWith(`${UNKNOWN_CAT} (`);
+
 /**
  * เลือกลูกค้า + น้องแมว แบบแอปจองคิวทั่วไป (Fresha / Booksy / แอปโรงแรมสัตว์เลี้ยง)
  * 1) ค้นหา → แตะแถวลูกค้า → กลายเป็นการ์ดลูกค้าที่เลือกแล้ว (กด "เปลี่ยน" ได้)
@@ -39,7 +42,7 @@ function ClientPetPicker({
   onClearCustomer,
   onToggleCat,
   onAddTyped,
-  onAddUnknown,
+  onSetUnknownCount,
   onRemoveCat,
   onSelectAll,
 }: {
@@ -53,7 +56,7 @@ function ClientPetPicker({
   onClearCustomer: () => void;
   onToggleCat: (name: string) => void;
   onAddTyped: () => void;
-  onAddUnknown: () => void;
+  onSetUnknownCount: (n: number) => void;
   onRemoveCat: (name: string) => void;
   onSelectAll: (names: string[]) => void;
 }) {
@@ -103,7 +106,8 @@ function ClientPetPicker({
   const hasCustomer = !!picked || !!customerName.trim();
   const list = q.trim() ? results : recent;
   const knownCats = picked?.cats.map((c) => c.name) ?? [];
-  const extraCats = catNames.filter((n) => !knownCats.includes(n));
+  const unknownCount = catNames.filter(isUnknownCat).length;
+  const extraCats = catNames.filter((n) => !knownCats.includes(n) && !isUnknownCat(n));
 
   const pick = (c: CustomerListItem) => {
     onPickCustomer(c);
@@ -300,17 +304,51 @@ function ClientPetPicker({
               {knownCats.length ? "น้องตัวใหม่" : "พิมพ์ชื่อน้อง"}
             </button>
           )}
-          <button
-            type="button"
-            onClick={onAddUnknown}
-            className="rounded-full border border-dashed border-catcha-line px-3.5 py-2 text-sm font-bold text-brown-soft"
-          >
-            ยังไม่ทราบตัว
-          </button>
+          {unknownCount === 0 && (
+            <button
+              type="button"
+              onClick={() => onSetUnknownCount(1)}
+              className="rounded-full border border-dashed border-catcha-line px-3.5 py-2 text-sm font-bold text-brown-soft"
+            >
+              ยังไม่ทราบตัว
+            </button>
+          )}
         </div>
+        {/* ยังไม่รู้ว่าตัวไหนมา แต่ต้องรู้จำนวน — ระบบล็อกคิวทีละตัว จำนวนจึงต้องตรงกับที่จะมาจริง */}
+        {unknownCount > 0 && (
+          <div className="mt-3 flex items-center gap-3 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-card text-brown-soft">
+              <Icon name="paw" size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-catcha-chocolate">ยังไม่ทราบตัว</p>
+              <p className="text-[11px] text-brown-soft">มากี่ตัว — ล็อกคิวตามจำนวนนี้ ใส่ชื่อทีหลังได้</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label={unknownCount === 1 ? "เอาออก" : "ลดจำนวน"}
+                onClick={() => onSetUnknownCount(unknownCount - 1)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-card text-catcha-chocolate shadow-catcha-sm"
+              >
+                {unknownCount === 1 ? <Icon name="x" size={16} /> : <span className="text-lg font-bold leading-none">−</span>}
+              </button>
+              <span className="w-8 text-center text-lg font-extrabold text-catcha-chocolate">{unknownCount}</span>
+              <button
+                type="button"
+                aria-label="เพิ่มจำนวน"
+                onClick={() => onSetUnknownCount(unknownCount + 1)}
+                disabled={unknownCount >= 10}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-catcha-chocolate text-card disabled:opacity-40"
+              >
+                <Icon name="plus" size={16} strokeWidth={2.4} />
+              </button>
+            </div>
+          </div>
+        )}
         <p className="mt-2 text-[11px] text-brown-faint">
           {catNames.length > 0
-            ? `เลือกแล้ว ${catNames.length} ตัว · ระบบสร้างนัดให้ทีละตัวและผูกเป็นบ้านเดียวกัน`
+            ? `รวม ${catNames.length} ตัว · ล็อกคิว ${catNames.length} ที่ · ระบบสร้างนัดให้ทีละตัวและผูกเป็นบ้านเดียวกัน`
             : "แตะชื่อน้องเพื่อเลือก เลือกได้หลายตัว · ไม่รู้ว่าตัวไหนมา กด “ยังไม่ทราบตัว”"}
         </p>
       </section>
@@ -449,14 +487,16 @@ export default function NewBookingPage() {
     setCatInput("");
   };
 
-  const addUnknownCat = () => {
-    let name = "น้องไม่ระบุชื่อ";
-    let n = 2;
-    while (catNames.includes(name)) {
-      name = `น้องไม่ระบุชื่อ (${n})`;
-      n += 1;
-    }
-    setCatNames((prev) => [...prev, name]);
+  // ตั้งจำนวนน้องที่ยังไม่รู้ตัว — แต่ละตัวเป็นนัดหนึ่งที่ (ชื่อชั่วคราว แก้ทีหลังในนัดได้)
+  const setUnknownCount = (count: number) => {
+    setCatNames((prev) => {
+      const known = prev.filter((c) => !isUnknownCat(c));
+      const n = Math.max(0, Math.min(10, count));
+      const placeholders = Array.from({ length: n }, (_, i) =>
+        i === 0 ? UNKNOWN_CAT : `${UNKNOWN_CAT} (${i + 1})`
+      );
+      return [...known, ...placeholders];
+    });
   };
 
   const removeCat = (name: string) => {
@@ -664,7 +704,7 @@ export default function NewBookingPage() {
             )
           }
           onAddTyped={addCatFromInput}
-          onAddUnknown={addUnknownCat}
+          onSetUnknownCount={setUnknownCount}
           onRemoveCat={removeCat}
           onSelectAll={(names) =>
             setCatNames((prev) => [...prev, ...names.filter((n) => !prev.includes(n))])
