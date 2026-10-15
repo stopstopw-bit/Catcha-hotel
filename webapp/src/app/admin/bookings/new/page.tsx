@@ -12,6 +12,8 @@ import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import {
   typeAvailability,
+  attachClosures,
+  type RoomClosure,
   compositionOf,
   roomCapacity,
   freeUnitsForRange,
@@ -402,7 +404,7 @@ export default function NewBookingPage() {
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
-        if (d.config?.rooms) setRooms(d.config.rooms);
+        if (d.config?.rooms) setRooms(attachClosures(d.config.rooms as RoomType[], d.config.roomClosures));
         if (d.config?.groomSlots) setGroomSlots(d.config.groomSlots);
         if (d.config?.options?.freebies?.length) setFreebies_(d.config.options.freebies);
         setGroomPrograms(resolveGroomPrograms(d.config?.groomPricePrograms));
@@ -428,6 +430,7 @@ export default function NewBookingPage() {
     name: r.name,
     count: r.count || 0,
     maxCats: roomCapacity(r),
+    closures: (r as RoomType & { closures?: RoomClosure[] }).closures,
   }));
   /** ห้องแต่ละแบบว่างกี่ห้องตลอดช่วงที่ขอ (ติดคืนไหนบอกคืนนั้น) */
   const availability = useMemo(() => {

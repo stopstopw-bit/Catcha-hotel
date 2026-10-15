@@ -1,6 +1,7 @@
 import type { RoomType } from "./business";
 import type { GroomFormConfig } from "./groom-form";
 import type { GroomProgram } from "./grooming-prices";
+import type { RoomClosure } from "./room-board";
 
 /** บล็อกเนื้อหาหน้ากฎระเบียบการฝาก — ใส่ได้ทั้งรูปและ/หรือข้อความ เรียงตามลำดับที่ตั้งไว้ */
 export type BoardingRuleBlock = {
@@ -225,6 +226,8 @@ export type SiteConfig = {
     catflix: number;
   };
   rooms: RoomType[];
+  /** ปิดห้องรายห้อง (ซ่อม/ใช้งานไม่ได้) — ตั้งจากผังห้องในตารางนัด */
+  roomClosures?: RoomClosure[];
   /**
    * ตารางราคาโปรแกรมอาบน้ำ — ไม่ตั้ง/ว่าง = ใช้ค่าเริ่มต้นของระบบ (GROOM_PROGRAMS)
    * ร้านเพิ่ม/ลบ/แก้โปรแกรมเองได้ในหลังบ้าน แทนที่การฝังในโค้ด

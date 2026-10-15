@@ -7,7 +7,7 @@ import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, type GroomProgram } from "@/lib/grooming-prices";
-import { freeUnitsForRange, roomCapacity, compositionOf, type BoardBooking } from "@/lib/room-board";
+import { freeUnitsForRange, roomCapacity, compositionOf, type BoardBooking, type RoomClosure } from "@/lib/room-board";
 
 export type EditableBooking = Booking & {
   lineUserId?: string;
@@ -93,7 +93,7 @@ export function BookingEditModal({
   booking: EditableBooking;
   /** นัดอื่นในบ้านเดียวกัน นัดเดียวกัน (ไม่รวมตัวที่กำลังแก้) — ไว้เสนอเลื่อนวันให้ทั้งหมดทีเดียว */
   siblings?: { id: string; catName: string }[];
-  rooms: { id: string; name: string; size: string; price: number; count?: number; cats?: { th: string }; extra?: { th: string } }[];
+  rooms: { id: string; name: string; size: string; price: number; count?: number; cats?: { th: string }; extra?: { th: string }; closures?: RoomClosure[] }[];
   groomSlots: string[];
   groomPrograms?: GroomProgram[];
   /** นัดห้องพักทั้งหมดที่ยังไม่ยกเลิก — ไว้คำนวณว่าห้องไหนว่างจริงตอนเลือกเลขห้อง */
@@ -111,7 +111,7 @@ export function BookingEditModal({
   const [roomUnit, setRoomUnit] = useState<number | null>(booking.roomUnit ?? null);
 
   const boardRooms = useMemo(
-    () => rooms.map((r) => ({ id: r.id, name: r.name, count: r.count || 0, maxCats: roomCapacity(r) })),
+    () => rooms.map((r) => ({ id: r.id, name: r.name, count: r.count || 0, maxCats: roomCapacity(r), closures: r.closures })),
     [rooms]
   );
   const freeUnits = useMemo(() => {
