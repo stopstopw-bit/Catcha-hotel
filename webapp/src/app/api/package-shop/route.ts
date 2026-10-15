@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
       customerName: customer.name,
       lineUserId,
       offer,
+      nights: body.nights != null ? Number(body.nights) : undefined,
     });
 
     await sendTelegram(
@@ -103,8 +104,10 @@ export async function POST(req: NextRequest) {
                 ได้เพิ่ม: `${offer.creditBonus.toLocaleString()} บาท`,
                 รวมเครดิตที่จะได้: `${(offer.price + offer.creditBonus).toLocaleString()} บาท`,
               }
-            : { คอร์ส: `${offer.name} (${offer.totalUses} ครั้ง)` }),
-          ยอดที่ต้องโอน: `${offer.price.toLocaleString()} บาท`,
+            : offer.kind === "nights"
+              ? { แพ็กวันเข้าพัก: `${offer.name} (${order.totalUses} คืน)` }
+              : { คอร์ส: `${offer.name} (${offer.totalUses} ครั้ง)` }),
+          ยอดที่ต้องโอน: `${order.price.toLocaleString()} บาท`,
           หมายเหตุ: "รอลูกค้าโอน + ร้านกดยืนยันรับเงิน",
         }
       )

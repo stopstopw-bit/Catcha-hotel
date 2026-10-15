@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLiff } from "@/components/LiffProvider";
 import { toJpegDataUrl } from "@/lib/image-convert";
+import { MAX_NIGHTS_PER_ORDER, nightsOrderTerms } from "@/lib/nights-order";
 
 type Offer = {
   id: string;
@@ -53,6 +54,8 @@ export function PackageShopSection() {
   const [uploading, setUploading] = useState("");
   const [copied, setCopied] = useState(false);
   const [msg, setMsg] = useState("");
+  /** แพ็กวันเข้าพัก: จำนวนคืนที่ลูกค้าเลือก (ยังไม่เลือก = ตามแพ็ก ซึ่งเป็นขั้นต่ำ) */
+  const [nightsPick, setNightsPick] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!profile?.lineUserId) return;
@@ -77,16 +80,18 @@ export function PackageShopSection() {
 
   const buy = async (offer: Offer) => {
     if (!profile?.lineUserId) return;
+    const nights = offer.kind === "nights" ? nightsPick[offer.id] ?? offer.totalUses : undefined;
+    const terms = nightsOrderTerms(offer, nights);
     const detail =
       offer.kind === "credit"
         ? `รับเครดิตรวม ${(offer.price + offer.creditBonus).toLocaleString()} บาท (จ่าย ${offer.price.toLocaleString()} รับเพิ่มฟรี ${offer.creditBonus.toLocaleString()})`
         : offer.kind === "nights"
-          ? `(เข้าพักได้ ${offer.totalUses} คืน)`
+          ? `(เข้าพักได้ ${terms.totalUses} คืน)`
           : `(${offer.totalUses} ครั้ง)`;
     if (
       !confirm(
         `สั่งซื้อ "${offer.name}" ${detail}\n` +
-          `ยอดที่ต้องโอน ${offer.price.toLocaleString()} บาท\n\n` +
+          `ยอดที่ต้องโอน ${terms.price.toLocaleString()} บาท\n\n` +
           `กดตกลงแล้วจะมีเลขบัญชีให้โอน แล้วแนบสลิปได้เลยนะคะ`
       )
     )
@@ -101,6 +106,7 @@ export function PackageShopSection() {
           action: "order",
           lineUserId: profile.lineUserId,
           offerId: offer.id,
+          ...(nights != null ? { nights } : {}),
         }),
       });
       if (res.ok) {
@@ -178,6 +184,14 @@ export function PackageShopSection() {
         <div className="-mx-1 mb-3 flex gap-3 overflow-x-auto px-1 pb-2 scroll-smooth snap-x snap-mandatory overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {offers.map((o) => {
             const perUse = o.totalUses > 0 ? Math.round(o.price / o.totalUses) : 0;
+            const minNights = Math.max(1, o.totalUses);
+            const pickedNights = nightsPick[o.id] ?? minNights;
+            const shown = nightsOrderTerms(o, o.kind === "nights" ? pickedNights : undefined);
+            const setNights = (n: number) =>
+              setNightsPick((m) => ({
+                ...m,
+                [o.id]: Math.min(MAX_NIGHTS_PER_ORDER, Math.max(minNights, Math.floor(n) || minNights)),
+              }));
             return (
               <div
                 key={o.id}
@@ -210,7 +224,7 @@ export function PackageShopSection() {
                     ) : o.kind === "nights" ? (
                       <>
                         <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
-                          🏠 เข้าพักได้ {o.totalUses} คืน
+                          🏠 ขั้นต่ำ {minNights} คืน
                         </span>
                         {o.totalUses > 0 && (
                           <span className="text-brown-faint">
@@ -236,9 +250,44 @@ export function PackageShopSection() {
                       {o.description}
                     </p>
                   )}
+                  {o.kind === "nights" && (
+                    // ลูกค้าเลือกจำนวนคืนเอง — ไม่น้อยกว่าที่ร้านตั้งในแพ็ก
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-full bg-paper px-1.5 py-1">
+                      <button
+                        type="button"
+                        aria-label="ลดจำนวนคืน"
+                        disabled={pickedNights <= minNights}
+                        onClick={() => setNights(pickedNights - 1)}
+                        className="h-7 w-7 rounded-full bg-card text-sm font-extrabold text-catcha-chocolate disabled:opacity-30"
+                      >
+                        −
+                      </button>
+                      <label className="flex items-center gap-1 text-xs font-bold text-brown">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={minNights}
+                          max={MAX_NIGHTS_PER_ORDER}
+                          value={pickedNights}
+                          onChange={(e) => setNights(Number(e.target.value))}
+                          className="w-12 rounded-full border-0 bg-transparent text-center text-sm font-extrabold text-catcha-chocolate"
+                        />
+                        คืน
+                      </label>
+                      <button
+                        type="button"
+                        aria-label="เพิ่มจำนวนคืน"
+                        disabled={pickedNights >= MAX_NIGHTS_PER_ORDER}
+                        onClick={() => setNights(pickedNights + 1)}
+                        className="h-7 w-7 rounded-full bg-card text-sm font-extrabold text-catcha-chocolate disabled:opacity-30"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                   <div className="mt-auto flex items-end justify-between gap-2 pt-2.5">
                     <p className="text-lg font-extrabold leading-none text-latte-deep">
-                      {o.price.toLocaleString()}
+                      {shown.price.toLocaleString()}
                       <span className="text-xs">฿</span>
                     </p>
                     <button

@@ -1,5 +1,6 @@
 import { getSupabase } from "./supabase/server";
 import { uploadDataUrlToStorage } from "./supabase/storage";
+import { nightsOrderTerms } from "./nights-order";
 
 /**
  * ร้านขายคอร์ส/แพ็กเกจในแอปลูกค้า
@@ -424,11 +425,17 @@ export async function createPackageOrder(data: {
   customerName: string;
   lineUserId?: string;
   offer: PackageOffer;
+  /** แพ็กวันเข้าพัก: จำนวนคืนที่ลูกค้าเลือก (ไม่ระบุ = ตามแพ็ก) */
+  nights?: number;
 }): Promise<PackageOrder> {
+  const terms = nightsOrderTerms(data.offer, data.nights);
   // กดซื้อรัวๆ ไม่ควรได้ออร์เดอร์ซ้ำ — ร้านจะเห็นรายการเดียวกันหลายแถวแล้วเผลอกดรับเงินซ้ำ
-  // ถ้ายังมีใบที่รอโอนของคอร์สเดียวกันอยู่ ให้ใช้ใบเดิม
+  // ถ้ายังมีใบที่รอโอนของคอร์สเดียวกัน (จำนวนเท่ากัน) อยู่ ให้ใช้ใบเดิม
   const existing = (await listPackageOrders({ customerId: data.customerId })).find(
-    (o) => o.status === "pending" && o.offerId === data.offer.id
+    (o) =>
+      o.status === "pending" &&
+      o.offerId === data.offer.id &&
+      o.totalUses === terms.totalUses
   );
   if (existing) return existing;
 
@@ -438,10 +445,10 @@ export async function createPackageOrder(data: {
     customerName: data.customerName,
     lineUserId: data.lineUserId,
     offerId: data.offer.id,
-    name: data.offer.name,
+    name: terms.name,
     kind: data.offer.kind,
-    totalUses: data.offer.totalUses,
-    price: data.offer.price,
+    totalUses: terms.totalUses,
+    price: terms.price,
     creditBonus: data.offer.creditBonus,
     status: "pending",
     createdAt: new Date().toISOString(),
