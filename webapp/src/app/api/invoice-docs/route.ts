@@ -7,7 +7,9 @@ import { docShareUrl } from "@/lib/doc-share";
 import { getAppUrl } from "@/lib/app-url";
 import { buildDocPayload } from "@/lib/invoice-docs-payload";
 import {
+  getBuyerProfile,
   getInvoiceDoc,
+  saveBuyerProfile,
   issueDocNumber,
   listIssuedDocs,
   saveBuyer,
@@ -53,6 +55,11 @@ export async function GET(req: NextRequest) {
     });
     rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
     return NextResponse.json({ docs: rows });
+  }
+
+  const profileOf = req.nextUrl.searchParams.get("profile");
+  if (profileOf) {
+    return NextResponse.json({ buyer: (await getBuyerProfile(profileOf)) || null });
   }
 
   const data = await buildDocPayload(req.nextUrl.searchParams.get("invoiceId") || "");
@@ -120,6 +127,16 @@ function docMessage(opts: {
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+
+  // POST { profile: customerId, buyer } — บันทึก/ลบข้อมูลออกบิลประจำตัวลูกค้า (จากหน้าลูกค้า)
+  if (body.profile) {
+    const customer = await getCustomer(String(body.profile));
+    if (!customer) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    const res = await saveBuyerProfile(customer.id, body.buyer ?? null);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 500 });
+    return NextResponse.json({ ok: true, buyer: (await getBuyerProfile(customer.id)) || null });
+  }
+
   const invoiceId = String(body.invoiceId || "");
   const invoice = invoiceId ? await getInvoice(invoiceId) : undefined;
   if (!invoice || invoice.deletedAt) {
@@ -142,6 +159,13 @@ export async function POST(req: NextRequest) {
       const customer = invoice.customerId ? await getCustomer(invoice.customerId) : undefined;
       to = invoice.lineUserId || customer?.lineUserId || "";
       if (!to) return NextResponse.json({ error: "no_line" }, { status: 400 });
+    }
+
+    // ออกเลขที่ = เอกสารออกจริงแล้ว → ล็อกผู้ซื้อลงบิลนี้ (แก้ข้อมูลที่จำไว้ทีหลังจะไม่เปลี่ยนเอกสารที่ออกไปแล้ว)
+    const before = await getInvoiceDoc(invoiceId);
+    if (!before?.buyer) {
+      const profile = await getBuyerProfile(invoice.customerId);
+      if (profile) await saveBuyer(invoiceId, invoice.customerId, profile);
     }
 
     const res = await issueDocNumber(invoiceId, invoice.customerId, kind);
@@ -177,12 +201,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, doc, url });
   }
 
+  // useCustomer: ออกในชื่อลูกค้าเฉพาะบิลนี้ (แม้ลูกค้าจะมีข้อมูลบริษัทที่จำไว้)
+  let buyer = body.buyer ?? null;
+  if (body.useCustomer) {
+    const customer = invoice.customerId ? await getCustomer(invoice.customerId) : undefined;
+    buyer = {
+      name: customer?.name || invoice.customerName,
+      phone: customer?.phone || "",
+      address: customer?.address || "",
+    };
+  }
   const res = await saveBuyer(
     invoiceId,
     invoice.customerId,
-    body.buyer ?? null,
+    buyer,
     body.note !== undefined ? String(body.note) : undefined
   );
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 500 });
+  // remember: จำข้อมูลนี้เป็นค่าประจำของลูกค้า ใช้กับบิลถัดไปอัตโนมัติ
+  if (body.remember && invoice.customerId) {
+    await saveBuyerProfile(invoice.customerId, body.useCustomer ? null : buyer);
+  }
   return NextResponse.json({ ok: true, doc: await getInvoiceDoc(invoiceId) });
 }

@@ -362,6 +362,7 @@ function ShopTab({
           ข้อมูลผู้ขายที่โชว์บนใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จรับเงิน (ออกได้จากเมนู ⋯ ของแต่ละบิล)
         </p>
         <div className="space-y-2">
+          <DocLogoField value={form.docLogo || ""} onChange={(v) => setForm({ ...form, docLogo: v || undefined })} />
           <Field
             label="ชื่อตามทะเบียน (ไม่ใส่ = ใช้ชื่อร้าน)"
             value={form.legalName || ""}
@@ -2490,5 +2491,50 @@ function SaveBtn({ saving }: { saving: boolean }) {
       <Icon name="check" size={18} strokeWidth={2.2} />
       {saving ? "กำลังบันทึก…" : "บันทึก"}
     </button>
+  );
+}
+
+/** โลโก้บนเอกสาร — ย่อเหลือไม่เกิน 400px แล้วเก็บในตั้งค่า (ไม่ตั้ง = ใช้โลโก้ร้าน) */
+function DocLogoField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-catcha-sm border border-catcha-line bg-white p-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={value || "/logo.jpg"} alt="โลโก้บนเอกสาร" className="max-h-full max-w-full object-contain" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold text-brown-soft">โลโก้บนเอกสาร</p>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <label className="flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-full bg-catcha-chocolate px-3.5 text-xs font-extrabold text-card">
+            <Icon name="image" size={14} />
+            {busy ? "กำลังอัป…" : value ? "เปลี่ยนโลโก้" : "อัปโหลดโลโก้"}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                setBusy(true);
+                try {
+                  onChange(await toJpegDataUrl(f, 400));
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "อัปโหลดไม่สำเร็จ");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          </label>
+          {value && (
+            <button type="button" onClick={() => onChange("")} className="min-h-[40px] rounded-full bg-card px-3.5 text-xs font-bold text-brown">
+              ใช้โลโก้ร้าน
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

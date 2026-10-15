@@ -101,6 +101,8 @@ export async function getInvoiceDoc(invoiceId: string): Promise<InvoiceDoc | und
 /** ข้อมูลผู้ซื้อล่าสุดของลูกค้าคนนี้ — เติมให้อัตโนมัติตอนออกบิลใบถัดไปในนามบริษัทเดิม */
 export async function lastBuyerForCustomer(customerId: string): Promise<DocBuyer | undefined> {
   if (!customerId) return undefined;
+  const profile = await getBuyerProfile(customerId);
+  if (profile) return profile;
   const sb = getSupabase();
   if (!sb) {
     return [...mem.values()].reverse().find((d) => d.customerId === customerId && d.buyer)?.buyer;
@@ -235,4 +237,20 @@ export async function listIssuedDocs(limit = 1000): Promise<InvoiceDoc[]> {
     return { data: (r.data as Row[] | null) || [], error: r.error };
   });
   return (data || []).map(fromRow);
+}
+
+/**
+ * ข้อมูลออกบิลประจำตัวลูกค้า (ในนามบริษัท ที่อยู่ เลขผู้เสียภาษี) — จำไว้ใช้ทุกบิลของลูกค้าคนนี้
+ * เก็บเป็นแถวพิเศษในตาราง invoice_docs (invoice_id = "profile:<customerId>") ไม่ต้องเพิ่มคอลัมน์ในตารางลูกค้า
+ */
+const profileKey = (customerId: string) => `profile:${customerId}`;
+
+export async function getBuyerProfile(customerId: string): Promise<DocBuyer | undefined> {
+  if (!customerId) return undefined;
+  return (await getInvoiceDoc(profileKey(customerId)))?.buyer;
+}
+
+export async function saveBuyerProfile(customerId: string, buyer: Partial<DocBuyer> | null) {
+  if (!customerId) return { ok: false as const, error: "no_customer" };
+  return saveBuyer(profileKey(customerId), customerId, buyer);
 }
