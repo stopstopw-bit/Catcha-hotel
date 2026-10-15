@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Icon } from "@/components/Icon";
 
 type Health = {
   appUrl: string;
@@ -45,7 +46,12 @@ type Row = {
   href?: string;
 };
 
-const ICONS: Record<Level, string> = { ok: "✅", warn: "⏳", fail: "❌" };
+const ICONS: Record<Level, string> = { ok: "check", warn: "clock", fail: "alert" };
+const ICON_TONE: Record<Level, string> = {
+  ok: "bg-ok/15 text-ok",
+  warn: "bg-honey/30 text-catcha-chocolate",
+  fail: "bg-red-100 text-red-700",
+};
 
 function buildRows(h: Health, origin: string): { rows: Row[]; failCount: number } {
   const rows: Row[] = [];
@@ -96,8 +102,8 @@ function buildRows(h: Health, origin: string): { rows: Row[]; failCount: number 
       level: "fail",
       label: `ตารางฐานข้อมูลไม่ครบ (ขาด ${h.db.missingTables.length}: ${h.db.missingTables.join(", ")})`,
       hint: h.db.dbError
-        ? `Supabase ตอบว่า: ${h.db.dbError} — ถ้าเป็นตารางหายจริง กด ⚡ สร้างตารางอัตโนมัติ ด้านล่าง`
-        : "กด ⚡ สร้างตารางอัตโนมัติ ด้านล่าง",
+        ? `Supabase ตอบว่า: ${h.db.dbError} — ถ้าเป็นตารางหายจริง กด “สร้างตารางอัตโนมัติ” ด้านล่าง`
+        : "กด “สร้างตารางอัตโนมัติ” ด้านล่าง",
     });
   }
 
@@ -212,7 +218,10 @@ export function HealthCheckSection() {
   if (loading) {
     return (
       <section className="mb-4 rounded-catcha bg-card p-4 shadow-catcha-sm">
-        <p className="text-xs text-brown-soft">🩺 กำลังตรวจสุขภาพร้าน…</p>
+        <p className="flex items-center gap-2 text-xs text-brown-soft">
+          <Icon name="clock" size={16} />
+          กำลังตรวจสุขภาพร้าน…
+        </p>
       </section>
     );
   }
@@ -229,50 +238,70 @@ export function HealthCheckSection() {
 
   return (
     <section
-      className={`mb-4 space-y-2 rounded-catcha border-2 p-4 shadow-catcha-sm ${
-        failCount ? "border-red-300 bg-red-50/50" : "border-sage/40 bg-sage/10"
+      className={`mb-4 space-y-3 rounded-catcha border p-4 shadow-catcha-sm ${
+        failCount ? "border-red-200 bg-red-50/50" : "border-sage/40 bg-sage/10"
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-extrabold text-catcha-chocolate">
-          🩺 ตรวจสุขภาพร้าน
-        </h2>
-        <span className={`text-xs font-extrabold ${failCount ? "text-wait" : "text-ok"}`}>
-          {failCount ? `⚠️ ต้องแก้ ${failCount} จุด` : `พร้อมใช้งาน (${okCount}/${rows.length})`}
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+            failCount ? "bg-red-100 text-red-700" : "bg-ok/15 text-ok"
+          }`}
+        >
+          <Icon name={failCount ? "alert" : "check"} size={20} />
         </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Health check</p>
+          <h2 className="text-sm font-extrabold text-catcha-chocolate">ตรวจสุขภาพร้าน</h2>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+            failCount ? "bg-red-100 text-red-700" : "bg-ok/15 text-ok"
+          }`}
+        >
+          {failCount ? `ต้องแก้ ${failCount} จุด` : `พร้อม ${okCount}/${rows.length}`}
+        </span>
+        <button
+          type="button"
+          onClick={load}
+          aria-label="ตรวจอีกครั้ง"
+          title="ตรวจอีกครั้ง"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-card text-brown shadow-catcha-sm"
+        >
+          <Icon name="clock" size={18} />
+        </button>
       </div>
 
-      <ul className="space-y-1.5">
+      <ul className="divide-y divide-catcha-line overflow-hidden rounded-catcha-sm border border-catcha-line bg-card">
         {rows.map((r) => (
-          <li key={r.label} className="text-xs">
-            <span className="mr-1.5">{ICONS[r.level]}</span>
-            <span className={r.level === "fail" ? "font-bold text-wait" : r.level === "ok" ? "text-ok" : "text-brown"}>
-              {r.label}
+          <li key={r.label} className="flex items-start gap-3 px-3 py-2.5">
+            <span
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${ICON_TONE[r.level]}`}
+            >
+              <Icon name={ICONS[r.level]} size={13} strokeWidth={2.4} />
             </span>
-            {r.hint && (
-              <span className="mt-0.5 block pl-6 text-[10px] text-brown-soft">
-                {r.hint}
-                {r.href && (
-                  <>
-                    {" "}
-                    <a href={r.href} className="font-bold text-latte-deep underline">
-                      เปิดหน้า →
-                    </a>
-                  </>
-                )}
+            <span className="min-w-0 flex-1">
+              <span
+                className={`block text-xs ${
+                  r.level === "fail" ? "font-bold text-red-700" : r.level === "ok" ? "text-brown" : "font-bold text-brown"
+                }`}
+              >
+                {r.label}
               </span>
-            )}
+              {r.hint && <span className="mt-0.5 block text-[11px] leading-relaxed text-brown-soft">{r.hint}</span>}
+              {r.href && (
+                <a
+                  href={r.href}
+                  className="mt-1 inline-flex min-h-[32px] items-center gap-1 text-[11px] font-bold text-latte-deep"
+                >
+                  เปิดหน้า
+                  <Icon name="chevron" size={13} />
+                </a>
+              )}
+            </span>
           </li>
         ))}
       </ul>
-
-      <button
-        type="button"
-        onClick={load}
-        className="w-full rounded-catcha-sm bg-paper py-2 text-xs font-bold text-brown-soft"
-      >
-        🔄 ตรวจอีกครั้ง
-      </button>
     </section>
   );
 }

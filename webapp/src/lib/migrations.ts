@@ -57,6 +57,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "bookings", column: "room_unit", feature: "ระบุห้องจริงตอนจอง" },
   { table: "room_plans", column: "payments", feature: "แพ็กห้องรายเดือน (แบ่งจ่าย)" },
   { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
+  { table: "invoice_docs", column: "receipt_no", feature: "ใบเสร็จ/ใบเสนอราคาในนามบริษัท" },
 ];
 
 export type SchemaCheckRow = {
@@ -411,6 +412,16 @@ where staff_note like '%🎁%';`,
       alter table customer_packages add column if not exists room_type text, add column if not exists room_label text, add column if not exists plan_id text;
       create table if not exists room_plans (id text primary key, customer_id text, customer_name text, line_user_id text, name text, items jsonb not null default '[]'::jsonb, full_price numeric not null default 0, discount_pct numeric not null default 0, price numeric not null default 0, installments integer not null default 1, payments jsonb not null default '[]'::jsonb, status text not null default 'active', created_at timestamptz not null default now());
       alter table room_plans enable row level security;
+    `,
+  },
+  {
+    // เอกสารทางการของบิล: ข้อมูลผู้ซื้อ (ในนามบริษัท) + เลขที่ใบเสนอราคา/ใบแจ้งหนี้/ใบเสร็จ
+    // แยกตารางจาก invoices — ไม่แตะคอลัมน์บิลเดิม เลขที่ออกครั้งเดียวแล้วคงที่
+    name: "invoice_docs.setup",
+    sql: `
+      create table if not exists invoice_docs (invoice_id text primary key, customer_id text, buyer jsonb, quote_no text, quote_at timestamptz, invoice_no text, invoice_at timestamptz, receipt_no text, receipt_at timestamptz, note text, updated_at timestamptz not null default now());
+      create index if not exists invoice_docs_customer_idx on invoice_docs (customer_id);
+      alter table invoice_docs enable row level security;
     `,
   },
 ];

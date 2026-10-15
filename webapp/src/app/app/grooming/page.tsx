@@ -24,7 +24,8 @@ export default function GroomingPage() {
   return (
     <div className="px-4 pb-6 pt-5">
       <PageHeader
-        title={`🛁 ${m.title}`}
+        eyebrow="Grooming"
+        title={m.title}
         back="/app/services"
         backLabel={locale === "th" ? "บริการทั้งหมด" : "All services"}
       />

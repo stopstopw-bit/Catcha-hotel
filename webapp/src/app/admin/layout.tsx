@@ -4,14 +4,38 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { Logo } from "@/components/Logo";
+import { HeaderBand } from "@/components/HeaderBand";
 import {
-  AdminMenuButton,
+  AdminBottomBar,
   AdminNav,
-  getActiveAdminTabLabel,
+  AdminSidebar,
   getAllowedMenus,
   isPathAllowed,
 } from "@/components/AdminNav";
 import { Toaster } from "@/components/Toast";
+import { Icon } from "@/components/Icon";
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function LogoutButton({ onClick, subtle }: { onClick: () => void; subtle?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="ออกจากระบบ"
+      className={`flex h-10 w-10 items-center justify-center rounded-full text-catcha-chocolate ${
+        subtle ? "bg-paper" : "bg-card/70 shadow-catcha-sm backdrop-blur"
+      }`}
+    >
+      <Icon name="logout" size={19} />
+    </button>
+  );
+}
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -69,47 +93,65 @@ function AdminShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const logout = async () => {
+    // ต้องล้างคุกกี้ที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ล้างใน sessionStorage
+    await fetch("/api/auth/login", { method: "DELETE" }).catch(() => {});
+    sessionStorage.clear();
+    router.push("/admin/login");
+  };
+
+  // แดชบอร์ด: แถบหัวสูง ให้การ์ดสรุปเกยขึ้นไป · หน้าอื่นมีหัวข้อของตัวเองอยู่แล้ว ใช้แถบหัวแบบเตี้ย
+  const isDashboard = pathname === "/admin";
+
   return (
-    <div className="min-h-screen bg-catcha-gradient">
+    <div className="min-h-screen bg-catcha-gradient pb-28 lg:pb-0">
       <Toaster />
-      <header className="sticky top-0 z-50 border-b border-catcha-line bg-card/90 backdrop-blur-md print:hidden">
-        <div className="relative mx-auto max-w-3xl lg:max-w-6xl">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Logo size={40} />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-brown-soft">CatCha Admin</p>
-              <p className="truncate text-sm font-extrabold text-catcha-chocolate lg:text-base">
-                หลังบ้าน
-              </p>
-              <p className="truncate text-[10px] font-bold text-latte-deep sm:text-xs">
-                {getActiveAdminTabLabel(pathname)}
-              </p>
+      {isDashboard ? (
+        <header className="print:hidden">
+          <HeaderBand className="pb-12 lg:pb-14">
+            <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pb-1 pt-5 lg:max-w-6xl lg:px-6 lg:pt-6">
+              <Logo size={46} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-catcha-chocolate/60">
+                  {greeting()}
+                </p>
+                <p className="truncate text-xl font-extrabold text-catcha-chocolate lg:text-2xl">
+                  CatCha Hotel
+                </p>
+                <p className="truncate text-[11px] font-bold text-catcha-chocolate/70">
+                  {new Date().toLocaleDateString("th-TH", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+              <LogoutButton onClick={logout} />
             </div>
-            <div className="flex items-center gap-2">
-              <AdminMenuButton
-                open={menuOpen}
-                onClick={() => setMenuOpen((v) => !v)}
-              />
-              <button
-                type="button"
-                onClick={async () => {
-                  // ต้องล้างคุกกี้ที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ล้างใน sessionStorage
-                  await fetch("/api/auth/login", { method: "DELETE" }).catch(() => {});
-                  sessionStorage.clear();
-                  router.push("/admin/login");
-                }}
-                className="rounded-catcha-sm px-2 py-1.5 text-xs font-bold text-brown-faint hover:bg-honey/15 lg:text-sm"
-              >
-                ออก
-              </button>
+          </HeaderBand>
+        </header>
+      ) : (
+        <header className="sticky top-0 z-30 border-b border-catcha-line/70 bg-cream/85 backdrop-blur-md print:hidden">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5 lg:max-w-6xl lg:px-6">
+            <Logo size={34} />
+            <div className="min-w-0 flex-1 leading-tight">
+              {/* ชื่อหน้าอยู่ที่หัวของแต่ละหน้าแล้ว แถบนี้จึงแสดงแค่ชื่อร้าน ไม่ให้หัวซ้ำสองชั้น */}
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-latte-deep">Back office</p>
+              <p className="truncate text-sm font-extrabold text-catcha-chocolate">CatCha Hotel</p>
             </div>
+            <LogoutButton onClick={logout} subtle />
           </div>
-          <AdminNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-        </div>
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-5 lg:max-w-6xl lg:px-6 lg:py-8">
-        {children}
-      </main>
+        </header>
+      )}
+      <AdminNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+      <div className={`mx-auto max-w-3xl ${isDashboard ? "-mt-8" : "mt-4 lg:mt-6"} px-4 lg:grid lg:max-w-6xl lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-6`}>
+        <aside className="print:hidden">
+          <AdminSidebar />
+        </aside>
+        <main className="relative min-w-0 rounded-t-catcha pb-5 lg:pb-8">{children}</main>
+      </div>
+      <AdminBottomBar menuOpen={menuOpen} onMenu={() => setMenuOpen(!menuOpen)} />
     </div>
   );
 }
