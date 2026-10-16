@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SERVICE_PRESETS, type ServicePreset } from "@/lib/service-presets";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
 import { groupBookings, groupCatNames } from "@/lib/booking-group";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
@@ -118,6 +118,21 @@ type Item = {
 function receivedOf(inv: { deposit?: number; depositReceivedAt?: string }): number {
   return inv.depositReceivedAt ? inv.deposit || 0 : 0;
 }
+
+/**
+ * ขั้นของบิลที่ยังไม่ปิด — แยกให้เห็นว่าบิลค้างแต่ละใบรออะไรอยู่ ไม่ดูเหมือนค้างเงินทุกใบ
+ * deposit = ตั้งมัดจำไว้แต่ยังไม่ได้รับ · partial = รับมัดจำ/รับบางส่วนแล้ว รอปิดบิล · full = ยังไม่ได้รับเงินเลย
+ */
+type PendingStage = "deposit" | "partial" | "full";
+function pendingStageOf(inv: { deposit?: number; depositReceivedAt?: string }): PendingStage {
+  if ((inv.deposit || 0) <= 0) return "full";
+  return inv.depositReceivedAt ? "partial" : "deposit";
+}
+const STAGE_META: Record<PendingStage, { label: string; short: string; tone: string; icon: IconName }> = {
+  deposit: { label: "รอมัดจำ", short: "รอมัดจำ", tone: "bg-wait/15 text-wait", icon: "clock" },
+  partial: { label: "มัดจำแล้ว รอปิดบิล", short: "รอปิดบิล", tone: "bg-latte/20 text-latte-deep", icon: "check" },
+  full: { label: "รอชำระเต็ม", short: "รอชำระ", tone: "bg-wait/15 text-wait", icon: "clock" },
+};
 
 function newGrooming(programs: GroomProgram[] = GROOM_PROGRAMS): Item {
   const prog = programs[0] || GROOM_PROGRAMS[0];
@@ -403,6 +418,7 @@ export default function BillingPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [invoiceBusy, setInvoiceBusy] = useState("");
   const [billFilter, setBillFilter] = useState<"all" | "pending" | "paid">("pending");
+  const [pendingStage, setPendingStage] = useState<"all" | PendingStage>("all");
   const [billSearch, setBillSearch] = useState("");
   const [billSort, setBillSort] = useState<
     | "date-desc"
@@ -2392,7 +2408,8 @@ export default function BillingPage() {
       <SectionLabel
         action={(() => {
           const pending = invoices.filter((i) => i.status === "pending");
-          const due = pending.reduce((s, i) => s + (i.total - (i.deposit || 0)), 0);
+          // มัดจำที่ยังไม่ได้รับ ยังนับเป็นยอดค้าง
+          const due = pending.reduce((s, i) => s + (i.total - receivedOf(i)), 0);
           return due > 0 ? (
             <span className="rounded-full bg-wait/15 px-2.5 py-1 text-[11px] font-extrabold text-wait">
               ค้างรวม {due.toLocaleString()} ฿ · {pending.length} บิล
@@ -2409,7 +2426,7 @@ export default function BillingPage() {
         options={(
           [
             ["pending", "รอชำระ"],
-            ["paid", "จ่ายแล้ว"],
+            ["paid", "ปิดบิลแล้ว"],
             ["all", "ทั้งหมด"],
           ] as const
         ).map(([f, label]) => ({
@@ -2420,6 +2437,29 @@ export default function BillingPage() {
             undefined,
         }))}
       />
+      {billFilter === "pending" && (
+        <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+          {(["all", "deposit", "partial", "full"] as const).map((st) => {
+            const n = invoices.filter(
+              (i) => i.status === "pending" && (st === "all" || pendingStageOf(i) === st)
+            ).length;
+            const on = pendingStage === st;
+            return (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setPendingStage(st)}
+                className={`flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${
+                  on ? "bg-catcha-chocolate text-card" : "bg-paper text-brown"
+                }`}
+              >
+                {st === "all" ? "ทั้งหมด" : STAGE_META[st].label}
+                <span className={`text-[10px] ${on ? "text-card/70" : "text-brown-faint"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <SearchField
         value={billSearch}
         onChange={setBillSearch}
@@ -2440,7 +2480,8 @@ export default function BillingPage() {
           const bk = linkedFor(inv);
           return bk?.checkin || bk?.date || (inv.createdAt || "").slice(0, 10) || "";
         };
-        const dueOf = (inv: Invoice) => inv.total - (inv.deposit || 0);
+        // มัดจำที่ยังไม่ได้รับ ยังนับเป็นยอดค้าง
+        const dueOf = (inv: Invoice) => inv.total - receivedOf(inv);
         const q = billSearch.trim().toLowerCase();
         // เดือนอ้างอิง: เรียงตามวันออกบิล → เดือนที่ออกบิล, นอกนั้น → เดือนของวันนัด
         const monthOf = (inv: Invoice) =>
@@ -2454,6 +2495,10 @@ export default function BillingPage() {
         let list = invoices
           .filter((inv) => !billMonth || monthOf(inv) === billMonth)
           .filter((inv) => billFilter === "all" || inv.status === billFilter)
+          .filter(
+            (inv) =>
+              billFilter !== "pending" || pendingStage === "all" || pendingStageOf(inv) === pendingStage
+          )
           .filter(
             (inv) =>
               !q ||
@@ -2536,14 +2581,19 @@ export default function BillingPage() {
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-base font-extrabold text-catcha-chocolate">{inv.total.toLocaleString()} ฿</p>
-                <span
-                  className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                    paid ? "bg-ok/15 text-ok" : "bg-wait/15 text-wait"
-                  }`}
-                >
-                  <Icon name={paid ? "check" : "clock"} size={11} strokeWidth={2.4} />
-                  {paid ? "ชำระแล้ว" : "รอชำระ"}
-                </span>
+                {(() => {
+                  const meta = paid ? null : STAGE_META[pendingStageOf(inv)];
+                  return (
+                    <span
+                      className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                        meta ? meta.tone : "bg-ok/15 text-ok"
+                      }`}
+                    >
+                      <Icon name={meta?.icon || "check"} size={11} strokeWidth={2.4} />
+                      {meta ? meta.short : "ปิดบิลแล้ว"}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
