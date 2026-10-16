@@ -32,7 +32,9 @@ export type InvoiceItem = {
    * "package" = ขายคอร์ส/เติมเครดิต Member — ไม่ให้แต้ม เพราะยังไม่ใช่การใช้บริการ
    * (ถ้าให้ตรงนี้ ลูกค้าจะได้แต้มสองรอบ: รอบซื้อ กับรอบเอาคอร์สมาใช้)
    */
-  kind?: "grooming" | "room" | "service" | "custom" | "freebie" | "package";
+  kind?: "grooming" | "room" | "service" | "custom" | "freebie" | "package" | "product";
+  /** สินค้าหน้าร้าน (kind==="product") — ใช้ตัด/คืนสต็อกตอนออก/แก้/ลบบิล */
+  productId?: string;
   /** id โปรแกรมอาบน้ำ (kind==="grooming") — ใช้เช็คคอร์สที่ผูกโปรแกรม */
   program?: string;
   /** น้องแมวตัวไหน — บิลบ้านที่มีหลายตัวจะได้รู้ว่าตัวไหนอาบโปรแกรมอะไร */
@@ -281,6 +283,11 @@ export async function createInvoice(data: {
   // ให้ล้มทั้งการออกบิล ดีกว่าปล่อยให้ออกบิลไปแล้วค่อยพบว่าไม่ได้ลดจริง
   // (เมื่อก่อนคิดส่วนลดจากยอดที่ฝั่งหน้าเว็บส่งมาเฉยๆ แล้วค่อยลองมาร์คคูปองว่าใช้แล้วทีหลัง
   //  ถ้ามาร์คไม่ผ่านก็แค่กลืน error ทิ้ง บิลยังได้ส่วนลดอยู่ดี — คูปองใบเดียวเลยใช้ซ้ำได้ไม่จำกัด)
+  // สินค้าหน้าร้านในบิล — เช็คสต็อกก่อนเริ่มอะไรเลย (ยังไม่ได้จองคูปอง/เขียนบิล)
+  const { checkBillStock, syncBillStock } = await import("./pos-store");
+  const stockCheck = await checkBillStock([], data.items);
+  if (!stockCheck.ok) throw new Error(`out_of_stock:${stockCheck.name}:${stockCheck.stock}`);
+
   let couponAmount = 0;
   if (data.couponId) {
     const coupon = await getCoupon(data.couponId);
@@ -404,6 +411,8 @@ export async function createInvoice(data: {
     throw e;
   }
 
+  await syncBillStock(invoice.id, [], invoice.items);
+
   // เลือกโปรจาก dropdown ตอนออกบิล → บันทึกว่าลูกค้าใช้สิทธิ์แล้ว กันเห็นเป็นใช้ได้อีกในแอป
   if (data.promoId && data.customerId) {
     await recordAdminPromoClaim(
@@ -478,6 +487,16 @@ export async function updateInvoice(
   if (inv.status === "paid") return { ok: false as const, error: "already_paid" };
 
   const items = patch.items ?? inv.items;
+  const before = inv.items || [];
+  const { checkBillStock, syncBillStock } = await import("./pos-store");
+  const stockCheck = await checkBillStock(before, items);
+  if (!stockCheck.ok) {
+    return {
+      ok: false as const,
+      error: "out_of_stock",
+      message: `${stockCheck.name} เหลือ ${stockCheck.stock} ชิ้น`,
+    };
+  }
   const subtotal = items.reduce((s, i) => s + i.amount, 0);
   const promoId = patch.promoId !== undefined ? patch.promoId : inv.promoId;
   const { discount: promoDiscount, label } = await calcPromoDiscount(promoId, subtotal);
@@ -508,6 +527,7 @@ export async function updateInvoice(
   if (sb) {
     await sb.from("invoices").update(invoiceToRow(inv)).eq("id", id);
   }
+  await syncBillStock(id, before, items);
   return { ok: true as const, invoice: inv };
 }
 
@@ -544,6 +564,10 @@ export async function deleteInvoice(id: string) {
   }
 
   await deleteFinanceByInvoice(id);
+
+  // สินค้าหน้าร้านในบิล → คืนเข้าสต็อก
+  const { syncBillStock } = await import("./pos-store");
+  await syncBillStock(id, inv.items, []);
 
   // ลบบิลที่หักคอร์สไป → คืนสิทธิ์ให้ลูกค้าด้วย ไม่งั้นสิทธิ์หายไปเฉยๆ
   // ไม่เช็คว่าจ่ายแล้วหรือยัง เพราะคอร์สถูกหักตอน "ออกบิล" ไม่ใช่ตอนจ่าย
@@ -598,6 +622,12 @@ export async function deleteInvoice(id: string) {
 
 /** กู้บิลจากถังขยะ */
 export async function restoreInvoice(id: string) {
+  // กู้บิล → ตัดสต็อกสินค้าหน้าร้านกลับคืน (ตอนลบเคยคืนเข้าสต็อกไว้)
+  const trashed = (await listTrashedInvoices()).find((x) => x.id === id);
+  if (trashed) {
+    const { syncBillStock } = await import("./pos-store");
+    await syncBillStock(id, [], trashed.items);
+  }
   const sb = getSupabase();
   if (sb) {
     await sb.from("invoices").update({ deleted_at: null }).eq("id", id);
