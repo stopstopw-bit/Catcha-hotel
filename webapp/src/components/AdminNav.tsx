@@ -265,13 +265,13 @@ export function AdminSidebar() {
   );
 }
 
-/** แถบเมนูล่างบนมือถือ — หน้าหลัก · ตารางนัด · [+ จองใหม่] · ลูกค้า · เมนู */
+/** แถบเมนูล่างบนมือถือ — หน้าหลัก · ตารางนัด · [+ จองใหม่] · คิดเงิน · เมนู (ลูกค้าอยู่ในเมนู) */
 const BOTTOM_LEFT = ["/admin", "/admin/schedule"];
-const BOTTOM_RIGHT = ["/admin/customers"];
+const BOTTOM_RIGHT = ["/admin/billing"];
 const BOTTOM_LABEL: Record<string, string> = {
   "/admin": "Home",
   "/admin/schedule": "Schedule",
-  "/admin/customers": "Customers",
+  "/admin/billing": "คิดเงิน",
 };
 
 export function AdminBottomBar({
