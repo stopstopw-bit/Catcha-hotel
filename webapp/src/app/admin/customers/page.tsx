@@ -17,6 +17,7 @@ import { CustomerLinkSection } from "@/components/CustomerLinkSection";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import type { Booking } from "@/lib/business";
+import { groupBookings } from "@/lib/booking-group";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { BookingEditModal, type EditableBooking } from "@/components/BookingEditModal";
 import { RoomPlanSection } from "@/components/RoomPlanSection";
@@ -523,8 +524,43 @@ function formatThaiDateTimeShort(iso: string) {
  * ที่เดียว จะได้ใช้เป็นหลักฐานได้ทันทีถ้ามีปัญหา ไม่ต้องไล่หา
  */
 function StaysConsentSection({ bookings }: { bookings: EditableBooking[] }) {
-  const stays = bookings
-    .filter((b) => b.service === "room" && b.status !== "cancelled")
+  // ชื่อห้องจริงแทน id (catflix → Catflix & Chill)
+  const [roomNames, setRoomNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) =>
+        setRoomNames(
+          Object.fromEntries(((d.config?.rooms || []) as { id: string; name: string }[]).map((r) => [r.id, r.name]))
+        )
+      )
+      .catch(() => {});
+  }, []);
+
+  // บ้านเดียวกัน ช่วงวันเดียวกัน = การเข้าพักครั้งเดียว (ระบบเก็บแถวละตัว) → รวมเป็นรายการเดียว
+  const stays = groupBookings(
+    bookings
+      .filter((b) => b.service === "room" && b.status !== "cancelled")
+      .map((b) => ({ ...b, customerName: b.customerName || "" }))
+  )
+    .map((group) => {
+      const signed = group.find((x) => x.consentAcceptedAt);
+      const rooms = new Map<string, number>();
+      for (const x of group) if (x.room) rooms.set(x.room, (rooms.get(x.room) || 0) + 1);
+      const roomUnits = new Set(group.map((x) => `${x.room}#${x.roomUnit ?? ""}`));
+      return {
+        ...(signed || group[0]),
+        id: group[0].id,
+        cats: group.map((x) => x.catName).filter(Boolean).join(", "),
+        roomText: Array.from(rooms.keys())
+          .map((r) => roomNames[r] || r)
+          .join(" + "),
+        roomCount: roomUnits.size > 1 ? roomUnits.size : 0,
+        careNote: Array.from(new Set(group.map((x) => x.careNote).filter(Boolean))).join(" · "),
+        consentSignature: signed?.consentSignature || group.find((x) => x.consentSignature)?.consentSignature,
+        vaccinePhotoUrl: group.find((x) => x.vaccinePhotoUrl)?.vaccinePhotoUrl,
+      };
+    })
     .sort((a, b) => (b.checkin || b.date).localeCompare(a.checkin || a.date));
 
   if (stays.length === 0) return null;
@@ -544,7 +580,8 @@ function StaysConsentSection({ bookings }: { bookings: EditableBooking[] }) {
                 <span className="font-bold text-brown">
                   {b.checkin || b.date}
                   {b.checkout ? ` → ${b.checkout}` : ""}
-                  {b.room ? ` · ห้อง ${b.room}` : ""}
+                  {b.roomText ? ` · ${b.roomText}` : ""}
+                  {b.roomCount ? ` (${b.roomCount} ห้อง)` : ""}
                 </span>
                 {staying && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-ok/20 px-2 py-0.5 text-[10px] font-extrabold text-ok">
@@ -553,6 +590,7 @@ function StaysConsentSection({ bookings }: { bookings: EditableBooking[] }) {
                   </span>
                 )}
               </div>
+              {b.cats && <p className="mt-0.5 text-[11px] text-brown-soft">{b.cats}</p>}
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 {b.consentAcceptedAt ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-ok">
