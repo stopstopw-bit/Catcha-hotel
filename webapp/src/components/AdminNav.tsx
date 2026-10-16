@@ -304,6 +304,7 @@ export function AdminBottomBar({
   return (
     <nav
       aria-label="เมนูลัด"
+      data-bottom-nav
       className="fixed inset-x-0 bottom-0 z-[45] border-t border-catcha-line bg-card/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md print:hidden lg:hidden"
     >
       <div className="mx-auto flex max-w-lg items-end justify-between px-2">
