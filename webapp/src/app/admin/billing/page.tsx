@@ -107,6 +107,14 @@ type Item = {
   discountMode?: "baht" | "percent";
 };
 
+/**
+ * ยอดที่ลงบัญชีไปแล้วของบิลที่ยังเปิดอยู่ = มัดจำที่ "กดรับแล้ว" เท่านั้น (มัดจำรอรับยังไม่ใช่เงินเข้า)
+ * ตรงกับฝั่งเซิร์ฟเวอร์ที่ตอนปิดบิลเก็บ "ยอดบิล − รายรับที่ผูกบิลนี้" — ป้ายบนปุ่มจะได้ตรงกับยอดที่ลงบัญชีจริง
+ */
+function receivedOf(inv: { deposit?: number; depositReceivedAt?: string }): number {
+  return inv.depositReceivedAt ? inv.deposit || 0 : 0;
+}
+
 function newGrooming(programs: GroomProgram[] = GROOM_PROGRAMS): Item {
   const prog = programs[0] || GROOM_PROGRAMS[0];
   return {
@@ -461,6 +469,18 @@ export default function BillingPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // มาจากปุ่ม "คิดเงิน" หน้าแรก (?view=pending) → เลื่อนลงไปที่ลิสต์บิลรอชำระ พร้อมกดรับชำระ
+  const jumpedToBills = useRef(false);
+  useEffect(() => {
+    if (jumpedToBills.current || invoices.length === 0) return;
+    if (new URLSearchParams(window.location.search).get("view") !== "pending") return;
+    jumpedToBills.current = true;
+    setBillFilter("pending");
+    requestAnimationFrame(() =>
+      document.getElementById("bills")?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+  }, [invoices]);
 
   // ดึงนัดจาก URL อัตโนมัติ (มาจากปุ่ม "ออกบิล" ในตารางนัด) — ทำครั้งเดียว
   const autoPicked = useRef(false);
@@ -1164,7 +1184,7 @@ export default function BillingPage() {
     const inv = confirmCredit;
     const cust = customers.find((c) => c.id === inv.customerId);
     const balance = cust?.memberCredit ?? 0;
-    const due = Math.max(0, inv.total - (inv.deposit || 0));
+    const due = Math.max(0, inv.total - receivedOf(inv));
     const after = balance - due;
     const short = after < 0;
     return (
@@ -1268,9 +1288,9 @@ export default function BillingPage() {
    */
   const receivePartial = async (inv: Invoice) => {
     if (invoiceBusy) return;
-    const remaining = Math.max(0, inv.total - (inv.deposit || 0));
+    const remaining = Math.max(0, inv.total - receivedOf(inv));
     const raw = prompt(
-      `รับเงินบางส่วน — ${inv.customerName}\nยอดบิล ${inv.total.toLocaleString()} · ค้างอยู่ ${remaining.toLocaleString()} บาท\n\nรับรอบนี้กี่บาท?`,
+      `รับมัดจำ / บางส่วน — ${inv.customerName}\nยอดบิล ${inv.total.toLocaleString()} · ค้างอยู่ ${remaining.toLocaleString()} บาท\n\nรับรอบนี้กี่บาท?`,
       ""
     );
     if (raw == null) return;
@@ -1322,7 +1342,9 @@ export default function BillingPage() {
     const inv = payFor;
     const hasDep = (inv.deposit ?? 0) > 0;
     const isMember = !!customers.find((c) => c.id === inv.customerId)?.isMember;
-    const due = Math.max(0, inv.total - (inv.deposit || 0));
+    // มัดจำที่ยังไม่ได้กดรับ ไม่หักออก — ปิดบิลตอนนี้ระบบลงรับเต็มยอดบิล
+    const got = receivedOf(inv);
+    const due = Math.max(0, inv.total - got);
     const close = () => setPayFor(null);
     const rows: { key: string; icon: string; title: string; sub?: string; run: () => void; when: boolean }[] = [
       {
@@ -1341,7 +1363,7 @@ export default function BillingPage() {
       {
         key: "transfer",
         icon: "wallet",
-        title: hasDep ? "รับเงินที่เหลือ · โอน (ปิดบิล)" : "รับเงินแล้ว · โอน",
+        title: got > 0 ? "รับเงินที่เหลือ · โอน (ปิดบิล)" : "รับเต็มจำนวน · โอน (ปิดบิล)",
         sub: `${due.toLocaleString()} ฿ · ปิดบิล ลงบัญชี + แต้ม`,
         when: true,
         run: () => markPaid(inv.id, "transfer"),
@@ -1349,7 +1371,7 @@ export default function BillingPage() {
       {
         key: "cash",
         icon: "money",
-        title: "เงินสด (ปิดบิล)",
+        title: got > 0 ? "รับเงินที่เหลือ · เงินสด (ปิดบิล)" : "รับเต็มจำนวน · เงินสด (ปิดบิล)",
         sub: `${due.toLocaleString()} ฿`,
         when: true,
         run: () => markPaid(inv.id, "cash"),
@@ -1365,8 +1387,9 @@ export default function BillingPage() {
       {
         key: "partial",
         icon: "chart",
-        title: "รับเงินบางส่วน",
-        sub: "ลูกค้าพักยาว / จ่ายเป็นงวด",
+        // บิลที่ยังไม่ได้ตั้งมัดจำ ใช้แถวนี้ "รับแค่มัดจำ" ได้เลย (ใส่ยอดเอง บิลยังเปิดอยู่)
+        title: hasDep ? "รับเงินบางส่วน" : "รับแค่มัดจำ / บางส่วน",
+        sub: "ใส่ยอดเอง · บิลยังเปิด ค้างที่เหลือไว้เก็บทีหลัง",
         when: true,
         run: () => receivePartial(inv),
       },
@@ -1394,6 +1417,22 @@ export default function BillingPage() {
               <p className="text-[10px] text-brown-soft">ยอดค้าง</p>
             </div>
           </div>
+          {got > 0 && (
+            <div className="mb-3 space-y-1 rounded-catcha-sm bg-paper/60 px-3 py-2 text-xs">
+              <div className="flex justify-between text-brown-soft">
+                <span>ยอดบิล</span>
+                <span>{inv.total.toLocaleString()} ฿</span>
+              </div>
+              <div className="flex justify-between font-bold text-ok">
+                <span>มัดจำ (รับแล้ว)</span>
+                <span>−{got.toLocaleString()} ฿</span>
+              </div>
+              <div className="flex justify-between border-t border-catcha-line pt-1 font-extrabold text-catcha-chocolate">
+                <span>รับรอบนี้ให้ครบ</span>
+                <span>{due.toLocaleString()} ฿</span>
+              </div>
+            </div>
+          )}
           <ul className="divide-y divide-catcha-line overflow-hidden rounded-catcha-sm border border-catcha-line">
             {rows
               .filter((r) => r.when)
@@ -2312,6 +2351,7 @@ export default function BillingPage() {
         )}
       </div>
 
+      <div id="bills" className="scroll-mt-20" />
       <SectionLabel
         action={(() => {
           const pending = invoices.filter((i) => i.status === "pending");
@@ -2486,10 +2526,10 @@ export default function BillingPage() {
                 ) : null}
                 {hasDep && (
                   <div className="flex justify-between border-t border-catcha-line pt-1 font-bold">
-                    <span className={inv.depositReceivedAt ? "text-ok" : "text-brown"}>
-                      มัดจำ {inv.depositReceivedAt ? "(รับแล้ว)" : "(รอรับ)"}
+                    <span className={inv.depositReceivedAt || paid ? "text-ok" : "text-brown"}>
+                      มัดจำ {inv.depositReceivedAt || paid ? "(รับแล้ว)" : "(รอรับ)"}
                     </span>
-                    <span className={inv.depositReceivedAt ? "text-ok" : "text-brown"}>
+                    <span className={inv.depositReceivedAt || paid ? "text-ok" : "text-brown"}>
                       {inv.deposit!.toLocaleString()} ฿
                     </span>
                   </div>
@@ -2500,14 +2540,29 @@ export default function BillingPage() {
                     <span>{(inv.total - inv.deposit!).toLocaleString()} ฿</span>
                   </div>
                 )}
+                {/* ปิดบิลแล้ว — โชว์ยอดที่เหลือที่รับตอนปิดบิลด้วย ไม่งั้นดูเหมือนรับแค่มัดจำ */}
+                {hasDep && paid && (
+                  <>
+                    <div className="flex justify-between font-bold text-ok">
+                      <span>ยอดคงเหลือ (รับแล้ว)</span>
+                      <span>{Math.max(0, inv.total - inv.deposit!).toLocaleString()} ฿</span>
+                    </div>
+                    <div className="flex justify-between border-t border-catcha-line pt-1 font-extrabold text-ok">
+                      <span>รับครบแล้ว</span>
+                      <span>{inv.total.toLocaleString()} ฿</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {(!inv.items || inv.items.length === 0) && hasDep && (
               <p className="mt-2 text-[11px] font-bold text-ok">
-                มัดจำ{inv.depositReceivedAt ? " (รับแล้ว) " : " (รอรับ) "}
+                มัดจำ{inv.depositReceivedAt || paid ? " (รับแล้ว) " : " (รอรับ) "}
                 {inv.deposit!.toLocaleString()}
-                {inv.status === "pending" && (
+                {inv.status === "pending" ? (
                   <span className="text-wait"> · คงเหลือ {(inv.total - inv.deposit!).toLocaleString()} บาท</span>
+                ) : (
+                  <span> · รับครบ {inv.total.toLocaleString()} บาท</span>
                 )}
               </p>
             )}
