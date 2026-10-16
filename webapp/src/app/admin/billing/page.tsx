@@ -8,6 +8,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
 import { groupBookings, groupCatNames } from "@/lib/booking-group";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
+import { bangkokToday } from "@/lib/bangkok-date";
 import {
   GROOM_PROGRAMS,
   GROOM_SIZES,
@@ -592,7 +593,19 @@ export default function BillingPage() {
       );
       return group.filter((b) => !billedCats.has(b.catName));
     })
-    .filter((group) => group.length > 0);
+    .filter((group) => group.length > 0)
+    // เรียงตามวันนัด ไม่ใช่วันที่กดจอง: วันนี้/ที่ผ่านมาแล้ว (ใกล้วันนี้ก่อน) ขึ้นบนสุด
+    // เพราะเป็นนัดที่ต้องคิดเงินตอนนี้ ตามด้วยนัดล่วงหน้า (ใกล้สุดก่อน)
+    .sort((a, b) => {
+      const today = bangkokToday();
+      const key = (g: Booking[]) => `${g[0].checkin || g[0].date || ""} ${g[0].time || ""}`;
+      const ka = key(a);
+      const kb = key(b);
+      const aDue = ka.slice(0, 10) <= today;
+      const bDue = kb.slice(0, 10) <= today;
+      if (aDue !== bDue) return aDue ? -1 : 1;
+      return aDue ? kb.localeCompare(ka) : ka.localeCompare(kb);
+    });
   const lines = items.map((it) => computeLine(it, groomPrograms));
   const subtotal = lines.reduce((s, l) => s + l.amount, 0);
   const selectedPromo = promos.find((p) => p.id === promoId);
