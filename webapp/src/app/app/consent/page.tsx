@@ -125,6 +125,8 @@ function ConsentContent() {
   const [vaccineUploading, setVaccineUploading] = useState(false);
   const [fleaTickTreated, setFleaTickTreated] = useState(false);
   const [idCardUrl, setIdCardUrl] = useState("");
+  // เคยแนบบัตรไว้แล้วจากรอบก่อน → ไม่ถามซ้ำ (ขอครั้งเดียวพอ)
+  const [idCardOnFile, setIdCardOnFile] = useState(false);
   const [idCardBusy, setIdCardBusy] = useState(false);
   const [fleaError, setFleaError] = useState(false);
 
@@ -162,7 +164,11 @@ function ConsentContent() {
     const q = new URLSearchParams({ lineUserId: profile.lineUserId });
     fetch(`/api/customers/self?${q}`)
       .then((r) => r.json())
-      .then((d) => setIdCardUrl(d?.customer?.idCardUrl || ""))
+      .then((d) => {
+        const url = d?.customer?.idCardUrl || "";
+        setIdCardUrl(url);
+        setIdCardOnFile(Boolean(url));
+      })
       .catch(() => {});
   }, [profile?.lineUserId]);
 
@@ -346,6 +352,7 @@ function ConsentContent() {
                 )}
               </section>
 
+              {!idCardOnFile && (
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="user" size={14} />
@@ -353,7 +360,7 @@ function ConsentContent() {
                 </label>
                 <p className="mb-1.5 text-[11px] text-brown-faint">
                   ระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง: &quot;{ID_CARD_PURPOSE}&quot;
-                  แนบครั้งเดียวใช้ได้ทุกครั้งที่เข้าพัก
+                  แนบครั้งเดียวพอ รอบต่อไปไม่ต้องแนบอีก
                 </p>
                 {idCardUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -386,6 +393,7 @@ function ConsentContent() {
                   </span>
                 </label>
               </section>
+              )}
 
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">

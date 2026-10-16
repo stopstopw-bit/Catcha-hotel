@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ADMIN_TAB_EN, ADMIN_TAB_GROUPS, ADMIN_TAB_ICONS, Icon } from "@/components/Icon";
 
 export const ADMIN_TABS = [
@@ -81,6 +81,7 @@ function NavLink({
     <Link
       href={href}
       onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
       className={`flex items-center gap-3 rounded-catcha-sm font-bold transition ${
         active
           ? "bg-catcha-chocolate text-card"
@@ -238,13 +239,28 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const allowed = getAllowedMenus();
   const visibleTabs = TABS.filter((t) => !allowed || allowed.includes(t.href));
+  const navRef = useRef<HTMLElement | null>(null);
+  // เมนูยาวกว่าจอเตี้ยๆ → เลื่อนให้เห็นเมนูหน้าที่เปิดอยู่เสมอ
+  // (top-[76px] = ใต้แถบหัวหลังบ้านที่ติดอยู่ด้านบน ไม่ให้เมนูมุดใต้หัว)
+  useEffect(() => {
+    // เลื่อนเฉพาะในกล่องเมนู ไม่ใช้ scrollIntoView เพราะจะพาทั้งหน้าเลื่อนตามไปด้วย
+    const nav = navRef.current;
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !active) return;
+    const navBox = nav.getBoundingClientRect();
+    const box = active.getBoundingClientRect();
+    if (box.top < navBox.top || box.bottom > navBox.bottom) {
+      nav.scrollTop += box.top - navBox.top - nav.clientHeight / 2 + box.height / 2;
+    }
+  }, [pathname]);
   return (
     <nav
+      ref={navRef}
       aria-label="เมนูหลังบ้าน"
-      className="sticky top-6 hidden max-h-[calc(100vh-3rem)] overflow-y-auto rounded-catcha bg-card p-3 shadow-catcha lg:block"
+      className="sticky top-[76px] hidden max-h-[calc(100dvh-92px)] overflow-y-auto overscroll-contain rounded-catcha bg-card p-2.5 shadow-catcha lg:block"
     >
       {groupTabs(visibleTabs).map((g) => (
-        <div key={g.title} className="mb-3 last:mb-0">
+        <div key={g.title} className="mb-2 last:mb-0">
           <p className="mb-1 px-3 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brown-faint">
             {g.title}
           </p>
@@ -254,7 +270,7 @@ export function AdminSidebar() {
                 <NavLink
                   {...tab}
                   active={isTabActive(pathname, tab.href)}
-                  className="w-full px-3 py-2 text-sm"
+                  className="w-full px-3 py-1.5 text-sm"
                 />
               </li>
             ))}
