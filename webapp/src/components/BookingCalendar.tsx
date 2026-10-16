@@ -26,6 +26,8 @@ import { effectiveBookingStatus } from "@/lib/booking-status";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import { hasTransport, transportLabel } from "@/lib/transport";
 import { GroomClashNote, confirmClashes, useGroomClashes } from "@/components/GroomClashNote";
+import { addDaysIso, nightsBetweenIso } from "@/lib/stay-line";
+import { formatThaiDateShort } from "@/lib/format-thai-date";
 
 type CalendarDay = EditableBooking & {
   customerId?: string;
@@ -460,7 +462,7 @@ export function BookingCalendar() {
           (inv?.kind === "updated"
             ? ` · แก้บิลเป็น ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
             : inv?.kind === "created_extra"
-              ? ` · ออกบิลต่อคืน ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
+              ? ` · ออกบิลพักต่อ ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
               : ""),
         "success"
       );
@@ -474,27 +476,43 @@ export function BookingCalendar() {
 
   /**
    * 🌙 ต่อคืน — กดทีเดียว เลื่อนวันออกให้ทุกตัวในบ้าน + ปรับบิลให้ตรงจำนวนคืน
-   * (บิลยังไม่ปิด = แก้บิลเดิม · ปิดแล้ว = ออกบิลต่อคืนเฉพาะคืนที่เพิ่ม)
+   * (บิลยังไม่ปิด = แก้บิลเดิม · ปิดแล้ว = ออกบิลพักต่อเฉพาะคืนที่เพิ่ม)
    */
-  const extendStay = async (group: CalendarDay[]) => {
+  // หน้าต่าง "ต่อคืน" — เลือกวันออกใหม่จากปฏิทิน (ไม่ต้องนับเองว่ากี่คืน)
+  const [extending, setExtending] = useState<{
+    group: CalendarDay[];
+    oldOut: string;
+    newOut: string;
+  } | null>(null);
+  const [extendBusy, setExtendBusy] = useState(false);
+
+  const extendStay = (group: CalendarDay[]) => {
     const host = group[0];
     const oldOut = host.checkout || "";
     if (!host.checkin || !oldOut) {
       toast("นัดนี้ยังไม่มีวันเข้า-ออก — กดเมนู ⋯ > แก้ไข ใส่วันก่อนนะ", "error");
       return;
     }
-    const raw = prompt(
-      `🌙 ต่อคืน — ${group.map((g) => g.catName).join(", ")}\nวันออกเดิม ${oldOut}\n\nต่ออีกกี่คืน?`,
-      "1"
-    );
-    if (raw == null) return;
-    const extra = Math.round(Number(raw) || 0);
-    if (extra <= 0) return;
-    const d = new Date(`${oldOut}T12:00:00`);
-    d.setDate(d.getDate() + extra);
-    const newOut = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate()
-    ).padStart(2, "0")}`;
+    setExtending({ group, oldOut, newOut: addDaysIso(oldOut, 1) });
+  };
+
+  const saveExtend = async () => {
+    if (!extending) return;
+    const { group, oldOut, newOut } = extending;
+    if (!newOut || newOut <= oldOut) {
+      toast("วันออกใหม่ต้องหลังวันออกเดิมนะ", "error");
+      return;
+    }
+    setExtendBusy(true);
+    try {
+      if (await doExtend(group, oldOut, newOut)) setExtending(null);
+    } finally {
+      setExtendBusy(false);
+    }
+  };
+
+  const doExtend = async (group: CalendarDay[], oldOut: string, newOut: string) => {
+    const host = group[0];
 
     // เช็คว่าห้องประเภทนี้ยังว่างช่วงคืนที่เพิ่ม (ไม่นับตัวเองทั้งบ้าน)
     const roomId = host.room || host.roomType || "";
@@ -519,7 +537,7 @@ export function BookingCalendar() {
         free.length === 0 &&
         !confirm(`ห้องประเภทนี้เต็มบางคืนในช่วง ${oldOut} → ${newOut}\nยังจะต่อคืนอยู่ไหม?`)
       )
-        return;
+        return false;
     }
 
     const res = await fetch("/api/bookings", {
@@ -537,7 +555,7 @@ export function BookingCalendar() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       toast("ต่อคืนไม่สำเร็จ", "error");
-      return;
+      return false;
     }
     const inv = data.invoice;
     toast(
@@ -545,12 +563,13 @@ export function BookingCalendar() {
         (inv?.kind === "updated"
           ? ` · แก้บิลเป็น ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
           : inv?.kind === "created_extra"
-            ? ` · ออกบิลต่อคืน ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
+            ? ` · ออกบิลพักต่อ ${inv.nights} คืน ${Number(inv.total).toLocaleString()}฿`
             : ""),
       "success"
     );
     if (inv?.kind === "warn") alert(`⚠️ ${inv.message}`);
     load();
+    return true;
   };
 
   const load = useCallback(async () => {
@@ -992,6 +1011,72 @@ export function BookingCalendar() {
                 className="min-h-[48px] flex-[1.4] rounded-full bg-catcha-chocolate text-sm font-extrabold text-card shadow-catcha-sm disabled:opacity-50"
               >
                 {movingBusy ? "กำลังเลื่อน..." : "เลื่อนทั้งบ้าน"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {extending && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-catcha-chocolate/40 backdrop-blur-[2px] sm:items-center sm:p-4"
+          onClick={() => !extendBusy && setExtending(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-t-[28px] bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha sm:p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-catcha-line sm:hidden" />
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Extend stay</p>
+            <h2 className="flex items-center gap-1.5 text-lg font-extrabold text-catcha-chocolate">
+              <Icon name="bed" size={18} />
+              ต่อคืน
+            </h2>
+            <p className="mb-4 mt-1 text-xs text-brown-soft">
+              {extending.group.map((g) => g.catName).join(", ")} · วันออกเดิม{" "}
+              {formatThaiDateShort(extending.oldOut)}
+            </p>
+            <label className="block text-xs font-bold text-brown-soft">
+              วันออกใหม่
+              <input
+                type="date"
+                min={addDaysIso(extending.oldOut, 1)}
+                value={extending.newOut}
+                onChange={(e) => setExtending({ ...extending, newOut: e.target.value })}
+                className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm text-brown"
+              />
+            </label>
+            {(() => {
+              const n = nightsBetweenIso(extending.oldOut, extending.newOut);
+              return n > 0 ? (
+                <p className="mt-2 rounded-catcha-sm bg-paper px-3 py-2 text-xs font-bold text-brown">
+                  พักต่อ {n} คืน · {formatThaiDateShort(extending.oldOut)} →{" "}
+                  {formatThaiDateShort(extending.newOut)}
+                  <span className="mt-0.5 block text-[10px] font-normal text-brown-faint">
+                    บิลจ่ายแล้ว → ออกบิลใหม่เฉพาะช่วงนี้ · บิลยังไม่จ่าย → แก้บิลเดิมให้
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-2 text-[11px] text-red-600">วันออกใหม่ต้องหลังวันออกเดิม</p>
+              );
+            })()}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                disabled={extendBusy}
+                onClick={() => setExtending(null)}
+                className="min-h-[48px] flex-1 rounded-full bg-paper text-sm font-bold text-brown"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={extendBusy || nightsBetweenIso(extending.oldOut, extending.newOut) <= 0}
+                onClick={saveExtend}
+                className="min-h-[48px] flex-[1.4] rounded-full bg-catcha-chocolate text-sm font-extrabold text-card shadow-catcha-sm disabled:opacity-50"
+              >
+                {extendBusy ? "กำลังต่อคืน..." : "ต่อคืน"}
               </button>
             </div>
           </div>

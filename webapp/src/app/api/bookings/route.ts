@@ -919,7 +919,7 @@ export async function PATCH(req: NextRequest) {
           inv.kind === "updated"
             ? `แก้บิลเดิมเป็น ${inv.nights} คืน · ${inv.total} บาท`
             : inv.kind === "created_extra"
-              ? `ออกบิลต่อคืน ${inv.nights} คืน · ${inv.total} บาท`
+              ? `ออกบิลพักต่อ ${inv.nights} คืน · ${inv.total} บาท`
               : inv.kind === "warn"
                 ? `⚠️ ${inv.message}`
                 : "-",

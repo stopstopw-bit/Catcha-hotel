@@ -22,6 +22,7 @@ import {
 } from "@/lib/grooming-prices";
 import { priceSignature, findLastPrice } from "@/lib/special-price";
 import { roomPricing, roomNightPrice } from "@/lib/room-board";
+import { isRoomLine, roomLineLabel, splitRoomLabel } from "@/lib/stay-line";
 
 type Customer = {
   id: string;
@@ -105,6 +106,9 @@ type Item = {
   /** ส่วนลดเฉพาะรายการนี้ (หักจากยอดรวมของรายการ ก่อนส่วนลดท้ายบิล) — บาท หรือ % */
   discount?: number;
   discountMode?: "baht" | "percent";
+  /** บรรทัดค่าห้องจากบิลเดิมที่เปิดมาแก้ (โหลดเป็น "พิมพ์เอง") — qty = จำนวนคืน
+   *  บันทึกกลับเป็นค่าห้อง "× N คืน" ไม่ใช่ "× N" ระบบต่อคืนจะได้นับคืนที่จ่ายไปแล้วถูก */
+  roomLine?: { note?: string };
 };
 
 /**
@@ -233,6 +237,15 @@ function computeLineBase(
     };
   }
   const unit = it.priceOverride ?? (it.amount || 0);
+  if (it.roomLine) {
+    return {
+      label: withCat(roomLineLabel(it.label, qty, it.roomLine.note)),
+      amount: unit * qty,
+      catName: cat,
+      qty,
+      unitAmount: unit,
+    };
+  }
   return {
     label: withCat(qty > 1 ? `${it.label} × ${qty}` : it.label),
     amount: unit * qty,
@@ -878,7 +891,7 @@ export default function BillingPage() {
     if (existing) {
       if (existing.status === "paid") {
         toast(
-          "นัดนี้ออกบิลและชำระแล้ว — ถ้าลูกค้าอยู่ต่อ ให้แก้ \"วันออก\" ที่นัด ระบบจะออกบิลต่อคืนเฉพาะคืนที่เพิ่มให้เอง",
+          "นัดนี้ออกบิลและชำระแล้ว — ถ้าลูกค้าอยู่ต่อ ให้แก้ \"วันออก\" ที่นัด ระบบจะออกบิลพักต่อเฉพาะคืนที่เพิ่มให้เอง",
           "error"
         );
         return;
@@ -984,7 +997,8 @@ export default function BillingPage() {
     } else {
       patch = { kind, label: "", amount: 0 };
     }
-    updateItem(idx, patch);
+    // เปลี่ยนประเภทแล้ว ไม่ใช่บรรทัดค่าห้องจากบิลเดิมอีกต่อไป
+    updateItem(idx, { ...patch, roomLine: undefined });
   };
 
   const changeProgram = (idx: number, program: string) => {
@@ -1021,7 +1035,7 @@ export default function BillingPage() {
     const payloadItems = items
       .map((it, i) => ({
         ...lines[i],
-        kind: it.kind,
+        kind: it.roomLine ? ("room" as const) : it.kind,
         ...(it.kind === "grooming" ? { program: it.program } : {}),
       }))
       .filter((l) => l.label.trim());
@@ -1100,6 +1114,18 @@ export default function BillingPage() {
     setItems(
       (inv.items || []).map((it) => {
         const qty = Math.max(1, Math.round(it.qty || 1));
+        if (it.amount > 0 && isRoomLine(it)) {
+          const { base, note } = splitRoomLabel(it.label.replace(/^🐱 .+? · /, ""));
+          return {
+            ...newGrooming(groomPrograms),
+            kind: "custom" as const,
+            label: base,
+            roomLine: { note: note || undefined },
+            catName: it.catName,
+            qty,
+            amount: it.unitAmount ?? Math.round(it.amount / qty),
+          };
+        }
         return {
           ...newGrooming(groomPrograms),
           kind: it.amount > 0 ? ("custom" as const) : ("freebie" as const),
@@ -1913,7 +1939,7 @@ export default function BillingPage() {
                       ห้องพักไม่มีช่องนี้ เพราะคิดเป็น "คืน" อยู่แล้ว */}
                   {item.kind !== "room" && item.kind !== "freebie" && (
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-brown-soft">จำนวน</span>
+                      <span className="text-[11px] font-bold text-brown-soft">{item.roomLine ? "จำนวนคืน" : "จำนวน"}</span>
                       <button
                         type="button"
                         onClick={() =>
