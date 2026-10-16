@@ -169,6 +169,16 @@ function CheckRow({
 const inputCls =
   "w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card";
 
+/**
+ * หน้าลูกค้าเป็นของบ้านเดียวอยู่แล้ว — จัดกลุ่มแค่ "บริการ + วันเวลาเดียวกัน" ไม่ดูชื่อ/รหัสลูกค้าบนนัด
+ * (นัดที่ลูกค้าจองเองกับนัดที่ร้านลงให้ บางทีมีรหัสลูกค้าไม่ตรงกัน แล้วจะแตกเป็นคนละนัด)
+ */
+function groupHousehold(list: EditableBooking[]): EditableBooking[][] {
+  return groupBookings(list.map((b) => ({ ...b, customerId: "", customerName: "" }))).map((g) =>
+    g.map((x) => list.find((b) => b.id === x.id)!)
+  );
+}
+
 function CustomerAppointmentsSection({
   bookings,
   catNames,
@@ -192,19 +202,27 @@ function CustomerAppointmentsSection({
       });
   }, []);
 
-  const cancelBooking = async (b: EditableBooking) => {
-    if (!confirm(`ยกเลิกนัด ${b.catName} · ${b.date}?`)) return;
-    const res = await fetch("/api/bookings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: b.id, action: "cancel" }),
-    });
-    if (res.ok) {
+  // บ้านเดียวกัน นัดเดียวกัน = 1 นัด (ใส่ชื่อน้องทุกตัว) ไม่แตกเป็นรายตัว
+  const groups = groupHousehold(bookings);
+
+  const cancelGroup = async (group: EditableBooking[]) => {
+    const names = group.map((b) => b.catName).join(", ");
+    if (!confirm(`ยกเลิกนัด ${names} · ${group[0].date}?`)) return;
+    const results = await Promise.all(
+      group.map((b) =>
+        fetch("/api/bookings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: b.id, action: "cancel" }),
+        })
+      )
+    );
+    if (results.every((r) => r.ok)) {
       alert("ยกเลิกนัดแล้ว");
-      onRefresh();
     } else {
-      alert("ยกเลิกไม่สำเร็จ");
+      alert("ยกเลิกไม่สำเร็จบางตัว — ลองใหม่อีกครั้ง");
     }
+    onRefresh();
   };
 
   return (
@@ -225,14 +243,17 @@ function CustomerAppointmentsSection({
       <CardHeader
         icon="calendar"
         title="นัดหมาย"
-        sub={bookings.length ? `${bookings.length} นัดที่กำลังจะมาถึง · แตะเพื่อแก้ไข` : undefined}
+        sub={groups.length ? `${groups.length} นัดที่กำลังจะมาถึง · แตะเพื่อแก้ไข` : undefined}
       />
       {bookings.length === 0 ? (
         <EmptyState icon="calendar" title="ยังไม่มีนัดที่กำลังจะมาถึง" />
       ) : (
         <ul className="divide-y divide-catcha-line rounded-catcha-sm border border-catcha-line bg-card">
-          {bookings.map((b) => (
-            <li key={b.id} className="flex items-center gap-1 pr-2">
+          {groups.map((group) => {
+            const b = group[0];
+            const many = group.length > 1;
+            return (
+            <li key={group.map((g) => g.id).join(",")} className="flex items-center gap-1 pr-2">
               <button
                 type="button"
                 onClick={() => setEditing(b)}
@@ -242,8 +263,18 @@ function CustomerAppointmentsSection({
                   <Icon name={b.service === "room" ? "bed" : "bath"} size={20} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-extrabold text-catcha-chocolate">
-                    {b.catName} · {b.service === "room" ? "ห้องพัก" : "อาบน้ำ"}
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-extrabold text-catcha-chocolate">
+                      {b.service === "room" ? "ห้องพัก" : "อาบน้ำ"}
+                    </span>
+                    {many && (
+                      <span className="shrink-0 rounded-full bg-latte/25 px-1.5 py-px text-[10px] font-extrabold text-latte-deep">
+                        {group.length} ตัว
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-[11px] font-bold text-brown">
+                    {group.map((g) => g.catName).join(", ")}
                   </span>
                   <span className="block truncate text-[11px] text-brown-soft">{bookingWhen(b)}</span>
                 </span>
@@ -257,12 +288,35 @@ function CustomerAppointmentsSection({
               </button>
               <MoreMenu
                 items={[
-                  { label: "แก้ไขนัด", icon: "edit", onClick: () => setEditing(b) },
-                  { label: "ยกเลิกนัด", icon: "x", danger: true, onClick: () => cancelBooking(b) },
+                  { label: many ? "แก้ไขนัดทั้งบ้าน" : "แก้ไขนัด", icon: "edit", onClick: () => setEditing(b) },
+                  // แก้เฉพาะบางตัว (เช่น ตัวเดียวเปลี่ยนห้อง/โปรแกรม) ซ่อนไว้ในเมนู
+                  ...(many
+                    ? group.slice(1).map((g) => ({
+                        label: `แก้เฉพาะ ${g.catName}`,
+                        icon: "edit",
+                        onClick: () => setEditing(g),
+                      }))
+                    : []),
+                  {
+                    label: many ? "ยกเลิกนัดทั้งบ้าน" : "ยกเลิกนัด",
+                    icon: "x",
+                    danger: true,
+                    onClick: () => cancelGroup(group),
+                  },
+                  // น้องบางตัวไม่มา (เช่น ป่วย) — ยกเลิกเฉพาะตัวนั้น ตัวอื่นในบ้านยังนัดอยู่
+                  ...(many
+                    ? group.map((g) => ({
+                        label: `ยกเลิกเฉพาะ ${g.catName}`,
+                        icon: "x",
+                        danger: true,
+                        onClick: () => cancelGroup([g]),
+                      }))
+                    : []),
                 ]}
               />
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>
@@ -705,30 +759,46 @@ function ServiceHistorySection({
       ),
   }));
 
-  const bookingRow = (b: EditableBooking): Row => ({
-    key: `b${b.id}`,
-    date: b.date,
-    text: `${b.catName} · ${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${statusLabel(
-      b.status
-    )}`,
-    onDelete: () =>
-      remove("ลบนัดนี้ทิ้งถาวร? กู้คืนไม่ได้", () =>
-        fetch("/api/bookings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: b.id, action: "delete" }),
-        })
-      ),
-  });
+  // นัดบ้านเดียวกัน นัดเดียวกัน (สถานะเดียวกัน) = 1 แถว ใส่ชื่อทุกตัว
+  const bookingRow = (group: EditableBooking[]): Row => {
+    const b = group[0];
+    return {
+      key: `b${group.map((g) => g.id).join(",")}`,
+      date: b.date,
+      text: `${group.map((g) => g.catName).join(", ")} · ${
+        b.service === "room" ? "ห้องพัก" : "อาบน้ำ"
+      } · ${statusLabel(b.status)}`,
+      onDelete: () =>
+        remove(
+          group.length > 1
+            ? `ลบนัดนี้ทั้งบ้าน (${group.length} ตัว) ทิ้งถาวร? กู้คืนไม่ได้`
+            : "ลบนัดนี้ทิ้งถาวร? กู้คืนไม่ได้",
+          () =>
+            Promise.all(
+              group.map((g) =>
+                fetch("/api/bookings", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: g.id, action: "delete" }),
+                })
+              )
+            )
+        ),
+    };
+  };
+  const groupRows = (list: EditableBooking[]) => {
+    const byStatus = new Map<string, EditableBooking[]>();
+    for (const b of list) byStatus.set(b.status, [...(byStatus.get(b.status) || []), b]);
+    return Array.from(byStatus.values()).flatMap((l) => groupHousehold(l)).map(bookingRow);
+  };
 
   const byDateDesc = (a: Row, b: Row) => b.date.localeCompare(a.date);
-  const cancelledRows = pastBookings
-    .filter((b) => b.status === "cancelled")
-    .map(bookingRow)
-    .sort(byDateDesc);
+  const cancelledRows = groupRows(pastBookings.filter((b) => b.status === "cancelled")).sort(
+    byDateDesc
+  );
   const rows = [
     ...serviceRows,
-    ...pastBookings.filter((b) => b.status !== "cancelled").map(bookingRow),
+    ...groupRows(pastBookings.filter((b) => b.status !== "cancelled")),
   ].sort(byDateDesc);
 
   const visible = showAll ? rows : rows.slice(0, 8);

@@ -1341,12 +1341,23 @@ export default function BillingPage() {
     if (!payFor) return null;
     const inv = payFor;
     const hasDep = (inv.deposit ?? 0) > 0;
-    const isMember = !!customers.find((c) => c.id === inv.customerId)?.isMember;
+    const cust = customers.find((c) => c.id === inv.customerId);
+    const isMember = !!cust?.isMember;
+    // เรียกเก็บมัดจำไว้ก่อนมีบิล (หรือจากการ์ดของน้องอีกตัวในบ้าน) → ไปค้างเป็นเครดิต ดึงเข้าบิลได้เลย ไม่ต้องกรอกยอด
+    const pendingCredit = hasDep ? 0 : Math.min(inv.total, cust?.depositCredit ?? 0);
     // มัดจำที่ยังไม่ได้กดรับ ไม่หักออก — ปิดบิลตอนนี้ระบบลงรับเต็มยอดบิล
     const got = receivedOf(inv);
     const due = Math.max(0, inv.total - got);
     const close = () => setPayFor(null);
     const rows: { key: string; icon: string; title: string; sub?: string; run: () => void; when: boolean }[] = [
+      {
+        key: "apply_deposit_credit",
+        icon: "money",
+        title: "รับมัดจำแล้ว (ที่เรียกเก็บไว้)",
+        sub: `${pendingCredit.toLocaleString()} ฿ · ผูกเข้าบิลนี้ ลงบัญชีให้`,
+        when: pendingCredit > 0,
+        run: () => invoiceAction(inv.id, "apply_deposit_credit", "รับมัดจำแล้ว 💰"),
+      },
       {
         key: "receive_deposit",
         icon: "money",
