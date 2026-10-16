@@ -150,6 +150,29 @@ export function roomCapacity(type: {
   return Math.max(1, biggest(extraTxt), biggest(type.cats?.th));
 }
 
+/**
+ * ราคาห้องคิดเป็นรายห้อง: ราคาห้องรวมแมวได้ `base` ตัว ตัวที่เกินคิดเพิ่มตัวละ `extraPrice`
+ * อ่านจากข้อความเดียวกับที่โชว์ลูกค้า เช่น cats "1–2 แมว" + extra "แมวที่ 3 +50"
+ */
+export function roomPricing(type: {
+  maxCats?: number;
+  cats?: { th?: string };
+  extra?: { th?: string };
+}) {
+  const cap = roomCapacity(type);
+  const extraTxt = type.extra?.th || "";
+  const nth = /(\d+)/.exec(extraTxt.replace(/\+\s*\d+/g, ""));
+  const plus = /\+\s*(\d+)/.exec(extraTxt);
+  const nums = (type.cats?.th || "").match(/\d+/g);
+  const base = nth ? Math.max(1, Number(nth[1]) - 1) : nums ? Math.max(...nums.map(Number)) : cap;
+  return { cap, base: Math.min(base, cap), extraPrice: plus ? Number(plus[1]) : 0 };
+}
+
+/** ค่าห้องต่อคืนเมื่อมีแมว n ตัวอยู่ห้องเดียวกัน */
+export function roomNightPrice(price: number, pricing: { base: number; extraPrice: number }, n: number) {
+  return price + Math.max(0, n - pricing.base) * pricing.extraPrice;
+}
+
 /** นอนอยู่ในคืนของวันนี้ไหม (วันเช็คเอาท์ไม่นับ — เขาออกเช้าวันนั้น) */
 export function isStayingOn(b: BoardBooking, date: string): boolean {
   const ci = b.checkin || "";
