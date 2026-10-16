@@ -211,6 +211,8 @@ export type SiteConfig = {
     bankName: string;
     accountNumber: string;
     accountName: string;
+    /** พร้อมเพย์ (เบอร์มือถือ 10 หลัก หรือเลขผู้เสียภาษี/บัตร 13 หลัก) — ใช้สร้าง QR ที่หน้าขาย POS */
+    promptpayId?: string;
   };
   /** ข้อความหัวเรื่อง/ปิดท้าย ของสรุปที่ก๊อป/ส่งให้ลูกค้า (แก้ได้ในตั้งค่า) */
   billing: {

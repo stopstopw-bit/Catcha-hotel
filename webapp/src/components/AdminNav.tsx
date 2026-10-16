@@ -11,6 +11,7 @@ export const ADMIN_TABS = [
   { href: "/admin/bookings/new", label: "จองใหม่", icon: "➕" },
   { href: "/admin/customers", label: "ลูกค้า", icon: "👤" },
   { href: "/admin/billing", label: "คิดเงิน", icon: "💳" },
+  { href: "/admin/pos", label: "ขายหน้าร้าน", icon: "🛒" },
   { href: "/admin/finance", label: "รายรับ-รายจ่าย", icon: "📒" },
   { href: "/admin/tax", label: "เอกสารรายได้ / ภาษี", icon: "📑" },
   { href: "/admin/insights", label: "สรุปข้อมูล", icon: "📊" },
