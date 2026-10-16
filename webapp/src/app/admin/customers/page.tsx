@@ -1,5 +1,6 @@
 "use client";
 
+import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -675,17 +676,18 @@ function StaysConsentSection({ bookings }: { bookings: EditableBooking[] }) {
                     ดูลายเซ็น
                   </a>
                 )}
-                {b.vaccinePhotoUrl && (
+                {splitVaccinePhotos(b.vaccinePhotoUrl).map((url, vi, all) => (
                   <a
-                    href={b.vaccinePhotoUrl}
+                    key={url}
+                    href={url}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex min-h-[32px] items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold bg-latte/30 text-catcha-chocolate"
                   >
                     <Icon name="doc" size={12} />
-                    ดูสมุดวัคซีน
+                    {all.length > 1 ? `สมุดวัคซีน ${vi + 1}` : "ดูสมุดวัคซีน"}
                   </a>
-                )}
+                ))}
                 {b.consentAcceptedAt && (
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
@@ -1738,6 +1740,16 @@ function CustomerSummaryCard({
             </span>
           </li>
         )}
+        <li className="flex items-center gap-2">
+          <Icon name="user" size={14} className="text-brown-faint" />
+          {customer.idCardUrl ? (
+            <a href={customer.idCardUrl} target="_blank" rel="noreferrer" className="font-bold text-latte-deep underline">
+              ดูบัตรประชาชน (ขีดทับแล้ว)
+            </a>
+          ) : (
+            <span className="text-brown-faint">ยังไม่ได้แนบบัตรประชาชน</span>
+          )}
+        </li>
         <li className={`flex items-center gap-2 ${customer.marketingConsent ? "text-ok" : "font-bold text-wait"}`}>
           <Icon name={customer.marketingConsent ? "check" : "x"} size={14} />
           {customer.marketingConsent ? "ยินยอมรับข่าวสาร/โปร" : "ไม่รับข่าวสาร/โปร"}

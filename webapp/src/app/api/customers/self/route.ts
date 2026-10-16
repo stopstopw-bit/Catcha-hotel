@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       address: c.address || "",
       addressMapUrl: c.addressMapUrl || "",
       postalCode: c.postalCode || "",
+      idCardUrl: c.idCardUrl || "",
       marketingConsent: c.marketingConsent !== false,
       cats: c.cats.map((x) => ({
         id: x.id,

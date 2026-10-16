@@ -1,5 +1,6 @@
 "use client";
 
+import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1844,20 +1845,23 @@ export function BookingCalendar() {
                           {x.catName}
                         </span>
                         {x.vaccinePhotoUrl ? (
-                          <a
-                            href={x.vaccinePhotoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex min-h-[40px] items-center gap-1.5 font-bold text-ok underline"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={x.vaccinePhotoUrl}
-                              alt="สมุดวัคซีน"
-                              className="h-8 w-8 rounded border border-catcha-line object-cover"
-                            />
-                            ดูสมุดวัคซีน
-                          </a>
+                          splitVaccinePhotos(x.vaccinePhotoUrl).map((url, vi, all) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex min-h-[40px] items-center gap-1.5 font-bold text-ok underline"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={url}
+                                alt="สมุดวัคซีน"
+                                className="h-8 w-8 rounded border border-catcha-line object-cover"
+                              />
+                              {vi === 0 && `ดูสมุดวัคซีน${all.length > 1 ? ` (${all.length} รูป)` : ""}`}
+                            </a>
+                          ))
                         ) : (
                           <span className="text-brown-faint">ยังไม่ได้แนบสมุดวัคซีน</span>
                         )}
