@@ -499,17 +499,25 @@ export default function BillingPage() {
     load();
   }, [load]);
 
-  // มาจากปุ่ม "คิดเงิน" หน้าแรก (?view=pending) → เลื่อนลงไปที่ลิสต์บิลรอชำระ พร้อมกดรับชำระ
+  // มาจากปุ่ม "คิดเงิน" (หน้าแรก/แถบล่าง, ?view=pending) → เปิดที่บิลรอชำระทั้งหมด พร้อมกดรับชำระ
+  const showPendingBills = useCallback(() => {
+    setBillFilter("pending");
+    setPendingStage("all");
+    requestAnimationFrame(() =>
+      document.getElementById("bills")?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+  }, []);
   const jumpedToBills = useRef(false);
   useEffect(() => {
     if (jumpedToBills.current || invoices.length === 0) return;
     if (new URLSearchParams(window.location.search).get("view") !== "pending") return;
     jumpedToBills.current = true;
-    setBillFilter("pending");
-    requestAnimationFrame(() =>
-      document.getElementById("bills")?.scrollIntoView({ behavior: "smooth", block: "start" })
-    );
-  }, [invoices]);
+    showPendingBills();
+  }, [invoices, showPendingBills]);
+  useEffect(() => {
+    window.addEventListener("catcha:show-pending-bills", showPendingBills);
+    return () => window.removeEventListener("catcha:show-pending-bills", showPendingBills);
+  }, [showPendingBills]);
 
   // ดึงนัดจาก URL อัตโนมัติ (มาจากปุ่ม "ออกบิล" ในตารางนัด) — ทำครั้งเดียว
   const autoPicked = useRef(false);
