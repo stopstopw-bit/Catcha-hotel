@@ -296,6 +296,15 @@ function CustomerAppointmentsSection({
                     danger: true,
                     onClick: () => cancelGroup(group),
                   },
+                  // น้องบางตัวไม่มา (เช่น ป่วย) — ยกเลิกเฉพาะตัวนั้น ตัวอื่นในบ้านยังนัดอยู่
+                  ...(many
+                    ? group.map((g) => ({
+                        label: `ยกเลิกเฉพาะ ${g.catName}`,
+                        icon: "x",
+                        danger: true,
+                        onClick: () => cancelGroup([g]),
+                      }))
+                    : []),
                 ]}
               />
             </li>
