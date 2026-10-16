@@ -104,7 +104,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   const isDashboard = pathname === "/admin";
 
   return (
-    <div className="min-h-screen bg-catcha-gradient pb-28 lg:pb-0">
+    <div className="min-h-screen bg-catcha-gradient pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-0">
       <Toaster />
       {isDashboard ? (
         <header className="print:hidden">
