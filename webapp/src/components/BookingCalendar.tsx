@@ -1613,8 +1613,8 @@ export function BookingCalendar() {
                       <b className="text-catcha-chocolate">
                         {b.service === "room"
                           ? [
-                              b.transport.pickup && `รับวันเข้า ${b.checkin || b.date}`,
-                              b.transport.dropoff && `ส่งวันออก ${b.checkout || ""}`,
+                              b.transport.pickup && `รับน้อง ${b.checkin || b.date}`,
+                              b.transport.dropoff && `ส่งกลับ ${b.checkout || ""}`,
                             ]
                               .filter(Boolean)
                               .join(" · ")

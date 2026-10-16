@@ -449,7 +449,7 @@ export function BookingEditModal({
                 </span>
               </span>
             </label>
-          <TransportPicker value={transport} onChange={changeTransport} service={service} />
+          <TransportPicker value={transport} onChange={changeTransport} />
           <EditField label="โน้ต" name="notes" defaultValue={booking.notes || ""} textarea />
 
           {/* ปิดข้อความอัตโนมัติเฉพาะเคสนี้ — เช่น ลูกค้าประจำที่คุยกันทางแชทอยู่แล้ว */}
