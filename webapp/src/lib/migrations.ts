@@ -59,6 +59,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
   { table: "invoice_docs", column: "receipt_no", feature: "ใบเสร็จ/ใบเสนอราคาในนามบริษัท" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
+  { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
 ];
 
 export type SchemaCheckRow = {
@@ -434,6 +435,11 @@ where staff_note like '%🎁%';`,
       alter table package_offers add column if not exists groom_program text;
       alter table package_orders add column if not exists groom_program text;
     `,
+  },
+  {
+    // บริการรับ-ส่งของนัด {pickup, dropoff, mapUrl, address} — ว่าง = ลูกค้ามาเอง
+    name: "bookings.transport",
+    sql: "alter table bookings add column if not exists transport jsonb;",
   },
 ];
 

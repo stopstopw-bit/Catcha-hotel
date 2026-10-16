@@ -239,6 +239,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       );
       return;
     }
+    if (path === "booking-transport") {
+      const bkId = params.get("id");
+      router.replace(`/app/booking-transport?id=${encodeURIComponent(bkId || "")}`);
+      return;
+    }
     if (path === "profile") {
       router.replace("/app/profile");
       return;
@@ -287,6 +292,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith("/app/services") ||
       pathname.startsWith("/app/consent") ||
       pathname.startsWith("/app/booking-time") ||
+      pathname.startsWith("/app/booking-transport") ||
       pathname.startsWith("/app/profile") ||
       pathname.startsWith("/app/groom-info") ||
       pathname.startsWith("/app/coupons") ||

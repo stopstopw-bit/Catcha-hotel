@@ -1,6 +1,7 @@
 import { BUSINESS } from "./business";
 import { getSiteConfig } from "./config-store";
-import { bookingConfirmUrl as buildConfirmUrl } from "./line-config";
+import { bookingConfirmUrl as buildConfirmUrl, bookingTransportUrl } from "./line-config";
+import { hasTransport, type BookingTransport } from "./transport";
 import { getLineCredentials } from "./line-config";
 import { buildAppointmentConfirmFlex } from "./line";
 
@@ -22,6 +23,7 @@ export async function buildBookingConfirmFlex(
     room?: string;
     notes?: string;
     groomProgram?: string;
+    transport?: BookingTransport;
   }
 ) {
   const config = await getSiteConfig();
@@ -29,9 +31,13 @@ export async function buildBookingConfirmFlex(
     config.business.location.th || BUSINESS.location.th;
   const mapsUrl = config.business.maps || BUSINESS.maps;
 
+  const creds = await getLineCredentials();
   return buildAppointmentConfirmFlex({
     ...booking,
     confirmUrl: await bookingConfirmUrl(booking.id),
+    transportUrl: hasTransport(booking.transport)
+      ? bookingTransportUrl(booking.id, creds?.liffId)
+      : undefined,
     mapsUrl,
     location: [config.business.name, location].filter(Boolean).join(" · "),
     businessName: config.business.name,

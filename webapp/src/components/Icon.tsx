@@ -204,6 +204,21 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M10 8l-4 4 4 4M6 12h10" />
     </>
   ),
+  car: (
+    <>
+      <path d="M5 17H3.5v-4.5L5.5 7h13l2 5.5V17H19" />
+      <path d="M3.5 12.5h17" />
+      <circle cx="7.5" cy="17" r="1.8" />
+      <circle cx="16.5" cy="17" r="1.8" />
+      <path d="M9.3 17h5.4" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+      <circle cx="12" cy="10" r="2.3" />
+    </>
+  ),
   bed: (
     <>
       <path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5" />

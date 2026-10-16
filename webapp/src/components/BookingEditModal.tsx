@@ -6,6 +6,8 @@ import { relevantAutoMessageTopics } from "@/lib/auto-messages";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { Segmented } from "@/components/ui";
+import { TransportPicker } from "@/components/TransportPicker";
+import type { BookingTransport } from "@/lib/transport";
 import { GROOM_PROGRAMS, type GroomProgram } from "@/lib/grooming-prices";
 import { freeUnitsForRange, roomCapacity, compositionOf, type BoardBooking, type RoomClosure } from "@/lib/room-board";
 
@@ -34,6 +36,8 @@ export type EditableBooking = Booking & {
   arrivalTime?: string;
   /** เวลาที่เจ้าของแจ้งว่าจะมารับน้อง */
   pickupTime?: string;
+  /** บริการรับ-ส่ง (ดู transport.ts) */
+  transport?: BookingTransport;
 };
 
 function EditField({
@@ -140,12 +144,24 @@ export function BookingEditModal({
     );
   // รับ/ส่งเอง แยกกัน — บางคนให้ร้านรับอย่างเดียว หรือส่งอย่างเดียวก็ได้
   // รับ = ร้านไปรับน้องจากบ้าน ไม่ต้องถามเวลาเช็คอิน, ส่ง = ร้านไปส่งน้องกลับบ้าน ไม่ต้องถามเวลาเช็คเอาท์
-  const usePickup = autoOff.includes("checkin");
-  const useDropoff = autoOff.includes("checkout");
-  const toggleTransport = (topic: "checkin" | "checkout", on: boolean) =>
-    setAutoOff((prev) =>
-      on ? Array.from(new Set([...prev, topic])) : prev.filter((x) => x !== topic)
-    );
+  // นัดเก่าที่ติ๊ก "ร้านไปรับ/ส่ง" ไว้ก่อนมีช่องรับ-ส่ง เก็บเป็นการปิดข้อความถามเวลา — อ่านมาเป็นค่าเริ่มต้น
+  const [transport, setTransport] = useState<BookingTransport>(
+    booking.transport || {
+      pickup: booking.service === "room" && (booking.autoOff || []).includes("checkin"),
+      dropoff: booking.service === "room" && (booking.autoOff || []).includes("checkout"),
+    }
+  );
+  const changeTransport = (t: BookingTransport) => {
+    // ฝากพัก: ร้านไปรับ = ไม่ต้องถามเวลาเช็คอิน, ร้านไปส่ง = ไม่ต้องถามเวลาเช็คเอาท์
+    if (service === "room") {
+      const sync = (prev: string[], topic: string, on: boolean) =>
+        on ? Array.from(new Set([...prev, topic])) : prev.filter((x) => x !== topic);
+      if (!!t.pickup !== !!transport.pickup) setAutoOff((p) => sync(p, "checkin", !!t.pickup));
+      if (!!t.dropoff !== !!transport.dropoff) setAutoOff((p) => sync(p, "checkout", !!t.dropoff));
+    }
+    setTransport(t);
+  };
+  const transportPayload = transport.pickup || transport.dropoff ? transport : null;
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -163,6 +179,7 @@ export function BookingEditModal({
             groomProgram: String(fd.get("groomProgram") || "") || undefined,
             notes: String(fd.get("notes") || "") || undefined,
             arrivalTime: String(fd.get("arrivalTime") || "") || undefined,
+            transport: transportPayload,
             autoOff,
           }
         : {
@@ -179,6 +196,7 @@ export function BookingEditModal({
             notes: String(fd.get("notes") || "") || undefined,
             arrivalTime: String(fd.get("arrivalTime") || "") || undefined,
             pickupTime: String(fd.get("pickupTime") || "") || undefined,
+            transport: transportPayload,
             autoOff,
           };
 
@@ -393,26 +411,6 @@ export function BookingEditModal({
                 onChange={setCheckoutSel}
                 required
               />
-              <div className="rounded-catcha-sm bg-paper/60 px-3 py-1">
-                <label className="flex min-h-[40px] items-center gap-2.5 text-xs font-bold text-brown-soft">
-                  <input
-                    type="checkbox"
-                    checked={usePickup}
-                    onChange={(e) => toggleTransport("checkin", e.target.checked)}
-                    className="h-4 w-4 shrink-0 accent-latte-deep"
-                  />
-                  ร้านไปรับน้อง (ไม่ต้องถามลูกค้าเรื่องเวลาเช็คอิน)
-                </label>
-                <label className="flex min-h-[40px] items-center gap-2.5 text-xs font-bold text-brown-soft">
-                  <input
-                    type="checkbox"
-                    checked={useDropoff}
-                    onChange={(e) => toggleTransport("checkout", e.target.checked)}
-                    className="h-4 w-4 shrink-0 accent-latte-deep"
-                  />
-                  ร้านไปส่งน้องกลับ (ไม่ต้องถามลูกค้าเรื่องเวลาเช็คเอาท์)
-                </label>
-              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="min-w-0">
                   <EditField
@@ -451,6 +449,7 @@ export function BookingEditModal({
                 </span>
               </span>
             </label>
+          <TransportPicker value={transport} onChange={changeTransport} service={service} />
           <EditField label="โน้ต" name="notes" defaultValue={booking.notes || ""} textarea />
 
           {/* ปิดข้อความอัตโนมัติเฉพาะเคสนี้ — เช่น ลูกค้าประจำที่คุยกันทางแชทอยู่แล้ว */}
