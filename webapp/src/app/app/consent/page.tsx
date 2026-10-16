@@ -13,6 +13,7 @@ import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
+import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 
 type StayBooking = Booking & {
   checkin?: string;
@@ -123,6 +124,8 @@ function ConsentContent() {
   const [vaccinePhotos, setVaccinePhotos] = useState<string[]>([]);
   const [vaccineUploading, setVaccineUploading] = useState(false);
   const [fleaTickTreated, setFleaTickTreated] = useState(false);
+  const [idCardUrl, setIdCardUrl] = useState("");
+  const [idCardBusy, setIdCardBusy] = useState(false);
   const [fleaError, setFleaError] = useState(false);
 
   const terms =
@@ -152,6 +155,37 @@ function ConsentContent() {
       .catch(() => setBooking(null))
       .finally(() => setLoading(false));
   }, [profile?.lineUserId, bookingIdParam]);
+
+  // บัตรประชาชนผูกกับลูกค้า — เคยแนบไว้แล้วก็โชว์ ไม่ต้องแนบซ้ำทุกรอบ
+  useEffect(() => {
+    if (!profile?.lineUserId) return;
+    const q = new URLSearchParams({ lineUserId: profile.lineUserId });
+    fetch(`/api/customers/self?${q}`)
+      .then((r) => r.json())
+      .then((d) => setIdCardUrl(d?.customer?.idCardUrl || ""))
+      .catch(() => {});
+  }, [profile?.lineUserId]);
+
+  // ขีดทับบนเครื่องลูกค้าก่อน แล้วค่อยส่งขึ้นระบบ — รูปบัตรแบบไม่มีข้อความไม่เคยออกจากมือถือ
+  const uploadIdCard = async (file: File) => {
+    if (!profile?.lineUserId) return;
+    setIdCardBusy(true);
+    try {
+      const image = await watermarkIdCard(file);
+      const res = await fetch("/api/customers/id-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lineUserId: profile.lineUserId, image }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error();
+      setIdCardUrl(data.url);
+    } catch {
+      alert("แนบรูปบัตรไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+    } finally {
+      setIdCardBusy(false);
+    }
+  };
 
   const submit = async () => {
     if (!booking || !profile?.lineUserId) return;
@@ -307,6 +341,47 @@ function ConsentContent() {
                     กรุณาเซ็นชื่อในกรอบก่อนกดยอมรับข้อตกลง
                   </p>
                 )}
+              </section>
+
+              <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
+                  <Icon name="user" size={14} />
+                  บัตรประชาชนผู้ปกครอง
+                </label>
+                <p className="mb-1.5 text-[11px] text-brown-faint">
+                  ระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง: &quot;{ID_CARD_PURPOSE}&quot;
+                  แนบครั้งเดียวใช้ได้ทุกครั้งที่เข้าพัก
+                </p>
+                {idCardUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={idCardUrl}
+                    alt="บัตรประชาชน (ขีดทับแล้ว)"
+                    className="mb-2 w-full rounded-lg border border-catcha-line object-contain"
+                  />
+                )}
+                <label className="flex min-h-[56px] cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadIdCard(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-brown-soft">
+                    <Icon name="image" size={20} />
+                  </span>
+                  <span className="text-xs font-bold text-brown-soft">
+                    {idCardBusy
+                      ? "กำลังขีดทับและแนบรูป…"
+                      : idCardUrl
+                        ? "แนบไว้แล้ว · แตะเพื่อเปลี่ยนรูป"
+                        : "แตะเพื่อแนบรูปบัตรประชาชน"}
+                  </span>
+                </label>
               </section>
 
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">

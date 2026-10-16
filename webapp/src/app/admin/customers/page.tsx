@@ -1740,6 +1740,16 @@ function CustomerSummaryCard({
             </span>
           </li>
         )}
+        <li className="flex items-center gap-2">
+          <Icon name="user" size={14} className="text-brown-faint" />
+          {customer.idCardUrl ? (
+            <a href={customer.idCardUrl} target="_blank" rel="noreferrer" className="font-bold text-latte-deep underline">
+              ดูบัตรประชาชน (ขีดทับแล้ว)
+            </a>
+          ) : (
+            <span className="text-brown-faint">ยังไม่ได้แนบบัตรประชาชน</span>
+          )}
+        </li>
         <li className={`flex items-center gap-2 ${customer.marketingConsent ? "text-ok" : "font-bold text-wait"}`}>
           <Icon name={customer.marketingConsent ? "check" : "x"} size={14} />
           {customer.marketingConsent ? "ยินยอมรับข่าวสาร/โปร" : "ไม่รับข่าวสาร/โปร"}
