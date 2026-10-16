@@ -273,6 +273,10 @@ const BOTTOM_LABEL: Record<string, string> = {
   "/admin/schedule": "Schedule",
   "/admin/billing": "คิดเงิน",
 };
+/** ปุ่มคิดเงินเปิดตรงไปที่ลิสต์บิลรอชำระ ไม่ใช่ฟอร์มออกบิลด้านบน */
+const BOTTOM_LINK: Record<string, string> = {
+  "/admin/billing": "/admin/billing?view=pending",
+};
 
 export function AdminBottomBar({
   menuOpen,
@@ -291,7 +295,13 @@ export function AdminBottomBar({
     can(href) ? (
       <Link
         key={href}
-        href={href}
+        href={BOTTOM_LINK[href] || href}
+        onClick={() => {
+          // อยู่หน้าคิดเงินอยู่แล้ว กดซ้ำ = เด้งกลับไปที่บิลรอชำระ
+          if (href === "/admin/billing" && pathname === href) {
+            window.dispatchEvent(new Event("catcha:show-pending-bills"));
+          }
+        }}
         className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[10px] font-bold tracking-wide transition ${
           !menuOpen && isTabActive(pathname, href) ? "text-catcha-chocolate" : "text-brown-faint"
         }`}
