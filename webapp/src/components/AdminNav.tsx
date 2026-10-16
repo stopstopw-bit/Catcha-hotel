@@ -11,7 +11,6 @@ export const ADMIN_TABS = [
   { href: "/admin/bookings/new", label: "จองใหม่", icon: "➕" },
   { href: "/admin/customers", label: "ลูกค้า", icon: "👤" },
   { href: "/admin/billing", label: "คิดเงิน", icon: "💳" },
-  { href: "/admin/pos", label: "ขายหน้าร้าน", icon: "🛒" },
   { href: "/admin/finance", label: "รายรับ-รายจ่าย", icon: "📒" },
   { href: "/admin/tax", label: "เอกสารรายได้ / ภาษี", icon: "📑" },
   { href: "/admin/insights", label: "สรุปข้อมูล", icon: "📊" },
@@ -40,7 +39,11 @@ export function getAllowedMenus(): string[] | null {
   if (sessionStorage.getItem("catcha-role") !== "staff") return null;
   try {
     const menus = JSON.parse(sessionStorage.getItem("catcha-menus") || "[]");
-    return Array.isArray(menus) ? menus : [];
+    if (!Array.isArray(menus)) return [];
+    // ขายหน้าร้านย้ายไปเป็นแท็บในหน้าคิดเงินแล้ว — พนักงานที่เคยได้สิทธิ์ขายหน้าร้านยังเข้าได้
+    return menus.includes("/admin/pos") && !menus.includes("/admin/billing")
+      ? [...menus, "/admin/billing"]
+      : menus;
   } catch {
     return [];
   }
