@@ -27,6 +27,7 @@ function cardFor(v: RoomPlanView, thisPayment?: number) {
     customerName: v.customerName,
     planName: v.name,
     nights: v.nights,
+    kind: v.kind,
     price: v.price,
     paid: v.paid,
     remaining: v.remaining,
@@ -148,7 +149,7 @@ export async function PATCH(req: NextRequest) {
       detail: { ลูกค้า: plan.customerName, รับ: res.amount, คงเหลือ: res.view.remaining },
     });
     await sendTelegram(
-      formatBookingTelegram("💵 รับเงินงวดแพ็กห้อง", {
+      formatBookingTelegram(res.view.kind === "package" ? "💵 รับเงินงวดคอร์ส" : "💵 รับเงินงวดแพ็กห้อง", {
         ลูกค้า: plan.customerName,
         งวดที่: String(res.view.payments.length),
         รับรอบนี้: `${res.amount} บาท`,

@@ -1176,8 +1176,18 @@ function CustomerSummaryCard({
       usedUses: number;
       status: string;
       groomProgram?: string;
+      planId?: string;
+      locked?: boolean;
+      outstanding?: number;
     }[]
   >([]);
+  /** แผนแบ่งจ่ายของคอร์ส (id แผน → งวด/ยอดค้าง) */
+  const [pkgPlans, setPkgPlans] = useState<
+    Record<string, { installments: number; installmentsLeft: number; nextInstallment: number; paid: number; price: number; payments: unknown[] }>
+  >({});
+  const [pkgInstallments, setPkgInstallments] = useState(1);
+  const [pkgFirstPay, setPkgFirstPay] = useState("");
+  const [pkgMethod, setPkgMethod] = useState<"transfer" | "cash">("transfer");
   const [pkgName, setPkgName] = useState("");
   /** "" = ใช้ได้ทุกโปรแกรม */
   const [pkgProgram, setPkgProgram] = useState("");
@@ -1200,6 +1210,14 @@ function CustomerSummaryCard({
       .then((r) => r.json())
       .then((d) => setPackages(d.packages || []))
       .catch(() => {});
+    fetch(`/api/room-plans?customerId=${customer.id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const map: typeof pkgPlans = {};
+        for (const p of d.plans || []) if (p.kind === "package") map[p.id] = p;
+        setPkgPlans(map);
+      })
+      .catch(() => {});
   }, [customer.id]);
   useEffect(() => {
     loadPackages();
@@ -1216,6 +1234,9 @@ function CustomerSummaryCard({
       isLegacy: pkgLegacy,
       notify: pkgNotify,
       groomProgram: pkgProgram || undefined,
+      installments: pkgLegacy ? 1 : pkgInstallments,
+      firstPayment: !pkgLegacy && pkgInstallments > 1 ? Math.round(Number(pkgFirstPay) || 0) : undefined,
+      paymentMethod: pkgMethod,
     };
   };
 
@@ -1231,10 +1252,19 @@ function CustomerSummaryCard({
       });
       const pkgData = await res.json().catch(() => ({}));
       setPkgPreview(null);
+      if (!res.ok && pkgData.error) {
+        toast(pkgData.error, "error");
+        loadPackages();
+      }
       if (res.ok) {
         setMsg(
           `✅ ${pkgLegacy ? "ยกคอร์ส" : "ขายคอร์ส"} "${pkgName.trim()}" แล้ว` +
             (pkgLegacy ? " · ไม่นับรายรับเดือนนี้" : "") +
+            (pkgData.plan
+              ? pkgData.plan.remaining > 0
+                ? ` · ค้าง ${Math.round(pkgData.plan.remaining).toLocaleString()} บาท (ใช้ได้เมื่อจ่ายครบ)`
+                : " · จ่ายครบแล้ว"
+              : "") +
             (pkgNotify
               ? pkgData.notifyError
                 ? ` · ⚠️ ส่ง LINE ไม่ได้: ${pkgData.notifyError}`
@@ -1247,6 +1277,8 @@ function CustomerSummaryCard({
         setPkgPrice("");
         setPkgLegacy(false);
         setPkgNotify(false);
+        setPkgInstallments(1);
+        setPkgFirstPay("");
         loadPackages();
         setTimeout(() => setMsg(""), 2500);
       }
@@ -1277,13 +1309,63 @@ function CustomerSummaryCard({
   };
 
   const cancelPackage = async (id: string) => {
-    if (!confirm("ยกเลิกคอร์สนี้?")) return;
-    await fetch("/api/packages", {
+    const pk = packages.find((p) => p.id === id);
+    const plan = pk?.planId ? pkgPlans[pk.planId] : undefined;
+    if (
+      !confirm(
+        plan
+          ? "ยกเลิกคอร์สนี้? ยอดค้างจะไม่ต้องจ่ายต่อ (เงินงวดที่รับแล้วไม่ถูกลบ ต้องคืนลูกค้าเองถ้าจะคืน)"
+          : "ยกเลิกคอร์สนี้?"
+      )
+    )
+      return;
+    if (pk?.planId && plan) {
+      await fetch("/api/room-plans", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", planId: pk.planId }),
+      });
+    } else {
+      await fetch("/api/packages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", packageId: id }),
+      });
+    }
+    loadPackages();
+  };
+
+  /** รับเงินงวดของคอร์สแบ่งจ่าย */
+  const payInstallment = async (planId: string, name: string) => {
+    const plan = pkgPlans[planId];
+    if (!plan) return;
+    const remaining = plan.price - plan.paid;
+    const raw = prompt(
+      `รับเงินงวด — ${name}\nค้าง ${Math.round(remaining).toLocaleString()} บาท · เหลือ ${plan.installmentsLeft} งวด\n\nรับรอบนี้กี่บาท?`,
+      String(plan.nextInstallment || "")
+    );
+    if (raw == null) return;
+    const amount = Math.round(Number(raw.replace(/[,\s฿]/g, "")) || 0);
+    if (amount <= 0) return;
+    const method = confirm("รับเป็นเงินสดใช่ไหม?\n(ตกลง = เงินสด · ยกเลิก = โอน)") ? "cash" : "transfer";
+    const res = await fetch("/api/room-plans", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "cancel", packageId: id }),
+      body: JSON.stringify({ action: "pay", planId, amount, paymentMethod: method, notify: customer.lineUserId ? undefined : false }),
     });
-    loadPackages();
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.ok) {
+      toast(
+        d.plan.remaining > 0
+          ? `รับแล้ว ${amount.toLocaleString()} บาท · ค้างอีก ${Math.round(d.plan.remaining).toLocaleString()} บาท`
+          : `รับครบแล้ว — คอร์สใช้ได้แล้ว`
+      );
+      loadPackages();
+    } else if (d.error === "over_due") {
+      toast(`เกินยอดค้าง — ค้างอยู่ ${Math.round(d.due).toLocaleString()} บาท`, "error");
+    } else {
+      toast("รับเงินไม่สำเร็จ", "error");
+    }
   };
 
   const heroCat = customer.cats.find((cat) => cat.photoDataUrl) || customer.cats[0];
@@ -1660,10 +1742,28 @@ function CustomerSummaryCard({
                           ใช้กับ {groomProgramName(p.groomProgram, groomPrograms) || "โปรแกรมที่ลบไปแล้ว"}
                         </span>
                       )}
+                      {p.planId && pkgPlans[p.planId] && (
+                        <span className={`block truncate text-[10px] font-bold ${p.locked ? "text-wait" : "text-ok"}`}>
+                          {p.locked
+                            ? `🔒 จ่ายแล้ว ${pkgPlans[p.planId].payments.length}/${pkgPlans[p.planId].installments} งวด`
+                            : `แบ่งจ่าย ${pkgPlans[p.planId].payments.length} งวด · จ่ายครบแล้ว`}
+                        </span>
+                      )}
                     </span>
-                    <span className={`shrink-0 font-extrabold ${left > 0 ? "text-ok" : "text-brown-faint"}`}>
-                      เหลือ {left}/{p.totalUses}
-                    </span>
+                    {p.locked && p.planId ? (
+                      <button
+                        type="button"
+                        onClick={() => payInstallment(p.planId!, p.name)}
+                        className="flex min-h-[36px] shrink-0 items-center gap-1 rounded-full bg-catcha-chocolate px-3 text-[11px] font-extrabold text-card"
+                      >
+                        <Icon name="money" size={14} />
+                        รับงวด · ค้าง {Math.round(p.outstanding || 0).toLocaleString()}
+                      </button>
+                    ) : (
+                      <span className={`shrink-0 font-extrabold ${left > 0 ? "text-ok" : "text-brown-faint"}`}>
+                        เหลือ {left}/{p.totalUses}
+                      </span>
+                    )}
                     <MoreMenu
                       items={[
                         { label: "ยกเลิกคอร์สนี้", icon: "x", danger: true, onClick: () => cancelPackage(p.id) },
@@ -1699,6 +1799,50 @@ function CustomerSummaryCard({
             className={`min-w-0 flex-1 ${inputCls}`}
           />
         </div>
+
+        {!pkgLegacy && (
+          <div className="mt-2 space-y-2">
+            <select
+              value={pkgInstallments}
+              onChange={(e) => setPkgInstallments(Number(e.target.value))}
+              className={inputCls}
+              aria-label="การจ่ายเงิน"
+            >
+              <option value={1}>จ่ายเต็มครั้งเดียว</option>
+              {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
+                <option key={n} value={n}>
+                  แบ่งจ่าย {n} งวด{Number(pkgPrice) > 0 ? ` (งวดละ ~${Math.ceil(Number(pkgPrice) / n).toLocaleString()})` : ""}
+                </option>
+              ))}
+            </select>
+            {pkgInstallments > 1 && (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={pkgFirstPay}
+                    onChange={(e) => setPkgFirstPay(e.target.value)}
+                    placeholder="รับงวดแรกวันนี้ (บาท) — ว่าง = ยังไม่รับ"
+                    className={`min-w-0 flex-1 ${inputCls}`}
+                  />
+                  <select
+                    value={pkgMethod}
+                    onChange={(e) => setPkgMethod(e.target.value as "transfer" | "cash")}
+                    className={`!w-24 shrink-0 ${inputCls}`}
+                    aria-label="รับเงินทาง"
+                  >
+                    <option value="transfer">โอน</option>
+                    <option value="cash">เงินสด</option>
+                  </select>
+                </div>
+                <p className="flex items-center gap-1 text-[10px] font-bold text-wait">
+                  <Icon name="alert" size={12} />
+                  คอร์สจะยังใช้ไม่ได้จนกว่าจะจ่ายครบทุกงวด · รับงวดถัดไปได้ที่ปุ่ม &quot;รับงวด&quot; ในรายการคอร์ส
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {pkgPreview && (
           <PreviewSendModal

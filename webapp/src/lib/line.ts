@@ -2336,7 +2336,9 @@ export function buildMemberBalanceFlex(data: {
 export function buildRoomPlanFlex(data: {
   customerName: string;
   planName: string;
-  nights: { roomLabel: string; total: number; left: number }[];
+  nights: { roomLabel: string; total: number; left: number; unit?: "night" | "use" }[];
+  /** "package" = คอร์สทั่วไปแบบแบ่งจ่าย (นับครั้ง) — ใช้คำกลางแทน "แพ็กห้อง/คืน" */
+  kind?: "room" | "package";
   price: number;
   paid: number;
   remaining: number;
@@ -2365,11 +2367,20 @@ export function buildRoomPlanFlex(data: {
   });
   const fmt = (n: number) => `${Math.round(n).toLocaleString()} บาท`;
   const totalLeft = data.nights.reduce((n, x) => n + x.left, 0);
+  const generic = data.kind === "package";
+  const unitOf = (u?: "night" | "use") => (u === "use" || (!u && generic) ? "ครั้ง" : "คืน");
+  const mainUnit = unitOf(data.nights[0]?.unit);
 
   const contents: Record<string, unknown>[] = [
     {
       type: "text",
-      text: data.thisPayment ? "🧾 รับชำระแพ็กห้องแล้ว" : "🏠 คืนคงเหลือของคุณ",
+      text: data.thisPayment
+        ? generic
+          ? "🧾 รับชำระคอร์สแล้ว"
+          : "🧾 รับชำระแพ็กห้องแล้ว"
+        : generic
+          ? "🎫 คอร์สคงเหลือของคุณ"
+          : "🏠 คืนคงเหลือของคุณ",
       weight: "bold",
       size: "lg",
       color: "#5C4033",
@@ -2414,16 +2425,16 @@ export function buildRoomPlanFlex(data: {
     backgroundColor: "#FBF4E9",
     cornerRadius: "12px",
     contents: [
-      { type: "text", text: "คืนที่ใช้ได้อีก", size: "xs", color: "#A2907E", align: "center" },
+      { type: "text", text: `${mainUnit}ที่ใช้ได้อีก`, size: "xs", color: "#A2907E", align: "center" },
       {
         type: "text",
-        text: `${totalLeft} คืน`,
+        text: `${totalLeft} ${mainUnit}`,
         weight: "bold",
         size: "xxl",
         color: "#C4956A",
         align: "center",
       },
-      ...data.nights.map((n) => row(n.roomLabel, `${n.left} / ${n.total} คืน`, true)),
+      ...data.nights.map((n) => row(n.roomLabel, `${n.left} / ${n.total} ${unitOf(n.unit)}`, true)),
     ],
   });
 
@@ -2443,7 +2454,7 @@ export function buildRoomPlanFlex(data: {
     );
     contents.push({
       type: "text",
-      text: "เริ่มใช้คืนได้เมื่อชำระครบทุกงวดนะคะ",
+      text: generic ? "เริ่มใช้คอร์สได้เมื่อชำระครบทุกงวดนะคะ" : "เริ่มใช้คืนได้เมื่อชำระครบทุกงวดนะคะ",
       size: "xs",
       color: "#C0703A",
       margin: "md",
@@ -2452,20 +2463,22 @@ export function buildRoomPlanFlex(data: {
   } else {
     contents.push(row("สถานะ", "ชำระครบ ใช้ได้เลย ✅", true, "#6E8B5E"));
   }
-  contents.push({
-    type: "text",
-    text: "พักห้องไหน ระบบหักคืนของห้องนั้นให้ตามจริงนะคะ 🐾",
-    size: "xs",
-    color: "#A2907E",
-    margin: "lg",
-    wrap: true,
-  });
+  if (!generic) {
+    contents.push({
+      type: "text",
+      text: "พักห้องไหน ระบบหักคืนของห้องนั้นให้ตามจริงนะคะ 🐾",
+      size: "xs",
+      color: "#A2907E",
+      margin: "lg",
+      wrap: true,
+    });
+  }
 
   return {
     type: "flex",
     altText: data.thisPayment
-      ? `รับชำระแพ็กห้อง ${data.thisPayment} บาท · คงเหลือ ${data.remaining} บาท`
-      : `คืนคงเหลือ ${totalLeft} คืน`,
+      ? `รับชำระ${generic ? "คอร์ส" : "แพ็กห้อง"} ${data.thisPayment} บาท · คงเหลือ ${data.remaining} บาท`
+      : `${mainUnit}คงเหลือ ${totalLeft} ${mainUnit}`,
     contents: {
       type: "bubble",
       body: { type: "box", layout: "vertical", contents },

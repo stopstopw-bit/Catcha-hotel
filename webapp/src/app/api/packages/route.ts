@@ -9,9 +9,9 @@ import {
   cancelPackage,
 } from "@/lib/packages-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
-import { pushLineMessage, buildPackageFlex } from "@/lib/line";
+import { pushLineMessage, buildPackageFlex, buildRoomPlanFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
-import { roomPlanOutstanding } from "@/lib/room-plans-store";
+import { roomPlanOutstanding, createPackagePlan, viewRoomPlan } from "@/lib/room-plans-store";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
 /** ล็อกอินหลังบ้านอยู่ไหม — route นี้ใช้ร่วมกันทั้งแอปลูกค้าและหลังบ้าน */
@@ -89,6 +89,30 @@ export async function POST(req: NextRequest) {
   // ดูตัวอย่างการ์ดก่อนขายจริง — ยังไม่สร้างคอร์ส ไม่ส่งอะไรทั้งนั้น
   if (preview) {
     if (!notify || !cust.lineUserId) return NextResponse.json({ ok: true, preview: [] });
+    const n = Math.min(12, Math.max(1, Math.round(Number(body.installments) || 1)));
+    if (n > 1 && !isLegacy) {
+      const first = Math.min(price, Math.max(0, Math.round(Number(body.firstPayment) || 0)));
+      const remaining = price - first;
+      const left = remaining > 0 ? Math.max(1, n - (first > 0 ? 1 : 0)) : 0;
+      return NextResponse.json({
+        ok: true,
+        preview: [
+          buildRoomPlanFlex({
+            customerName: cust.name,
+            planName: name,
+            nights: [{ roomLabel: name, total: totalUses, left: totalUses, unit: "use" }],
+            kind: "package",
+            price,
+            paid: first,
+            remaining,
+            installmentsLeft: left,
+            nextInstallment: left ? Math.ceil(remaining / left) : 0,
+            thisPayment: first || undefined,
+            installmentNo: first ? 1 : undefined,
+          }),
+        ],
+      });
+    }
     const cfg = await getSiteConfig();
     return NextResponse.json({
       ok: true,
@@ -103,6 +127,68 @@ export async function POST(req: NextRequest) {
         }, cfg.cards?.packageCard),
       ],
     });
+  }
+
+  // แบ่งจ่ายเป็นงวด — คอร์สล็อกไว้จนกว่าจะจ่ายครบ รายรับลงตามงวดที่รับจริง
+  const installments = Math.min(12, Math.max(1, Math.round(Number(body.installments) || 1)));
+  if (installments > 1 && !isLegacy) {
+    const res = await createPackagePlan({
+      customerId,
+      customerName: cust.name,
+      lineUserId: cust.lineUserId,
+      name,
+      totalUses,
+      price,
+      groomProgram,
+      installments,
+      firstPayment: Number(body.firstPayment) || 0,
+      paymentMethod: body.paymentMethod === "cash" ? "cash" : "transfer",
+    });
+    if (!res.ok) return NextResponse.json({ error: "ใส่ราคาคอร์สก่อนแบ่งจ่าย" }, { status: 400 });
+    if (res.payment && !res.payment.ok) {
+      return NextResponse.json(
+        { error: "สร้างคอร์สแล้ว แต่รับงวดแรกไม่สำเร็จ (ยอดเกินราคาคอร์ส?) — รับเงินงวดใหม่ที่หน้าลูกค้า", package: res.pkg },
+        { status: 400 }
+      );
+    }
+    const view =
+      res.payment?.ok ? res.payment.view : viewRoomPlan(res.plan, await listCustomerPackages(customerId));
+    await sendTelegram(
+      formatBookingTelegram("🎫 ขายคอร์สแบบแบ่งจ่าย", {
+        ลูกค้า: cust.name,
+        คอร์ส: name,
+        จำนวน: `${totalUses} ครั้ง`,
+        ราคา: `${price} บาท`,
+        แบ่งจ่าย: `${installments} งวด`,
+        ...(res.payment?.ok ? { รับงวดแรก: `${res.payment.amount} บาท` } : {}),
+        คงเหลือ: `${view.remaining} บาท`,
+      })
+    );
+    let notifyError: string | undefined;
+    if (notify && cust.lineUserId) {
+      try {
+        await pushLineMessage(cust.lineUserId, [
+          buildRoomPlanFlex({
+            customerName: cust.name,
+            planName: view.name,
+            nights: view.nights,
+            kind: view.kind,
+            price: view.price,
+            paid: view.paid,
+            remaining: view.remaining,
+            installmentsLeft: view.installmentsLeft,
+            nextInstallment: view.nextInstallment,
+            thisPayment: res.payment?.ok ? res.payment.amount : undefined,
+            installmentNo: res.payment?.ok ? 1 : undefined,
+          }),
+        ]);
+      } catch (e) {
+        notifyError = e instanceof Error ? e.message : String(e);
+      }
+    } else if (notify) {
+      notifyError = "ลูกค้ายังไม่ได้ผูก LINE";
+    }
+    return NextResponse.json({ ok: true, package: res.pkg, plan: view, notifyError });
   }
 
   const pkg = await sellPackage({
