@@ -21,6 +21,7 @@ import {
   type GroomProgram,
 } from "@/lib/grooming-prices";
 import { priceSignature, findLastPrice } from "@/lib/special-price";
+import { roomPricing, roomNightPrice } from "@/lib/room-board";
 
 type Customer = {
   id: string;
@@ -73,6 +74,7 @@ type Booking = {
   catName: string;
   service: "room" | "groom";
   room?: string;
+  roomUnit?: number;
   checkin?: string;
   checkout?: string;
   date?: string;
@@ -337,7 +339,7 @@ export default function BillingPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [promos, setPromos] = useState<Promo[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [rooms, setRooms] = useState<(ServicePreset & { id: string })[]>([]);
+  const [rooms, setRooms] = useState<(ServicePreset & { id: string; pricing: ReturnType<typeof roomPricing> })[]>([]);
   const [servicePresets, setServicePresets] = useState<ServicePreset[]>(SERVICE_PRESETS);
   const [freebiePresets, setFreebiePresets] = useState<string[]>(FREEBIE_PRESETS);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -435,10 +437,11 @@ export default function BillingPage() {
     setPromos(pj.promos || []);
     setInvoices(ij.invoices || []);
     setRooms(
-      (config?.rooms || []).map((r: { id: string; name: string; price: number }) => ({
+      (config?.rooms || []).map((r: { id: string; name: string; price: number } & Parameters<typeof roomPricing>[0]) => ({
         id: r.id,
         label: `ห้อง ${r.name}`,
         amount: r.price,
+        pricing: roomPricing(r),
       }))
     );
     setGroomPrograms(resolveGroomPrograms(config?.groomPricePrograms));
@@ -868,20 +871,36 @@ export default function BillingPage() {
     // ตั้งชื่อน้องให้แต่ละบรรทัดเมื่อมาหลายตัว จะได้รู้ว่าตัวไหนใช้บริการอะไร
     const many = group.length > 1;
     if (bk.service === "room") {
+      // คิดค่าห้องเป็นรายห้อง ไม่ใช่รายตัว: น้องที่อยู่ห้องเดียวกันรวมเป็นบรรทัดเดียว
+      // ห้องที่ล็อกเลขไว้ = ห้องตามเลขนั้น · ไม่ได้ล็อก = จัดเต็มห้องละ cap ตัวตามที่ระบบจัดห้องทำ
+      const units = new Map<string, Booking[]>();
+      for (const g of group) {
+        const k = `${g.room || ""}#${g.roomUnit ?? "auto"}`;
+        units.set(k, [...(units.get(k) || []), g]);
+      }
+      const lines: Booking[][] = [];
+      for (const [k, cats] of units) {
+        const matched = rooms.find((r) => cats[0].room && r.id === cats[0].room);
+        const cap = k.endsWith("#auto") ? matched?.pricing.cap || 1 : cats.length;
+        for (let i = 0; i < cats.length; i += cap) lines.push(cats.slice(i, i + cap));
+      }
       setItems(
-        group.map((g) => {
+        lines.map((cats) => {
+          const g = cats[0];
           // นัดเก็บ room เป็น id → จับคู่กับ id ก่อน แล้วค่อย fallback เป็นชื่อ
           const matched =
             rooms.find((r) => g.room && r.id === g.room) ||
             rooms.find((r) => g.room && r.label.includes(g.room));
+          const price = matched?.amount ?? rooms[0]?.amount ?? 0;
+          const n = cats.length;
           return {
             ...newGrooming(groomPrograms),
             kind: "room" as const,
-            roomLabel:
-              matched?.label || rooms[0]?.label || (g.room ? `ห้อง ${g.room}` : "ห้องพัก"),
-            roomPrice: matched?.amount ?? rooms[0]?.amount ?? 0,
+            // ต้องตรงกับตัวเลือกห้องในบิล (ไม่ต่อท้ายอะไร) — ตัวไหนอยู่ห้องนี้ดูจากชิปชื่อน้อง
+            roomLabel: matched?.label || rooms[0]?.label || (g.room ? `ห้อง ${g.room}` : "ห้องพัก"),
+            roomPrice: matched ? roomNightPrice(price, matched.pricing, n) : price,
             nights: nightsBetween(g.checkin, g.checkout),
-            catName: many ? g.catName : undefined,
+            catName: many ? cats.map((c) => c.catName).join(", ") : undefined,
           };
         })
       );
@@ -1757,9 +1776,11 @@ export default function BillingPage() {
                         value={item.roomLabel}
                         onChange={(e) => {
                           const r = rooms.find((x) => x.label === e.target.value);
+                          // ค่าห้องเป็นรายห้อง — นับน้องที่อยู่บรรทัดนี้ เพื่อบวกค่าแมวตัวที่เกิน
+                          const n = item.catName ? item.catName.split(",").filter((x) => x.trim()).length : 1;
                           updateItem(i, {
                             roomLabel: e.target.value,
-                            roomPrice: r?.amount || 0,
+                            roomPrice: r ? roomNightPrice(r.amount, r.pricing, n) : 0,
                           });
                         }}
                         className={`${sub} min-w-0 flex-1`}
