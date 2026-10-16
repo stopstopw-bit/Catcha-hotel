@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { BTN_PRIMARY } from "@/components/PageHeader";
 import { toast } from "@/components/Toast";
+import { toJpegDataUrl } from "@/lib/image-convert";
 import { EmptyState, MoreMenu, SearchField, SectionLabel, Segmented } from "@/components/ui";
 import type { DayTotals, PosClosing, PosMethod, PosProduct, PosSale, StockMove } from "@/lib/pos-store";
 
@@ -151,6 +152,10 @@ function SellView({ products, loaded, onSold }: { products: PosProduct[]; loaded
                   n ? "ring-2 ring-latte-deep" : "ring-catcha-line"
                 }`}
               >
+                {p.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.imageUrl} alt="" className="mb-2 aspect-[4/3] w-full rounded-lg bg-paper object-cover" />
+                )}
                 {n > 0 && (
                   <span className="absolute right-2 top-2 flex h-6 min-w-[24px] items-center justify-center rounded-full bg-latte-deep px-1.5 text-[11px] font-extrabold text-card">
                     {n}
@@ -521,9 +526,14 @@ function ProductsView({ products, onChanged }: { products: PosProduct[]; onChang
           {shown.map((p) => (
             <li key={p.id}>
               <button type="button" onClick={() => setEditing(p)} className={`flex min-h-[56px] w-full items-center gap-3 px-4 py-2.5 text-left ${p.active ? "" : "opacity-50"}`}>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-honey/30 text-catcha-chocolate">
-                  <Icon name="box" size={17} />
-                </span>
+                {p.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.imageUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl bg-paper object-cover" />
+                ) : (
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-honey/30 text-catcha-chocolate">
+                    <Icon name="box" size={18} />
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-bold text-brown">{p.name}</span>
                   <span className="text-[11px] text-brown-soft">
@@ -560,6 +570,7 @@ function ProductsView({ products, onChanged }: { products: PosProduct[]; onChang
 function ProductSheet({ product, onClose, onSaved }: { product: PosProduct | null; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
     name: product?.name || "",
+    imageUrl: product?.imageUrl || "",
     price: product ? String(product.price) : "",
     cost: product?.cost != null ? String(product.cost) : "",
     sku: product?.sku || "",
@@ -586,6 +597,7 @@ function ProductSheet({ product, onClose, onSaved }: { product: PosProduct | nul
       body: JSON.stringify({
         id: product?.id,
         name: f.name,
+        imageUrl: f.imageUrl,
         price: Number(f.price) || 0,
         cost: f.cost === "" ? null : Number(f.cost),
         sku: f.sku,
@@ -624,6 +636,44 @@ function ProductSheet({ product, onClose, onSaved }: { product: PosProduct | nul
   return (
     <Sheet title={product ? "แก้สินค้า" : "เพิ่มสินค้า"} onClose={onClose}>
       <div className="space-y-2.5">
+        <div className="flex items-center gap-3">
+          <label className="relative flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-catcha-sm border border-dashed border-catcha-line bg-paper text-brown-soft">
+            {f.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={f.imageUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex flex-col items-center gap-0.5 text-[10px] font-bold">
+                <Icon name="image" size={20} />
+                ใส่รูป
+              </span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                try {
+                  setF((cur) => ({ ...cur, imageUrl: "" }));
+                  const url = await toJpegDataUrl(file, 600);
+                  setF((cur) => ({ ...cur, imageUrl: url }));
+                } catch {
+                  toast("อ่านรูปไม่ได้ ลองรูปอื่นนะคะ", "error");
+                }
+              }}
+            />
+          </label>
+          <div className="min-w-0 flex-1 text-[11px] text-brown-soft">
+            รูปสินค้าจะโชว์ในหน้าขาย ให้กดหาง่ายขึ้น
+            {f.imageUrl && (
+              <button type="button" onClick={() => setF({ ...f, imageUrl: "" })} className="mt-1 block font-bold text-wait">
+                ลบรูป
+              </button>
+            )}
+          </div>
+        </div>
         <input autoFocus={!product} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="ชื่อสินค้า เช่น ทรายเต้าหู้ 6 ลิตร" className={FIELD} />
         <div className="grid grid-cols-2 gap-2">
           <input value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} inputMode="decimal" placeholder="ราคาขาย" className={FIELD} />

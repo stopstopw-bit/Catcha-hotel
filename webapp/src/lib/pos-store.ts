@@ -1,6 +1,7 @@
 import { getSupabase } from "./supabase/server";
 import { ensureMigration } from "./migrations";
 import { bangkokToday } from "./bangkok-date";
+import { uploadDataUrlToStorage } from "./supabase/storage";
 
 /**
  * POS หน้าร้าน — สินค้า + สต็อก, บิลขายเร็ว (ไม่ต้องเลือกลูกค้า), ปิดยอดรายวัน
@@ -14,6 +15,8 @@ export type PosProduct = {
   /** บาร์โค้ด / รหัสสินค้า — สแกนหรือพิมพ์ค้นหาได้ */
   sku?: string;
   category?: string;
+  /** รูปสินค้า (URL ใน storage) */
+  imageUrl?: string;
   price: number;
   /** ต้นทุนต่อชิ้น — ไว้ดูกำไร (ไม่บังคับ) */
   cost?: number;
@@ -121,6 +124,7 @@ type ProductRow = {
   name: string;
   sku: string | null;
   category: string | null;
+  image_url?: string | null;
   price: number | string;
   cost: number | string | null;
   track_stock: boolean;
@@ -137,6 +141,7 @@ function productFromRow(r: ProductRow): PosProduct {
     name: r.name,
     sku: r.sku || undefined,
     category: r.category || undefined,
+    imageUrl: r.image_url || undefined,
     price: Number(r.price) || 0,
     cost: r.cost != null ? Number(r.cost) : undefined,
     trackStock: r.track_stock !== false,
@@ -154,6 +159,7 @@ function productToRow(p: PosProduct): ProductRow {
     name: p.name,
     sku: p.sku || null,
     category: p.category || null,
+    image_url: p.imageUrl || null,
     price: p.price,
     cost: p.cost ?? null,
     track_stock: p.trackStock,
@@ -191,6 +197,8 @@ export type ProductInput = {
   name?: string;
   sku?: string;
   category?: string;
+  /** data URL (รูปใหม่) / URL เดิม / "" = ลบรูป */
+  imageUrl?: string | null;
   price?: number;
   cost?: number | null;
   trackStock?: boolean;
@@ -205,11 +213,18 @@ export async function saveProduct(input: ProductInput): Promise<PosProduct> {
   const name = String(input.name ?? existing?.name ?? "").trim().slice(0, 120);
   if (!name) throw new Error("name_required");
   const t = now();
+  const id = existing?.id || rid("P");
+  let imageUrl = existing?.imageUrl;
+  if (input.imageUrl !== undefined) {
+    const v = String(input.imageUrl || "").trim();
+    imageUrl = v ? await uploadDataUrlToStorage(`pos/${id}-${Date.now()}`, v) : undefined;
+  }
   const p: PosProduct = {
-    id: existing?.id || rid("P"),
+    id,
     name,
     sku: (input.sku !== undefined ? String(input.sku).trim() : existing?.sku) || undefined,
     category: (input.category !== undefined ? String(input.category).trim() : existing?.category) || undefined,
+    imageUrl,
     price: input.price !== undefined ? money(input.price) : existing?.price ?? 0,
     cost:
       input.cost === null ? undefined : input.cost !== undefined ? money(input.cost) : existing?.cost,

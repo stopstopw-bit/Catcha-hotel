@@ -58,7 +58,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "room_plans", column: "payments", feature: "แพ็กห้องรายเดือน (แบ่งจ่าย)" },
   { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
   { table: "invoice_docs", column: "receipt_no", feature: "ใบเสร็จ/ใบเสนอราคาในนามบริษัท" },
-  { table: "pos_products", column: "track_stock", feature: "POS สินค้า/สต็อก" },
+  { table: "pos_products", column: "image_url", feature: "POS สินค้า/สต็อก" },
   { table: "pos_sales", column: "method", feature: "POS บิลขายหน้าร้าน" },
   { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
@@ -449,6 +449,7 @@ where staff_note like '%🎁%';`,
     name: "pos.setup",
     sql: `
       create table if not exists pos_products (id text primary key, name text not null, sku text, category text, price numeric not null default 0, cost numeric, track_stock boolean not null default true, stock integer not null default 0, low_stock integer, active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+      alter table pos_products add column if not exists image_url text;
       create index if not exists pos_products_sku_idx on pos_products (sku);
       create table if not exists pos_stock_moves (id text primary key, product_id text not null, qty integer not null, reason text not null, ref_id text, note text, created_at timestamptz not null default now());
       create index if not exists pos_stock_moves_product_idx on pos_stock_moves (product_id, created_at desc);
