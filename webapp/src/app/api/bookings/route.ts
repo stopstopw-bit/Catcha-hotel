@@ -50,7 +50,7 @@ import {
 import { getSiteConfig } from "@/lib/config-store";
 import { cleanTransport, hasTransport, transportLabel, type BookingTransport } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
-import { listInvoices, updateInvoice, invoiceCatNames } from "@/lib/invoices-store";
+import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import {
   buildDepositReminderText,
@@ -708,10 +708,9 @@ export async function PATCH(req: NextRequest) {
           // ผูกมัดจำเหมือนกดปุ่มเรียกเก็บมัดจำเดี่ยว: มีบิลค้าง → ผูกบิล, ไม่มี → เครดิตล่วงหน้า
           // ตอนพรีวิว ข้ามการผูกจริง — แค่โชว์ตัวอย่างการ์ดด้วยยอดเดียวกัน ไม่แตะข้อมูลจริง
           if (!preview) {
-            const all = await listInvoices();
-            const openInv = all.find(
-              (i) => i.bookingId === b.id && i.status !== "paid"
-            );
+            // นับบิลรวมทั้งบ้านด้วย ไม่งั้นมัดจำไปตกเป็นเครดิตล่วงหน้า แล้วบิลจริงไม่มีมัดจำ
+            const found = await findOpenInvoiceForBooking(b.id);
+            const openInv = found && found.status !== "paid" ? found : undefined;
             const customer = await findCustomerForBooking(b);
             if (openInv) {
               await updateInvoice(openInv.id, { deposit: amount });
