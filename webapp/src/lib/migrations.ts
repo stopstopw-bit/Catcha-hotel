@@ -64,6 +64,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
   { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
+  { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
 ];
 
 export type SchemaCheckRow = {
@@ -467,6 +468,13 @@ where staff_note like '%🎁%';`,
       alter table pos_sales enable row level security;
       alter table pos_closings enable row level security;
     `,
+  },
+  {
+    // 🔁 เครดิตจากบิลที่ยกเลิกนัด — เงินเข้าร้านไปแล้วตอนจ่ายบิลเดิม จึงไม่ลงรายรับ/ไม่ให้แต้มซ้ำ
+    // source_invoice_id = เลขบิลเดิม (ไว้โชว์ในประวัติเครดิต + กันแปลงบิลเดียวกันซ้ำ)
+    // เพิ่มคอลัมน์อย่างเดียว ไม่แก้ข้อมูลเดิม (แถวเก่าได้ค่าเริ่มต้น false / null)
+    name: "member_topups.cancel_credit",
+    sql: "alter table member_topups add column if not exists is_cancel_credit boolean not null default false, add column if not exists source_invoice_id text;",
   },
 ];
 

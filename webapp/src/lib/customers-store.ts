@@ -125,6 +125,13 @@ export type MemberTopupRecord = {
   createdAt: string;
   /** ยอดยกมาจากระบบเก่า — เติมเครดิตให้ลูกค้าจริง แต่ไม่ใช่รายรับของร้านเดือนนี้ */
   isLegacy?: boolean;
+  /**
+   * 🔁 ยกเลิกนัดแล้วเก็บยอดบิลเป็นเครดิต — เงินเข้าร้านไปแล้วตอนจ่ายบิลเดิม
+   * (ลงรายรับ + ให้แต้มไปแล้วตอนนั้น) จึงไม่ลงรายรับและไม่ให้แต้มซ้ำอีกรอบ
+   */
+  isCancelCredit?: boolean;
+  /** เลขบิลเดิมที่แปลงมาเป็นเครดิต (เฉพาะ isCancelCredit) */
+  sourceInvoiceId?: string;
 };
 
 /** รายการใช้เครดิต Member จ่ายบิล */
@@ -211,7 +218,25 @@ type MemberTopupRow = {
   note: string | null;
   created_at: string;
   is_legacy?: boolean | null;
+  is_cancel_credit?: boolean | null;
+  source_invoice_id?: string | null;
 };
+
+function rowToTopup(r: MemberTopupRow): MemberTopupRecord {
+  return {
+    id: r.id,
+    customerId: r.customer_id,
+    paidAmount: Number(r.paid_amount),
+    bonusAmount: Number(r.bonus_amount),
+    creditAdded: Number(r.credit_added),
+    balanceAfter: Number(r.balance_after),
+    note: r.note ?? undefined,
+    createdAt: r.created_at,
+    isLegacy: r.is_legacy ?? false,
+    isCancelCredit: r.is_cancel_credit ?? false,
+    sourceInvoiceId: r.source_invoice_id ?? undefined,
+  };
+}
 
 const memCustomers = new Map<string, CustomerRecord>();
 const memServices: ServiceRecord[] = [];
@@ -1638,20 +1663,7 @@ export async function cancelMemberTopup(topupId: string) {
       .select("*")
       .eq("id", topupId)
       .maybeSingle();
-    if (data) {
-      const r = data as MemberTopupRow;
-      topup = {
-        id: r.id,
-        customerId: r.customer_id,
-        paidAmount: Number(r.paid_amount),
-        bonusAmount: Number(r.bonus_amount),
-        creditAdded: Number(r.credit_added),
-        balanceAfter: Number(r.balance_after),
-        note: r.note ?? undefined,
-        createdAt: r.created_at,
-        isLegacy: r.is_legacy ?? false,
-      };
-    }
+    if (data) topup = rowToTopup(data as MemberTopupRow);
   } else {
     topup = memMemberTopups.find((t) => t.id === topupId);
   }
@@ -1671,8 +1683,9 @@ export async function cancelMemberTopup(topupId: string) {
   const nextCredit = c.memberCredit - topup.creditAdded;
   await updateCustomer(topup.customerId, { memberCredit: nextCredit });
 
-  // ลบรายรับที่ลงคู่กับการเติมครั้งนี้ — ยอดยกมาไม่เคยลงรายรับ จึงไม่ต้องหา
-  if (!topup.isLegacy && topup.paidAmount > 0) {
+  // ลบรายรับที่ลงคู่กับการเติมครั้งนี้ — ยอดยกมา / 🔁 เครดิตจากบิลยกเลิกนัด ไม่เคยลงรายรับ จึงไม่ต้องหา
+  // (ถ้าไปหา จะไปลบรายรับของการเติมจริงที่ยอดเท่ากันวันเดียวกันผิดตัว)
+  if (!topup.isLegacy && !topup.isCancelCredit && topup.paidAmount > 0) {
     const { listFinance, deleteFinanceEntry } = await import("./finance-store");
     const all = await listFinance();
     const match = all.find(
@@ -1699,10 +1712,20 @@ export async function cancelMemberTopup(topupId: string) {
 
 export async function topupMemberCredit(
   customerId: string,
-  data: { paidAmount: number; bonusAmount?: number; note?: string; isLegacy?: boolean }
+  data: {
+    paidAmount: number;
+    bonusAmount?: number;
+    note?: string;
+    isLegacy?: boolean;
+    /** 🔁 ยอดจากบิลที่ยกเลิกนัด — ไม่ลงรายรับ ไม่ให้แต้ม (ได้ไปแล้วตอนจ่ายบิลเดิม) */
+    isCancelCredit?: boolean;
+    sourceInvoiceId?: string;
+  }
 ) {
+  const isCancelCredit = Boolean(data.isCancelCredit);
   const paid = Math.max(0, Number(data.paidAmount) || 0);
-  const bonus = Math.max(0, Number(data.bonusAmount) || 0);
+  // เครดิตจากบิลยกเลิกนัด = ยอดบิลเดิมเป๊ะ ไม่มีแถม
+  const bonus = isCancelCredit ? 0 : Math.max(0, Number(data.bonusAmount) || 0);
   const creditAdded = paid + bonus;
   if (creditAdded <= 0) return null;
 
@@ -1720,7 +1743,8 @@ export async function topupMemberCredit(
   });
   if (!updated) return null;
 
-  const isLegacy = Boolean(data.isLegacy);
+  const isLegacy = !isCancelCredit && Boolean(data.isLegacy);
+  const sourceInvoiceId = isCancelCredit ? data.sourceInvoiceId?.trim() || undefined : undefined;
   const topup: MemberTopupRecord = {
     id: `MT${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
     customerId,
@@ -1731,6 +1755,8 @@ export async function topupMemberCredit(
     note: data.note?.trim() || undefined,
     createdAt: new Date().toISOString(),
     isLegacy,
+    isCancelCredit,
+    sourceInvoiceId,
   };
 
   const sb = getSupabase();
@@ -1745,11 +1771,35 @@ export async function topupMemberCredit(
       note: topup.note || null,
       created_at: topup.createdAt,
     };
-    // is_legacy เพิ่งเพิ่มมาทีหลัง — ลองใส่ก่อน ถ้าเครื่องยังไม่อัปเดตฐานข้อมูล
+    // is_legacy / is_cancel_credit เพิ่งเพิ่มมาทีหลัง — ลองใส่ก่อน ถ้าเครื่องยังไม่อัปเดตฐานข้อมูล
     // (คอลัมน์ไม่มี) ให้ตกไปเขียนแบบเดิม กันบันทึกไม่สำเร็จทั้งก้อน
-    const { error } = await sb
-      .from("member_topups")
-      .insert({ ...row, is_legacy: isLegacy });
+    let { error } = await sb.from("member_topups").insert(
+      isCancelCredit
+        ? { ...row, is_legacy: false, is_cancel_credit: true, source_invoice_id: sourceInvoiceId || null }
+        : { ...row, is_legacy: isLegacy }
+    );
+    if (error && isCancelCredit) {
+      // ยังไม่มีคอลัมน์ 🔁 → เพิ่มคอลัมน์ให้เองแล้วลองใหม่
+      const { ensureMigration } = await import("./migrations");
+      if (await ensureMigration("member_topups.cancel_credit")) {
+        ({ error } = await sb.from("member_topups").insert({
+          ...row,
+          is_legacy: false,
+          is_cancel_credit: true,
+          source_invoice_id: sourceInvoiceId || null,
+        }));
+      }
+      // ยังไม่ได้อีก → เก็บเป็น "ไม่นับรายรับ" (is_legacy) ไว้ก่อน + จดเลขบิลไว้ในโน้ต
+      // อย่างน้อยตอนกดยกเลิกรายการนี้จะไม่ไปลบรายรับของการเติมอื่นผิดตัว
+      if (error) {
+        const label = `🔁 ยกเลิกนัด${sourceInvoiceId ? ` · บิล ${sourceInvoiceId}` : ""}`;
+        ({ error } = await sb.from("member_topups").insert({
+          ...row,
+          note: row.note ? `${label} · ${row.note}` : label,
+          is_legacy: true,
+        }));
+      }
+    }
     if (error) {
       await sb.from("member_topups").insert(row);
     }
@@ -1759,7 +1809,8 @@ export async function topupMemberCredit(
 
   // ยอดยกมาจากระบบเก่า: เครดิตลูกค้าต้องได้เพิ่มจริง แต่ไม่ใช่เงินที่รับเข้าร้านเดือนนี้
   // ไม่บันทึกรายรับ กันยอดขายบวมจากเงินที่ไม่ได้รับจริงในเดือนนี้
-  if (paid > 0 && !isLegacy) {
+  // 🔁 เครดิตจากบิลยกเลิกนัดก็ไม่ลง — เงินก้อนนี้ลงรายรับไปแล้วตอนจ่ายบิลเดิม
+  if (paid > 0 && !isLegacy && !isCancelCredit) {
     const { addFinanceEntry } = await import("./finance-store");
     const bonusLabel =
       bonus > 0 ? ` (แถม ${bonus.toLocaleString()} บาท)` : "";
@@ -1776,8 +1827,9 @@ export async function topupMemberCredit(
   // ให้แต้มตอนเติมเครดิต — คิดจากยอดที่จ่ายจริงเท่านั้น ไม่รวมเครดิตแถม
   // (ยอดยกมาจากระบบเก่าไม่ให้ เพราะไม่ใช่การจ่ายเงินรอบนี้)
   // คู่กับ noPointsOnMemberCredit ที่ปิดแต้มตอนตัดใช้ → ได้แต้มรอบเดียว ไม่เบิ้ล
+  // 🔁 เครดิตจากบิลยกเลิกนัดไม่ให้ — แต้มของเงินก้อนนี้ได้ไปแล้วตอนจ่ายบิลเดิม
   let pointsEarned = 0;
-  if (paid > 0 && !isLegacy && updated.lineUserId) {
+  if (paid > 0 && !isLegacy && !isCancelCredit && updated.lineUserId) {
     const { getSiteConfig } = await import("./config-store");
     const biz = (await getSiteConfig()).business;
     if (biz.pointsOnMemberTopup !== false) {
@@ -1924,19 +1976,39 @@ export async function listAllMemberTopups(): Promise<MemberTopupRecord[]> {
       .from("member_topups")
       .select("*")
       .order("created_at", { ascending: false });
-    return ((data as MemberTopupRow[] | null) || []).map((r) => ({
-      id: r.id,
-      customerId: r.customer_id,
-      paidAmount: Number(r.paid_amount),
-      bonusAmount: Number(r.bonus_amount),
-      creditAdded: Number(r.credit_added),
-      balanceAfter: Number(r.balance_after),
-      note: r.note ?? undefined,
-      createdAt: r.created_at,
-      isLegacy: r.is_legacy ?? false,
-    }));
+    return ((data as MemberTopupRow[] | null) || []).map(rowToTopup);
   }
   return [...memMemberTopups];
+}
+
+/**
+ * รายการ 🔁 ที่แปลงมาจากบิลนี้ (ถ้ามี) — กันกดแปลงบิลเดียวกันซ้ำ และกันยกเลิกการชำระ/ลบบิล
+ * ที่ยอดถูกโอนเป็นเครดิตไปแล้ว (ไม่งั้นลูกค้าได้เครดิตฟรีทั้งที่รายรับถูกถอนออก)
+ */
+export async function findCancelCreditTopup(
+  invoiceId: string
+): Promise<MemberTopupRecord | undefined> {
+  const sb = getSupabase();
+  if (sb) {
+    const { data, error } = await sb
+      .from("member_topups")
+      .select("*")
+      .eq("source_invoice_id", invoiceId)
+      .limit(1);
+    if (!error) {
+      const r = (data as MemberTopupRow[] | null)?.[0];
+      return r ? rowToTopup(r) : undefined;
+    }
+    // ยังไม่มีคอลัมน์ source_invoice_id → หาเลขบิลจากโน้ตแทน (ทางสำรองตอนบันทึก)
+    const { data: byNote } = await sb
+      .from("member_topups")
+      .select("*")
+      .like("note", `%บิล ${invoiceId}%`)
+      .limit(1);
+    const r = (byNote as MemberTopupRow[] | null)?.[0];
+    return r ? rowToTopup(r) : undefined;
+  }
+  return memMemberTopups.find((t) => t.sourceInvoiceId === invoiceId);
 }
 
 async function listMemberTopups(customerId: string): Promise<MemberTopupRecord[]> {
@@ -1947,17 +2019,7 @@ async function listMemberTopups(customerId: string): Promise<MemberTopupRecord[]
       .select("*")
       .eq("customer_id", customerId)
       .order("created_at", { ascending: false });
-    return ((data as MemberTopupRow[] | null) || []).map((r) => ({
-      id: r.id,
-      customerId: r.customer_id,
-      paidAmount: Number(r.paid_amount),
-      bonusAmount: Number(r.bonus_amount),
-      creditAdded: Number(r.credit_added),
-      balanceAfter: Number(r.balance_after),
-      note: r.note ?? undefined,
-      createdAt: r.created_at,
-      isLegacy: r.is_legacy ?? false,
-    }));
+    return ((data as MemberTopupRow[] | null) || []).map(rowToTopup);
   }
   return memMemberTopups.filter((t) => t.customerId === customerId);
 }

@@ -5,6 +5,8 @@ import {
   updateCalendarEventConfirmed,
   updateCalendarEvent,
   deleteCalendarEvent,
+  bookingCalendarPayload,
+  transportCalendarText,
 } from "@/lib/calendar";
 import {
   addBooking,
@@ -48,7 +50,7 @@ import {
   getCustomer,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
-import { cleanTransport, hasTransport, transportLabel, type BookingTransport } from "@/lib/transport";
+import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
 import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
@@ -65,31 +67,6 @@ import {
 } from "@/lib/booking-reminders";
 
 export const dynamic = "force-dynamic";
-
-/** บรรทัดรับ-ส่งในปฏิทิน — ให้คนขับเปิดแผนที่จากปฏิทินได้เลย */
-function transportCalendarText(t?: BookingTransport) {
-  if (!hasTransport(t)) return "";
-  return [
-    `\n🚗 ${transportLabel(t)}`,
-    t.address ? `จุดรับ-ส่ง: ${t.address}` : "",
-    t.mapUrl ? `แผนที่: ${t.mapUrl}` : "ยังไม่ได้ส่งแผนที่",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function bookingCalendarPayload(b: StoredBooking) {
-  return {
-    summary: `${b.service === "room" ? "🏠" : "🛁"}${hasTransport(b.transport) ? "🚗" : ""} ${b.catName} (${b.customerName})`,
-    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}${transportCalendarText(b.transport)}`,
-    start: b.date || b.checkin || "",
-    end: b.checkout || b.date || b.checkin || "",
-    time: b.time,
-    allDay: b.service === "room" && !b.time,
-    service: b.service === "room" ? ("room" as const) : ("groom" as const),
-    eventId: b.id,
-  };
-}
 
 /** หา LINE User ID ปลายทางของนัด (จากตัวนัด หรือจับคู่ลูกค้าในระบบ) */
 async function resolveRecipient(
