@@ -10,13 +10,10 @@ import type { BookingTransport } from "@/lib/transport";
 export function TransportPicker({
   value,
   onChange,
-  service,
 }: {
   value: BookingTransport;
   onChange: (v: BookingTransport) => void;
-  service: "groom" | "room";
 }) {
-  const isRoom = service === "room";
   const on = !!value.pickup || !!value.dropoff;
   const chip = (active: boolean) =>
     `flex min-h-[40px] items-center gap-1 rounded-full px-3.5 text-xs font-bold ${
@@ -39,7 +36,7 @@ export function TransportPicker({
           className={chip(!!value.pickup)}
         >
           {value.pickup && <Icon name="check" size={14} strokeWidth={2.4} />}
-          {isRoom ? "รับน้องวันเข้าพัก" : "รับน้องมาอาบ"}
+          รับน้อง
         </button>
         <button
           type="button"
@@ -48,7 +45,7 @@ export function TransportPicker({
           className={chip(!!value.dropoff)}
         >
           {value.dropoff && <Icon name="check" size={14} strokeWidth={2.4} />}
-          {isRoom ? "ส่งน้องวันออก" : "ส่งน้องกลับบ้าน"}
+          ส่งน้องกลับบ้าน
         </button>
       </div>
       {on && (

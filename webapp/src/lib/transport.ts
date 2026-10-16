@@ -47,5 +47,5 @@ export function hasTransport(t?: BookingTransport | null): t is BookingTransport
 export function transportLabel(t?: BookingTransport | null): string {
   if (!hasTransport(t)) return "";
   if (t.pickup && t.dropoff) return "รับ + ส่ง";
-  return t.pickup ? "รับที่บ้าน" : "ส่งกลับบ้าน";
+  return t.pickup ? "รับน้อง" : "ส่งน้องกลับบ้าน";
 }

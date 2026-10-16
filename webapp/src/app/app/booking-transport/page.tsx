@@ -147,7 +147,7 @@ function BookingTransportContent() {
   const legs = bk
     ? [
         bk.pickup && {
-          label: isRoom ? "รับน้องมาเข้าพัก" : "รับน้องมาอาบน้ำ",
+          label: "รับน้อง",
           date: isRoom ? bk.checkin : bk.date,
           time: isRoom ? undefined : bk.time,
         },

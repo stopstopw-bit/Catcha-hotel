@@ -931,7 +931,7 @@ export default function NewBookingPage() {
         </div>
         )}
 
-        <TransportPicker value={transport} onChange={setTransport} service={service} />
+        <TransportPicker value={transport} onChange={setTransport} />
 
         <Field label="โน้ตนิสัยน้อง (ลูกค้าใหม่)" name="notes" textarea />
 
