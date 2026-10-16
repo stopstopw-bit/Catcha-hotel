@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { GroomClashNote, confirmClashes, useGroomClashes } from "@/components/GroomClashNote";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { RoomType } from "@/lib/business";
@@ -424,6 +425,10 @@ export default function NewBookingPage() {
       });
   }, []);
 
+  // เวลานัดอาบน้ำ — ใช้เช็กว่าชนกับคิวที่มีอยู่ไหม
+  const [groomTime, setGroomTime] = useState("12:30");
+  const clashes = useGroomClashes(service === "groom" ? appointmentDate : "", groomTime);
+
   const [roomId, setRoomId] = useState("");
   // ห้องจริงที่ปักหมุด (เลขห้อง) — เฉพาะห้องเดี่ยว ไม่ใช่ห้องเชื่อม (ห้องเชื่อมจัดให้อัตโนมัติเหมือนเดิม)
   const [roomUnit, setRoomUnit] = useState<number | null>(null);
@@ -520,6 +525,7 @@ export default function NewBookingPage() {
       toast("กรอกชื่อน้องแมวอย่างน้อย 1 ชื่อ (หรือกด “ยังไม่ทราบตัว”)", "error");
       return;
     }
+    if (service === "groom" && !confirmClashes(clashes)) return;
 
     const noteBase = String(fd.get("notes") || "").trim();
     const freebieLine = service === "room" && freebies.length
@@ -742,7 +748,8 @@ export default function NewBookingPage() {
                 name="time"
                 type="time"
                 list="groom-slots"
-                defaultValue="12:30"
+                value={groomTime}
+                onChange={(e) => setGroomTime(e.target.value)}
                 className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown"
               />
               <datalist id="groom-slots">
@@ -753,6 +760,7 @@ export default function NewBookingPage() {
               <p className="mt-1 text-[10px] text-brown-faint">
                 เลือกจากรอบแนะนำ หรือพิมพ์เวลาเองได้
               </p>
+              <GroomClashNote clashes={clashes} />
             </label>
 
             <label className="block text-xs font-bold text-brown-soft">

@@ -5,6 +5,7 @@ import type { Booking } from "@/lib/business";
 import { relevantAutoMessageTopics } from "@/lib/auto-messages";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
+import { GroomClashNote, confirmClashes, useGroomClashes } from "@/components/GroomClashNote";
 import { Segmented } from "@/components/ui";
 import { TransportPicker } from "@/components/TransportPicker";
 import type { BookingTransport } from "@/lib/transport";
@@ -113,6 +114,11 @@ export function BookingEditModal({
   const [checkinSel, setCheckinSel] = useState(booking.checkin || booking.date || "");
   const [checkoutSel, setCheckoutSel] = useState(booking.checkout || "");
   const [roomUnit, setRoomUnit] = useState<number | null>(booking.roomUnit ?? null);
+  // เช็กคิวอาบน้ำชนเฉพาะตอนย้ายวัน/เวลา — นัดเดิมไม่ต้องเตือนซ้ำทุกครั้งที่แก้อย่างอื่น
+  const [groomDate, setGroomDate] = useState(booking.date || "");
+  const [groomTime, setGroomTime] = useState(booking.time || "12:30");
+  const timeChanged = groomDate !== (booking.date || "") || groomTime !== (booking.time || "12:30");
+  const clashes = useGroomClashes(service === "groom" && timeChanged ? groomDate : "", groomTime, [booking.id]);
 
   const boardRooms = useMemo(
     () => rooms.map((r) => ({ id: r.id, name: r.name, count: r.count || 0, maxCats: roomCapacity(r), closures: r.closures })),
@@ -166,6 +172,7 @@ export function BookingEditModal({
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    if (service === "groom" && !confirmClashes(clashes)) return;
     setSaving(true);
     const payload =
       service === "groom"
@@ -306,7 +313,7 @@ export function BookingEditModal({
           <EditField label="ชื่อน้องแมว" name="cat" defaultValue={booking.catName} required />
           {service === "groom" ? (
             <>
-              <EditField label="วันที่นัด" name="date" type="date" defaultValue={booking.date} required />
+              <EditField label="วันที่นัด" name="date" type="date" defaultValue={booking.date} required onChange={setGroomDate} />
               <label className="block text-xs font-bold text-brown-soft">
                 รอบเวลา
                 <input
@@ -314,6 +321,7 @@ export function BookingEditModal({
                   type="time"
                   list="edit-groom-slots"
                   defaultValue={booking.time || "12:30"}
+                  onChange={(e) => setGroomTime(e.target.value)}
                   className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown"
                 />
                 <datalist id="edit-groom-slots">
@@ -321,6 +329,7 @@ export function BookingEditModal({
                     <option key={t} value={t} />
                   ))}
                 </datalist>
+                <GroomClashNote clashes={clashes} />
               </label>
               <label className="block text-xs font-bold text-brown-soft">
                 โปรแกรมอาบน้ำ

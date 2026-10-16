@@ -25,6 +25,7 @@ import { BOOKING_STATUS_LABELS, type BookingStatus } from "@/lib/business";
 import { effectiveBookingStatus } from "@/lib/booking-status";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import { hasTransport, transportLabel } from "@/lib/transport";
+import { GroomClashNote, confirmClashes, useGroomClashes } from "@/components/GroomClashNote";
 
 type CalendarDay = EditableBooking & {
   customerId?: string;
@@ -269,6 +270,13 @@ export function BookingCalendar() {
     checkout: string;
   } | null>(null);
   const [movingBusy, setMovingBusy] = useState(false);
+  // คิวอาบน้ำที่ชนกับวัน/เวลาใหม่ (ไม่นับตัวในบ้านที่กำลังเลื่อนเอง)
+  const movingGroom = moving && moving.group[0].service !== "room";
+  const moveClashes = useGroomClashes(
+    movingGroom ? moving.date : "",
+    moving?.time || "",
+    moving ? moving.group.map((g) => g.id) : []
+  );
 
   const openMove = (group: CalendarDay[]) => {
     const h = group[0];
@@ -289,6 +297,7 @@ export function BookingCalendar() {
       toast("วันออกต้องหลังวันเข้าพักนะ", "error");
       return;
     }
+    if (!isRoom && !confirmClashes(moveClashes)) return;
     setMovingBusy(true);
     try {
       const res = await fetch("/api/bookings", {
@@ -815,6 +824,9 @@ export function BookingCalendar() {
                     ))}
                   </select>
                 </label>
+                <div className="col-span-full">
+                  <GroomClashNote clashes={moveClashes} />
+                </div>
               </div>
             )}
             <div className="mt-5 flex gap-2">
