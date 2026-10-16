@@ -20,8 +20,19 @@ import {
   type BroadcastActionId,
 } from "@/lib/line-broadcast";
 import { toJpegDataUrl } from "@/lib/image-convert";
+import type { SegmentId } from "@/lib/customer-segments";
 import { Icon } from "@/components/Icon";
 import { EmptyState, MoreMenu, SearchField, SectionLabel, Segmented } from "@/components/ui";
+
+/** กลุ่มลูกค้าสำเร็จรูป — ติ๊กได้หลายกลุ่ม ระบบเลือกคนที่ตรงทุกข้อ */
+const SEGMENT_CHIPS: { id: SegmentId | "inactive90"; label: string }[] = [
+  { id: "regular", label: "ขาประจำ" },
+  { id: "longhair", label: "แมวขนยาว" },
+  { id: "inactive90", label: "ไม่ได้มา 3 เดือน" },
+  { id: "bath", label: "เคยอาบน้ำ" },
+  { id: "stay", label: "เคยฝากพัก" },
+  { id: "new", label: "ยังไม่เคยมา" },
+];
 
 type Promo = {
   id: string;
@@ -114,6 +125,8 @@ export default function PromosAdminPage() {
   const [broadcastTier, setBroadcastTier] = useState<StoreCustomerTier | "all">("all");
   const [broadcastBreed, setBroadcastBreed] = useState("");
   const [broadcastInactive, setBroadcastInactive] = useState(0);
+  const [broadcastSegments, setBroadcastSegments] = useState<SegmentId[]>([]);
+  const [regularMinVisits, setRegularMinVisits] = useState(3);
   const [broadcastTitle, setBroadcastTitle] = useState("");
   const [broadcastBody, setBroadcastBody] = useState("");
   const [broadcastImage, setBroadcastImage] = useState("");
@@ -153,6 +166,8 @@ export default function PromosAdminPage() {
     const q = new URLSearchParams({ tier: broadcastTier });
     if (broadcastBreed) q.set("breed", broadcastBreed);
     if (broadcastInactive > 0) q.set("inactiveDays", String(broadcastInactive));
+    if (broadcastSegments.length) q.set("segments", broadcastSegments.join(","));
+    if (broadcastSegments.includes("regular")) q.set("regularMinVisits", String(regularMinVisits));
     fetch(`/api/line/broadcast?${q}`)
       .then((r) => r.json())
       .then((d) => {
@@ -163,7 +178,7 @@ export default function PromosAdminPage() {
         setBroadcastNoConsent(d.skippedNoConsent ?? 0);
       })
       .finally(() => setBroadcastLoading(false));
-  }, [broadcastTier, broadcastBreed, broadcastInactive]);
+  }, [broadcastTier, broadcastBreed, broadcastInactive, broadcastSegments, regularMinVisits]);
 
   const sendBroadcast = async () => {
     if (!broadcastTitle.trim() || !broadcastBody.trim()) {
@@ -204,6 +219,8 @@ export default function PromosAdminPage() {
         tier: broadcastTier,
         breed: broadcastBreed || undefined,
         inactiveDays: broadcastInactive || undefined,
+        segments: broadcastSegments,
+        regularMinVisits,
         title: broadcastTitle,
         body: broadcastBody,
         imageData: broadcastImage.startsWith("data:") ? broadcastImage : undefined,
@@ -442,74 +459,122 @@ export default function PromosAdminPage() {
           <section>
             <SectionLabel>Audience · กลุ่มผู้รับ</SectionLabel>
             <div className="space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm">
-              <select
-                value={broadcastTier}
-                onChange={(e) => setBroadcastTier(e.target.value as StoreCustomerTier | "all")}
-                className={FIELD}
-              >
-                <option value="all">ทุกระดับ ({broadcastCount ?? "…"} คน)</option>
-                {(Object.keys(TIER_LABELS) as StoreCustomerTier[]).map((t) => (
-                  <option key={t} value={t}>
-                    {TIER_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-
-              {/* กรองเจาะกลุ่ม: พันธุ์ + หายไปนาน */}
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={broadcastBreed}
-                  onChange={(e) => setBroadcastBreed(e.target.value)}
-                  className={`${FIELD} min-w-0`}
-                >
-                  <option value="">ทุกพันธุ์</option>
-                  {BREED_OPTIONS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex min-w-0 items-center gap-1.5 rounded-catcha-sm border border-catcha-line bg-paper px-3">
-                  <Icon name="clock" size={16} className="text-brown-soft" />
-                  <span className="shrink-0 text-xs text-brown-soft">หายไป &gt;</span>
+              {/* กลุ่มสำเร็จรูป — ติ๊กหลายอันได้ = ต้องตรงทุกข้อ */}
+              <div className="flex flex-wrap gap-2">
+                {SEGMENT_CHIPS.map((chip) => {
+                  const active =
+                    chip.id === "inactive90"
+                      ? broadcastInactive === 90
+                      : broadcastSegments.includes(chip.id);
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        if (chip.id === "inactive90") {
+                          setBroadcastInactive(active ? 0 : 90);
+                          return;
+                        }
+                        const id = chip.id;
+                        setBroadcastSegments((prev) => {
+                          if (prev.includes(id)) return prev.filter((x) => x !== id);
+                          // "ยังไม่เคยมา" ขัดกับกลุ่มที่ต้องเคยมา — เลือกแล้วล้างอีกฝั่งให้
+                          const clash: SegmentId[] =
+                            id === "new" ? ["regular", "bath", "stay"] : ["regular", "bath", "stay"].includes(id) ? ["new"] : [];
+                          return [...prev.filter((x) => !clash.includes(x)), id];
+                        });
+                        if (chip.id === "new") setBroadcastInactive(0);
+                      }}
+                      className={`flex min-h-[40px] items-center gap-1 rounded-full px-3.5 text-xs font-bold ${
+                        active ? "bg-catcha-chocolate text-card" : "bg-paper text-brown-soft ring-1 ring-catcha-line"
+                      }`}
+                    >
+                      {active && <Icon name="check" size={14} strokeWidth={2.4} />}
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {broadcastSegments.includes("regular") && (
+                <label className="flex items-center gap-2 text-xs text-brown-soft">
+                  ขาประจำ = มาแล้วตั้งแต่
                   <input
                     type="number"
-                    min={0}
-                    value={broadcastInactive || ""}
-                    onChange={(e) => setBroadcastInactive(Math.max(0, Number(e.target.value) || 0))}
-                    placeholder="0"
-                    className="h-10 w-full min-w-0 !border-0 !bg-transparent px-0 text-sm !shadow-none !outline-none"
+                    min={1}
+                    value={regularMinVisits}
+                    onChange={(e) => setRegularMinVisits(Math.max(1, Number(e.target.value) || 1))}
+                    className="h-9 w-16 rounded-catcha-sm border border-catcha-line bg-paper px-2 text-center text-sm text-brown"
                   />
-                  <span className="shrink-0 text-xs text-brown-soft">วัน</span>
+                  ครั้ง
                 </label>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {[30, 60, 90].map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setBroadcastInactive(d)}
-                    className={`h-9 rounded-full px-3.5 text-xs font-bold ${
-                      broadcastInactive === d ? "bg-catcha-chocolate text-card" : "bg-paper text-brown-soft"
-                    }`}
+              )}
+
+              {/* ตัวกรองละเอียด — พับไว้ไม่ให้รก */}
+              <details className="group rounded-catcha-sm border border-catcha-line bg-paper/50 [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 text-xs font-bold text-brown-soft">
+                  <Icon name="filter" size={15} />
+                  กรองเพิ่ม (ระดับ · พันธุ์ · จำนวนวันที่หายไป)
+                  <Icon name="chevron" size={14} className="ml-auto text-brown-faint transition group-open:rotate-90" />
+                </summary>
+                <div className="space-y-2 border-t border-catcha-line p-3">
+                  <select
+                    value={broadcastTier}
+                    onChange={(e) => setBroadcastTier(e.target.value as StoreCustomerTier | "all")}
+                    className={FIELD}
                   >
-                    &gt; {d} วัน
-                  </button>
-                ))}
-                {(broadcastBreed || broadcastInactive > 0) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBroadcastBreed("");
-                      setBroadcastInactive(0);
-                    }}
-                    className="ml-auto flex h-9 items-center gap-1 px-2 text-xs font-bold text-wait"
-                  >
-                    <Icon name="x" size={14} />
-                    ล้างตัวกรอง
-                  </button>
-                )}
-              </div>
+                    <option value="all">ทุกระดับ</option>
+                    {(Object.keys(TIER_LABELS) as StoreCustomerTier[]).map((t) => (
+                      <option key={t} value={t}>
+                        {TIER_LABELS[t]}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={broadcastBreed}
+                      onChange={(e) => setBroadcastBreed(e.target.value)}
+                      className={`${FIELD} min-w-0`}
+                    >
+                      <option value="">ทุกพันธุ์</option>
+                      {BREED_OPTIONS.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="flex min-w-0 items-center gap-1.5 rounded-catcha-sm border border-catcha-line bg-card px-3">
+                      <Icon name="clock" size={16} className="text-brown-soft" />
+                      <span className="shrink-0 text-xs text-brown-soft">หายไป &gt;</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={broadcastInactive || ""}
+                        onChange={(e) => setBroadcastInactive(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder="0"
+                        className="h-10 w-full min-w-0 !border-0 !bg-transparent px-0 text-sm !shadow-none !outline-none"
+                      />
+                      <span className="shrink-0 text-xs text-brown-soft">วัน</span>
+                    </label>
+                  </div>
+                </div>
+              </details>
+
+              {(broadcastBreed || broadcastInactive > 0 || broadcastSegments.length > 0 || broadcastTier !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBroadcastBreed("");
+                    setBroadcastInactive(0);
+                    setBroadcastSegments([]);
+                    setBroadcastTier("all");
+                  }}
+                  className="flex h-9 items-center gap-1 px-1 text-xs font-bold text-wait"
+                >
+                  <Icon name="x" size={14} />
+                  ล้างตัวกรอง
+                </button>
+              )}
             </div>
           </section>
 
