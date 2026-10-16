@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
@@ -212,6 +212,143 @@ function MiniEntry({ group, onClick }: { group: CalendarDay[]; onClick: () => vo
       {names}
       <span className="font-normal text-brown-faint"> · {b.customerName}</span>
     </button>
+  );
+}
+
+/** ห้องว่างทั้งเดือน — ดูทีเดียวว่าวันไหนยังรับได้ แตะวันเพื่อดูผังห้องของวันนั้น */
+function RoomMonthAvailability({
+  rooms,
+  bookings,
+  month,
+  selected,
+  today,
+  onMonth,
+  onPick,
+}: {
+  rooms: { id: string; name: string; count?: number; cats?: { th: string }; extra?: { th: string }; closures?: RoomClosure[] }[];
+  bookings: CalendarDay[];
+  month: string;
+  selected: string;
+  today: string;
+  onMonth: (ym: string) => void;
+  onPick: (dateISO: string) => void;
+}) {
+  const [typeId, setTypeId] = useState("all");
+  const physical = rooms.filter((r) => (r.count || 0) > 0);
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const startPad = new Date(y, m - 1, 1).getDay();
+
+  const days = useMemo(() => {
+    const boardRooms = rooms.map((r) => ({
+      id: r.id,
+      name: r.name,
+      count: r.count || 0,
+      maxCats: roomCapacity(r),
+      closures: r.closures,
+    }));
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const key = `${month}-${String(i + 1).padStart(2, "0")}`;
+      const b = buildRoomBoard(boardRooms, bookings, key);
+      const t = typeId === "all" ? null : b.byType.find((x) => x.typeId === typeId);
+      return {
+        key,
+        day: i + 1,
+        free: t ? t.free : b.free,
+        total: t ? t.total : b.totalUnits,
+      };
+    });
+  }, [rooms, bookings, month, daysInMonth, typeId]);
+
+  const shift = (delta: number) => {
+    const d = new Date(y, m - 1 + delta, 1);
+    onMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const fullDays = days.filter((d) => d.total > 0 && d.free <= 0).length;
+
+  return (
+    <div className="mb-4 rounded-catcha-sm border border-catcha-line bg-paper/50 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Month</p>
+          <p className="truncate text-sm font-extrabold text-catcha-chocolate">
+            ห้องว่าง เดือน {m}/{y}
+          </p>
+          <p className="text-[10px] text-brown-faint">
+            {fullDays > 0 ? `เต็ม ${fullDays} วัน` : "ยังไม่มีวันที่เต็ม"} · แตะวันเพื่อดูผังห้อง
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            aria-label="เดือนก่อน"
+            onClick={() => shift(-1)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-brown"
+          >
+            <Icon name="back" size={16} />
+          </button>
+          <button
+            type="button"
+            aria-label="เดือนถัดไป"
+            onClick={() => shift(1)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-brown"
+          >
+            <Icon name="chevron" size={16} />
+          </button>
+        </div>
+      </div>
+
+      {physical.length > 1 && (
+        <div className="-mx-1 mb-2.5 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+          {[{ id: "all", name: "ทุกห้อง" }, ...physical].map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              aria-pressed={typeId === r.id}
+              onClick={() => setTypeId(r.id)}
+              className={`min-h-[34px] shrink-0 rounded-full border px-3 text-[11px] font-bold transition ${
+                typeId === r.id
+                  ? "border-catcha-chocolate bg-catcha-chocolate text-white"
+                  : "border-catcha-line bg-card text-brown"
+              }`}
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((d) => (
+          <div key={d} className="pb-0.5 text-[10px] font-bold text-brown-faint">
+            {d}
+          </div>
+        ))}
+        {Array.from({ length: startPad }).map((_, i) => (
+          <div key={`pad-${i}`} />
+        ))}
+        {days.map((d) => {
+          const full = d.total > 0 && d.free <= 0;
+          const low = !full && d.total > 0 && d.free <= Math.max(1, Math.floor(d.total * 0.2));
+          const past = d.key < today;
+          const isSelected = d.key === selected;
+          return (
+            <button
+              key={d.key}
+              type="button"
+              onClick={() => onPick(d.key)}
+              aria-label={`${d.day} ว่าง ${Math.max(0, d.free)} ห้อง`}
+              className={`flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-lg py-1 transition ${
+                full ? "bg-red-50 text-red-600" : low ? "bg-honey/30 text-catcha-chocolate" : "bg-sage/20 text-brown"
+              } ${past ? "opacity-45" : ""} ${isSelected ? "ring-2 ring-latte-deep" : d.key === today ? "ring-1 ring-honey-deep" : ""}`}
+            >
+              <span className="text-sm font-extrabold leading-none">{d.day}</span>
+              <span className="text-[9px] font-bold leading-none">{full ? "เต็ม" : `ว่าง ${d.free}`}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -520,7 +657,7 @@ export function BookingCalendar() {
   /** มุมมองตาราง — เดือนดูภาพรวม, สัปดาห์วางแผน, วันทำงานหน้าร้าน, ห้องดูที่ว่าง */
   const [view, setView] = useState<"month" | "week" | "day" | "rooms">("month");
 
-  const liveBookings = bookings.filter((b) => b.status !== "cancelled");
+  const liveBookings = useMemo(() => bookings.filter((b) => b.status !== "cancelled"), [bookings]);
   const dayBookings = liveBookings.filter((b) => bookingOnDate(b, activeDate));
 
   const pickDate = (key: string) => {
@@ -671,6 +808,16 @@ export function BookingCalendar() {
     ).padStart(2, "0")}`;
     setSelectedDate(key);
     setViewMonth(key.slice(0, 7));
+  };
+  /** กระโดดไปวัน (yyyy-mm-dd) หรือเดือน (yyyy-mm) ที่เลือกจากปฏิทินของเครื่อง */
+  const jumpTo = (value: string) => {
+    if (/^\d{4}-\d{2}$/.test(value)) {
+      setViewMonth(value);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    setSelectedDate(value);
+    setViewMonth(value.slice(0, 7));
   };
   const shiftView = (delta: number) =>
     view === "month" ? shiftMonth(delta) : shiftDays(view === "week" ? delta * 7 : delta);
@@ -919,7 +1066,18 @@ export function BookingCalendar() {
             >
               <Icon name="back" size={18} />
             </button>
-            <h2 className="truncate px-1 text-base font-extrabold text-catcha-chocolate">{viewTitle}</h2>
+            {/* แตะหัวข้อเพื่อกระโดดไปวัน/เดือนไหนก็ได้ ไม่ต้องกดลูกศรทีละวัน */}
+            <label className="relative flex min-w-0 cursor-pointer items-center gap-1 rounded-full px-1">
+              <h2 className="truncate text-base font-extrabold text-catcha-chocolate">{viewTitle}</h2>
+              <Icon name="calendar" size={14} className="shrink-0 text-brown-faint" />
+              <input
+                type={view === "month" ? "month" : "date"}
+                aria-label={view === "month" ? "เลือกเดือน" : "เลือกวันที่"}
+                value={view === "month" ? ym : activeDate}
+                onChange={(e) => jumpTo(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </label>
             <button
               type="button"
               onClick={() => shiftView(1)}
@@ -1040,6 +1198,15 @@ export function BookingCalendar() {
 
         {view === "rooms" && (
           <div>
+            <RoomMonthAvailability
+              rooms={rooms}
+              bookings={liveBookings}
+              month={ym}
+              selected={activeDate}
+              today={today}
+              onMonth={setViewMonth}
+              onPick={(key) => setSelectedDate(key)}
+            />
             {/* สรุปหัวตาราง — ว่างกี่ห้องจริง เห็นตัวเดียวจบ */}
             <div
               className={`mb-3 flex items-center justify-between gap-3 rounded-catcha-sm px-3 py-2.5 ${
