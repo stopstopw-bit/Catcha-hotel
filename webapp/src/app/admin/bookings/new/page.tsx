@@ -13,6 +13,7 @@ import { TransportPicker } from "@/components/TransportPicker";
 import type { BookingTransport } from "@/lib/transport";
 import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
+import { UNKNOWN_CAT, isUnknownCat } from "@/lib/unknown-cat";
 import {
   typeAvailability,
   attachClosures,
@@ -27,8 +28,6 @@ type CustomerListItem = CustomerRecord & { upcomingAppointments?: number };
 
 const FREEBIE_OPTIONS = ["กล้องวงจรปิด (CCTV)", "น้ำพุแมว", "รับ-ส่ง", "ขนม/ทรีท"];
 
-const UNKNOWN_CAT = "น้องไม่ระบุชื่อ";
-const isUnknownCat = (name: string) => name === UNKNOWN_CAT || name.startsWith(`${UNKNOWN_CAT} (`);
 
 /**
  * เลือกลูกค้า + น้องแมว แบบแอปจองคิวทั่วไป (Fresha / Booksy / แอปโรงแรมสัตว์เลี้ยง)

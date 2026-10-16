@@ -17,7 +17,7 @@ import { CustomerLinkSection } from "@/components/CustomerLinkSection";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import type { Booking } from "@/lib/business";
-import { groupBookings } from "@/lib/booking-group";
+import { bookingGroupKey, groupBookings } from "@/lib/booking-group";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { BookingEditModal, type EditableBooking } from "@/components/BookingEditModal";
 import { RoomPlanSection } from "@/components/RoomPlanSection";
@@ -171,9 +171,12 @@ const inputCls =
 
 function CustomerAppointmentsSection({
   bookings,
+  catNames,
   onRefresh,
 }: {
   bookings: EditableBooking[];
+  /** แมวที่ลูกค้าบันทึกไว้ — ให้เลือกแทนชื่อชั่วคราว "น้องไม่ระบุชื่อ" ได้เลย */
+  catNames: string[];
   onRefresh: () => void;
 }) {
   const [editing, setEditing] = useState<EditableBooking | null>(null);
@@ -211,6 +214,10 @@ function CustomerAppointmentsSection({
           booking={editing}
           rooms={rooms}
           groomSlots={groomSlots}
+          customerCats={catNames}
+          takenCatNames={bookings
+            .filter((x) => x.id !== editing.id && bookingGroupKey(x) === bookingGroupKey(editing))
+            .map((x) => x.catName)}
           onClose={() => setEditing(null)}
           onSaved={onRefresh}
         />
@@ -3166,6 +3173,7 @@ export default function CustomersPage() {
 
         <CustomerAppointmentsSection
           bookings={selected.history.upcomingBookings || []}
+          catNames={c.cats.map((x) => x.name)}
           onRefresh={() => open(c.id)}
         />
 
