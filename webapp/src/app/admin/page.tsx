@@ -205,10 +205,11 @@ export default function AdminDashboard() {
 
       {/* เมนูลัด — 4 อย่างที่ใช้บ่อยสุด (ที่เหลืออยู่ในปุ่ม Menu ด้านล่าง) */}
       <nav aria-label="เมนูลัด" className="grid grid-cols-4 gap-2">
-        <Link href="/admin/billing"><IconChip icon="card" label="คิดเงิน" tone="honey" /></Link>
+        <Link href="/admin/billing"><IconChip icon="receipt" label="ออกบิล" tone="honey" /></Link>
         <Link href="/admin/pending"><IconChip icon="inbox" label="รอยืนยัน" tone="latte" badge={stats.queue || undefined} /></Link>
         <Link href="/admin/finance"><IconChip icon="wallet" label="รายรับ-จ่าย" tone="sage" /></Link>
-        <Link href="/admin/insights"><IconChip icon="chart" label="สรุปข้อมูล" tone="paper" /></Link>
+        {/* คิดเงิน = เปิดหน้าบิลที่ลิสต์ "รอชำระ" กดรับชำระได้เลย (สรุปข้อมูลย้ายไปอยู่ในปุ่ม Menu) */}
+        <Link href="/admin/billing?view=pending"><IconChip icon="money" label="คิดเงิน" tone="paper" /></Link>
       </nav>
 
       {/* งานที่ต้องทำ */}
@@ -222,7 +223,7 @@ export default function AdminDashboard() {
               </Link>
             )}
             {tasks && tasks.unpaidCount > 0 && (
-              <Link href="/admin/billing" className="block py-3">
+              <Link href="/admin/billing?view=pending" className="block py-3">
                 <ListRowContent icon="card" title="บิลค้างชำระ" sub={`${tasks.unpaidCount} บิล`} value={`${tasks.unpaidDue.toLocaleString()} ฿`} valueClass="text-wait" />
               </Link>
             )}
