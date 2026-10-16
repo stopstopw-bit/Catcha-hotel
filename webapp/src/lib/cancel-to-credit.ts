@@ -11,6 +11,9 @@
  *   ใช้เครดิตจ่ายบิลใหม่   → รายได้ไม่เพิ่ม · แต้มไม่เพิ่ม · เครดิต −5,000
  *
  * บิลเดิมคงสถานะ "จ่ายแล้ว" ไว้ (รายรับเดือนนั้นยังถูกต้อง) — "ยกเลิกการชำระ" ใช้เฉพาะคืนเงินสดจริง
+ *
+ * บิลที่ยังไม่ปิดแต่รับมัดจำ/จ่ายบางส่วนมาแล้ว ก็โยกได้ — เก็บเป็นเครดิตเท่ายอดที่รับมาจริง
+ * แล้วบิลนั้นห้ามรับเงินเพิ่มอีก (กันเก็บเงินซ้ำจากนัดที่ยกเลิกไปแล้ว)
  */
 import {
   cancelBooking,
@@ -19,7 +22,7 @@ import {
 } from "./bookings-store";
 import { bookingCalendarPayload, deleteCalendarEvent, updateCalendarEvent } from "./calendar";
 import { findCancelCreditTopup, getCustomer, topupMemberCredit } from "./customers-store";
-import { getInvoice, listInvoicesForBookings } from "./invoices-store";
+import { getInvoice, listInvoicesForBookings, type InvoiceRecord } from "./invoices-store";
 import { findGroupSiblings } from "./stay-sync";
 
 export type CancelToCreditResult =
@@ -32,6 +35,14 @@ export type CancelToCreditResult =
       lineUserId?: string;
     }
   | { ok: false; error: string };
+
+/** ยอดที่ลูกค้าจ่ายมาแล้วจริงของบิลนี้ = ยอดที่โยกเป็นเครดิตได้ */
+export function creditableAmount(
+  inv: Pick<InvoiceRecord, "status" | "total" | "deposit" | "depositReceivedAt">
+): number {
+  if (inv.status === "paid") return Math.round(inv.total || 0);
+  return inv.depositReceivedAt ? Math.round(inv.deposit || 0) : 0;
+}
 
 /** กันกดซ้ำพร้อมกัน (ดับเบิลคลิก / สองเครื่อง) ระหว่างที่กำลังเติมเครดิต */
 const convertingNow = new Set<string>();
@@ -59,15 +70,14 @@ export async function cancelAppointmentToCredit(
   try {
     const inv = await getInvoice(invoiceId);
     if (!inv) return { ok: false, error: "ไม่พบบิล" };
-    if (inv.status !== "paid") {
-      return { ok: false, error: "บิลนี้ยังไม่ได้ชำระ — ยกเลิกนัดตามปกติได้เลย ไม่ต้องเก็บเป็นเครดิต" };
-    }
     if (!inv.customerId) return { ok: false, error: "บิลนี้ไม่ได้ผูกลูกค้า — เติมเครดิตให้ไม่ได้" };
     if (await findCancelCreditTopup(inv.id)) {
       return { ok: false, error: "บิลนี้เก็บเป็นเครดิตไปแล้ว" };
     }
-    const amount = Math.round(inv.total || 0);
-    if (amount <= 0) return { ok: false, error: "ยอดบิลเป็น 0 — ไม่มีอะไรให้เก็บเป็นเครดิต" };
+    const amount = creditableAmount(inv);
+    if (amount <= 0) {
+      return { ok: false, error: "บิลนี้ยังไม่ได้รับเงินเลย — ยกเลิกนัดตามปกติได้เลย ไม่ต้องเก็บเป็นเครดิต" };
+    }
 
     // เติมเครดิตก่อน (เรื่องเงินสำคัญสุด) แล้วค่อยยกเลิกนัด
     const result = await topupMemberCredit(inv.customerId, {

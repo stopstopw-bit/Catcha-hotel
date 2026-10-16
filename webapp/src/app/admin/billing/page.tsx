@@ -2801,9 +2801,15 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
               )}
               <MoreMenu items={menu} />
             </div>
-            {paid && inv.customerId && (
+            {(paid || receivedOf(inv) > 0) && inv.customerId && (
               <div className="mt-2">
-                <CancelToCreditButton invoiceId={inv.id} total={inv.total} size="md" onDone={load} />
+                <CancelToCreditButton
+                  invoiceId={inv.id}
+                  total={paid ? inv.total : receivedOf(inv)}
+                  paid={paid}
+                  size="md"
+                  onDone={load}
+                />
               </div>
             )}
 

@@ -5,7 +5,8 @@ import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 
 /**
- * 🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต — ปุ่มบนบิลที่จ่ายแล้ว (ใช้ทั้งในตารางนัดและหน้าคิดบิล)
+ * 🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต — ปุ่มบนบิลที่รับเงินมาแล้ว (จ่ายครบ / มัดจำ / จ่ายบางส่วน)
+ * ใช้ทั้งในตารางนัดและหน้าคิดบิล · `total` = ยอดที่รับมาแล้วจริง (ยอดที่จะเข้าเครดิต)
  * กดแล้วเปิดแผงยืนยันก่อน เลือกได้ว่าจะแจ้งยอดเครดิตทาง LINE ไหม (ติ๊ก → ดูการ์ดก่อนส่ง)
  */
 export function CancelToCreditButton({
@@ -13,9 +14,12 @@ export function CancelToCreditButton({
   total,
   onDone,
   size = "sm",
+  paid = true,
 }: {
   invoiceId: string;
   total: number;
+  /** false = บิลยังไม่ปิด (รับมัดจำ/จ่ายบางส่วนมาแล้ว) */
+  paid?: boolean;
   onDone?: () => void;
   size?: "sm" | "md";
 }) {
@@ -98,10 +102,17 @@ export function CancelToCreditButton({
           <p className="font-bold text-catcha-chocolate">
             🔁 ยกเลิกนัดนี้ แล้วเก็บยอด {total.toLocaleString()} บาท เป็นเครดิต Member
           </p>
-          <p className="mt-0.5">
-            บิลยังเป็น &quot;จ่ายแล้ว&quot; เหมือนเดิม · <b>ไม่ลงรายรับซ้ำ ไม่ให้แต้มซ้ำ</b> (ได้ไปแล้วตอนจ่ายบิล)
-            · ประวัติเครดิตจะโชว์เลขบิลนี้ · ถ้าคืนเงินสดให้ลูกค้าจริง ใช้ &quot;ยกเลิกการชำระ&quot; แทน
-          </p>
+          {paid ? (
+            <p className="mt-0.5">
+              บิลยังเป็น &quot;จ่ายแล้ว&quot; เหมือนเดิม · <b>ไม่ลงรายรับซ้ำ ไม่ให้แต้มซ้ำ</b> (ได้ไปแล้วตอนจ่ายบิล)
+              · ประวัติเครดิตจะโชว์เลขบิลนี้ · ถ้าคืนเงินสดให้ลูกค้าจริง ใช้ &quot;ยกเลิกการชำระ&quot; แทน
+            </p>
+          ) : (
+            <p className="mt-0.5">
+              เก็บเฉพาะยอดที่รับมาแล้ว (มัดจำ/จ่ายบางส่วน) · <b>ไม่ลงรายรับซ้ำ</b> (ลงไปแล้วตอนรับเงิน)
+              · หลังจากนี้บิลนี้รับเงินเพิ่มไม่ได้ · ประวัติเครดิตจะโชว์เลขบิลนี้
+            </p>
+          )}
           <label className="mt-1.5 flex items-center gap-1.5 font-bold">
             <input
               type="checkbox"

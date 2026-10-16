@@ -108,7 +108,7 @@ function summaryFlexFromInvoice(
 }
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { logAudit } from "@/lib/audit-log";
-import { cancelAppointmentToCredit } from "@/lib/cancel-to-credit";
+import { cancelAppointmentToCredit, creditableAmount } from "@/lib/cancel-to-credit";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -489,7 +489,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // 🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต — ยกเลิกนัด + คงบิลไว้เป็นจ่ายแล้ว + เติมเครดิตเท่ายอดบิล
+  // 🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต — ยกเลิกนัด + คงบิลไว้ตามเดิม + เติมเครดิตเท่ายอดที่รับมาแล้ว
   // (ไม่ลงรายรับ/ไม่ให้แต้มซ้ำ) + ผูกเลขบิลในประวัติเครดิต + แจ้ง LINE ถ้าติ๊ก
   if (action === "cancel_to_credit") {
     const notify = body.notify === true;
@@ -500,7 +500,7 @@ export async function PATCH(req: NextRequest) {
         ok: true,
         preview: [
           buildMemberBalanceFlex(
-            { customerName: cust.name, memberCredit: cust.memberCredit + Math.round(inv.total || 0) },
+            { customerName: cust.name, memberCredit: cust.memberCredit + creditableAmount(inv) },
             (await getSiteConfig()).cards?.memberBalance
           ),
         ],
