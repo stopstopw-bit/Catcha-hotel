@@ -13,7 +13,7 @@ export default function CustomerLayout({
     <LocaleProvider>
       <ConfigProvider>
         <LiffProvider>
-          <div className="bg-catcha-gradient min-h-screen pb-28">
+          <div className="bg-catcha-gradient min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))]">
             <LiffStuckBanner />
             <div className="mx-auto max-w-lg">{children}</div>
             <CustomerNav />

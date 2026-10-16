@@ -173,7 +173,7 @@ export function AdminNav({
       />
       <nav
         id="admin-menu"
-        className="fixed inset-x-0 bottom-0 z-[44] max-h-[88vh] overflow-y-auto rounded-t-[28px] bg-cream px-4 pb-28 pt-3 shadow-catcha lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-[44] max-h-[88vh] overflow-y-auto rounded-t-[28px] bg-cream px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-3 shadow-catcha lg:hidden"
         aria-label="เมนูหลังบ้าน"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-brown-faint/50" />
