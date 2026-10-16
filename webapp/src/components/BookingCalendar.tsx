@@ -930,7 +930,7 @@ export function BookingCalendar() {
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-sm rounded-t-[28px] bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha sm:p-5"
+            className="max-h-[92dvh] w-full max-w-sm overflow-y-auto overscroll-contain rounded-t-[28px] bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha sm:p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-catcha-line sm:hidden" />
@@ -1024,7 +1024,7 @@ export function BookingCalendar() {
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-sm rounded-t-[28px] bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha sm:p-5"
+            className="max-h-[92dvh] w-full max-w-sm overflow-y-auto overscroll-contain rounded-t-[28px] bg-card px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha sm:p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-catcha-line sm:hidden" />
@@ -1991,7 +1991,7 @@ export function BookingCalendar() {
           onClick={() => setZoomSignature(null)}
         >
           <div
-            className="max-w-md rounded-catcha bg-white p-4 shadow-xl"
+            className="max-h-[90dvh] max-w-md overflow-y-auto rounded-catcha bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-brown-soft">
