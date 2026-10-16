@@ -58,6 +58,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "room_plans", column: "payments", feature: "แพ็กห้องรายเดือน (แบ่งจ่าย)" },
   { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
   { table: "invoice_docs", column: "receipt_no", feature: "ใบเสร็จ/ใบเสนอราคาในนามบริษัท" },
+  { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
   { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
 ];
 
@@ -423,6 +424,16 @@ where staff_note like '%🎁%';`,
       create table if not exists invoice_docs (invoice_id text primary key, customer_id text, buyer jsonb, quote_no text, quote_at timestamptz, invoice_no text, invoice_at timestamptz, receipt_no text, receipt_at timestamptz, note text, updated_at timestamptz not null default now());
       create index if not exists invoice_docs_customer_idx on invoice_docs (customer_id);
       alter table invoice_docs enable row level security;
+    `,
+  },
+  {
+    // คอร์สนับครั้งผูกโปรแกรมอาบน้ำ (อาบน้ำ 10 ครั้ง / สปา 5 ครั้ง) — ว่าง = คอร์สแบบเดิม
+    // ร้านตั้งคอร์สในแอปผูกโปรแกรมได้ด้วย ออร์เดอร์ก๊อปโปรแกรมไว้ ณ ตอนสั่ง
+    name: "packages.groom_program",
+    sql: `
+      alter table customer_packages add column if not exists groom_program text;
+      alter table package_offers add column if not exists groom_program text;
+      alter table package_orders add column if not exists groom_program text;
     `,
   },
   {
