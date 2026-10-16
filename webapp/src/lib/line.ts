@@ -4,6 +4,7 @@
  */
 
 import { formatBookingWhen, formatThaiDate } from "./format-thai-date";
+import { hasTransport, transportLabel, type BookingTransport } from "./transport";
 import { getLineCredentials } from "./line-config";
 import { BUSINESS } from "./business";
 import { groomProgramName } from "./grooming-prices";
@@ -155,6 +156,9 @@ export function buildAppointmentConfirmFlex(booking: {
   notes?: string;
   /** โปรแกรมอาบน้ำที่เลือกไว้ (id ของ GROOM_PROGRAMS) — โชว์ให้ลูกค้าเห็นว่าอาบโปรแกรมไหน */
   groomProgram?: string;
+  /** บริการรับ-ส่ง — โชว์แถวรับ-ส่ง + ปุ่มให้ลูกค้าส่งจุดรับ-ส่ง (ลิงก์ Google Maps) */
+  transport?: BookingTransport;
+  transportUrl?: string;
   confirmUrl: string;
   /** แผนที่/ที่อยู่ของร้าน — มาจาก config ไม่ใช่ค่าตายตัว ไม่มีก็ซ่อนแถวนั้นไป */
   mapsUrl?: string;
@@ -241,6 +245,20 @@ export function buildAppointmentConfirmFlex(booking: {
           ...(show("location") && booking.location
             ? [flexDetailRow("📍", t("locationLabel", "สถานที่"), booking.location)]
             : []),
+          ...(hasTransport(booking.transport)
+            ? [
+                flexDetailRow(
+                  "🚗",
+                  t("transportLabel", "รับ-ส่งน้อง"),
+                  `${transportLabel(booking.transport)}\n${
+                    booking.transport.address ||
+                    (booking.transport.mapUrl
+                      ? "ได้รับแผนที่จุดรับ-ส่งแล้ว"
+                      : "ยังไม่ได้ส่งจุดรับ-ส่ง กดปุ่มด้านล่างได้เลยค่ะ")
+                  }`
+                ),
+              ]
+            : []),
           ...(show("notes") ? [flexDetailRow("📝", t("notesLabel", "หมายเหตุ"), noteText)] : []),
           // เฉพาะนัดอาบน้ำ — เตือนเรื่องขนมกับตะกร้า ให้เห็นเด่นแยกจากหมายเหตุทั่วไป
           ...(!isRoom && show("groomPrep")
@@ -311,6 +329,23 @@ export function buildAppointmentConfirmFlex(booking: {
               uri: booking.confirmUrl,
             },
           },
+          ...(booking.transportUrl
+            ? [
+                {
+                  type: "button",
+                  style: "secondary",
+                  height: "sm",
+                  action: {
+                    type: "uri",
+                    label:
+                      booking.transport?.mapUrl || booking.transport?.address
+                        ? "📍 แก้จุดรับ-ส่ง"
+                        : "📍 ส่งจุดรับ-ส่ง (Google Maps)",
+                    uri: booking.transportUrl,
+                  },
+                },
+              ]
+            : []),
           ...(show("map") && booking.mapsUrl
             ? [
                 {

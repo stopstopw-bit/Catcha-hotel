@@ -24,6 +24,7 @@ import { RoomClosureSheet } from "@/components/RoomClosureSheet";
 import { BOOKING_STATUS_LABELS, type BookingStatus } from "@/lib/business";
 import { effectiveBookingStatus } from "@/lib/booking-status";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
+import { hasTransport, transportLabel } from "@/lib/transport";
 
 type CalendarDay = EditableBooking & {
   customerId?: string;
@@ -616,6 +617,8 @@ export function BookingCalendar() {
             date: b.service === "groom" ? b.date : undefined,
             time: b.time,
             groomProgram: b.groomProgram,
+            // ตัวที่เพิ่มเข้านัดเดิมไปรถคันเดียวกัน
+            transport: b.transport,
             room: b.room,
             roomUnit: b.roomUnit,
             checkin: b.checkin,
@@ -1523,6 +1526,9 @@ export function BookingCalendar() {
                     </p>
                     <p className="mt-0.5 flex items-center gap-1 break-words text-xs text-brown-soft">
                       <Icon name={b.service === "room" ? "bed" : "bath"} size={13} />
+                      {hasTransport(b.transport) && (
+                        <Icon name="car" size={13} className="text-catcha-chocolate" />
+                      )}
                       <span className="min-w-0">
                         {b.service === "room"
                           ? rooms.find((r) => r.id === b.room)?.name || b.room || "ห้องพัก"
@@ -1598,6 +1604,40 @@ export function BookingCalendar() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+                {hasTransport(b.transport) && (
+                  <div className="mt-1.5 flex items-start gap-2 rounded-catcha-sm bg-honey/15 px-2.5 py-1.5 text-[11px]">
+                    <Icon name="car" size={14} className="mt-px shrink-0 text-catcha-chocolate" />
+                    <span className="min-w-0 flex-1 break-words">
+                      <b className="text-catcha-chocolate">
+                        {b.service === "room"
+                          ? [
+                              b.transport.pickup && `รับวันเข้า ${b.checkin || b.date}`,
+                              b.transport.dropoff && `ส่งวันออก ${b.checkout || ""}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : transportLabel(b.transport)}
+                      </b>
+                      {b.transport.address && (
+                        <span className="block text-brown-soft">{b.transport.address}</span>
+                      )}
+                      {!b.transport.mapUrl && !b.transport.address && (
+                        <span className="block font-bold text-wait">รอลูกค้าส่งจุดรับ-ส่ง</span>
+                      )}
+                    </span>
+                    {b.transport.mapUrl && (
+                      <a
+                        href={b.transport.mapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-h-[32px] shrink-0 items-center gap-1 rounded-full bg-card px-2.5 font-bold text-latte-deep shadow-catcha-sm"
+                      >
+                        <Icon name="pin" size={13} />
+                        แผนที่
+                      </a>
+                    )}
                   </div>
                 )}
                 {(b.arrivalTime || b.pickupTime) && (

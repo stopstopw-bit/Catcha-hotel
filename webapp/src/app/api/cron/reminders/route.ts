@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
           room: primary.room,
           notes: primary.notes,
           groomProgram: primary.groomProgram,
+          transport: primary.transport,
         }),
       ];
 

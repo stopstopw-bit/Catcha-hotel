@@ -2,6 +2,7 @@ import type { Booking, BookingStatus } from "./business";
 import { getSupabase } from "./supabase/server";
 import { uploadDataUrlToStorage } from "./supabase/storage";
 import { seedEnabled } from "./demo-seed";
+import type { BookingTransport } from "./transport";
 
 export type StoredBooking = Booking & {
   lineUserId?: string;
@@ -35,6 +36,8 @@ export type StoredBooking = Booking & {
    * ค่าที่ใช้ได้: ดู AUTO_MESSAGE_TOPICS
    */
   autoOff?: string[];
+  /** บริการรับ-ส่งของนัดนี้ (ดู transport.ts) — ไม่มี = ลูกค้ามาเอง */
+  transport?: BookingTransport;
 };
 
 export { AUTO_MESSAGE_TOPICS, autoMuted } from "./auto-messages";
@@ -66,6 +69,7 @@ type BookingRow = {
   groom_program?: string | null;
   auto_off?: string[] | null;
   room_unit?: number | null;
+  transport?: BookingTransport | null;
 };
 
 const mem: StoredBooking[] = seedEnabled()
@@ -112,6 +116,7 @@ function rowToStored(r: BookingRow): StoredBooking {
     groomProgram: r.groom_program || undefined,
     autoOff: r.auto_off || undefined,
     roomUnit: r.room_unit ?? undefined,
+    transport: r.transport || undefined,
   };
 }
 
@@ -298,6 +303,54 @@ export async function acceptBookingConsent(
   return { ok: true as const, acceptedAt: now };
 }
 
+/**
+ * เขียนข้อมูลรับ-ส่ง — คอลัมน์ transport เพิ่มมาทีหลัง เขียนแยกจากแถวหลัก
+ * ถ้ายังไม่มีคอลัมน์ ลองอัปเดตฐานข้อมูลให้เองก่อนแล้วเขียนใหม่ (นัดยังบันทึกได้ปกติ)
+ */
+async function writeTransport(id: string, transport: BookingTransport | null) {
+  const sb = getSupabase();
+  if (!sb) return true;
+  try {
+    const { error } = await sb.from("bookings").update({ transport }).eq("id", id);
+    if (!error) return true;
+    const { ensureMigration } = await import("./migrations");
+    if (await ensureMigration("bookings.transport")) {
+      const res = await sb.from("bookings").update({ transport }).eq("id", id);
+      return !res.error;
+    }
+  } catch {
+    /* ยังไม่มีคอลัมน์ transport */
+  }
+  return false;
+}
+
+/**
+ * ลูกค้ากรอกจุดรับ-ส่ง (ลิงก์ Google Maps + ที่อยู่) ก่อนวันนัด — แก้ได้เฉพาะตำแหน่ง
+ * ไม่ให้ลูกค้าเปิด/ปิดบริการรับ-ส่งเอง (ร้านเป็นคนตกลงกับลูกค้า)
+ */
+export async function setBookingTransportLocation(
+  id: string,
+  loc: { mapUrl?: string; address?: string },
+  lineUserId?: string
+) {
+  const b = await getBooking(id);
+  if (!b) return { ok: false as const, error: "not_found" };
+  if (b.lineUserId && b.lineUserId !== lineUserId) {
+    return { ok: false as const, error: "forbidden" };
+  }
+  if (!b.transport || (!b.transport.pickup && !b.transport.dropoff)) {
+    return { ok: false as const, error: "no_transport" };
+  }
+  const next: BookingTransport = { ...b.transport, mapUrl: loc.mapUrl, address: loc.address };
+  if (getSupabase()) {
+    if (!(await writeTransport(id, next))) return { ok: false as const, error: "need_sql" };
+  } else {
+    const m = mem.find((x) => x.id === id);
+    if (m) m.transport = next;
+  }
+  return { ok: true as const, booking: { ...b, transport: next } };
+}
+
 export async function addBooking(
   data: Omit<StoredBooking, "id" | "createdAt" | "status" | "calendarEventId">
 ) {
@@ -334,6 +387,7 @@ export async function addBooking(
         /* ยังไม่มีคอลัมน์ room_unit */
       }
     }
+    if (booking.transport) await writeTransport(booking.id, booking.transport);
     return booking;
   }
 
@@ -364,6 +418,7 @@ export async function updateBooking(
       | "arrivalTime"
       | "pickupTime"
       | "roomUnit"
+      | "transport"
     >
   >
 ) {
@@ -427,6 +482,8 @@ export async function updateBooking(
         /* ยังไม่มีคอลัมน์ room_unit */
       }
     }
+    // รับ-ส่ง — undefined ใน patch = ไม่ได้ส่งมา, ส่งมาเป็นค่าว่างให้ล้างทิ้ง (ใช้ "transport" in patch)
+    if ("transport" in patch) await writeTransport(id, merged.transport || null);
     return getBooking(id);
   }
 
