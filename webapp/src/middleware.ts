@@ -24,6 +24,7 @@ const PUBLIC_API = [
   "/api/bookings/consent",
   "/api/bookings/groom-info",
   "/api/bookings/time",
+  "/api/bookings/transport",
   "/api/coupons/claim",
   "/api/promos/claim",
   "/api/line/liff",

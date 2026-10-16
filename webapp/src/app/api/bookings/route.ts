@@ -48,6 +48,7 @@ import {
   getCustomer,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
+import { cleanTransport, hasTransport, transportLabel, type BookingTransport } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
 import { listInvoices, updateInvoice, invoiceCatNames } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
@@ -65,10 +66,22 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/** บรรทัดรับ-ส่งในปฏิทิน — ให้คนขับเปิดแผนที่จากปฏิทินได้เลย */
+function transportCalendarText(t?: BookingTransport) {
+  if (!hasTransport(t)) return "";
+  return [
+    `\n🚗 ${transportLabel(t)}`,
+    t.address ? `จุดรับ-ส่ง: ${t.address}` : "",
+    t.mapUrl ? `แผนที่: ${t.mapUrl}` : "ยังไม่ได้ส่งแผนที่",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function bookingCalendarPayload(b: StoredBooking) {
   return {
-    summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
-    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}`,
+    summary: `${b.service === "room" ? "🏠" : "🛁"}${hasTransport(b.transport) ? "🚗" : ""} ${b.catName} (${b.customerName})`,
+    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}${transportCalendarText(b.transport)}`,
     start: b.date || b.checkin || "",
     end: b.checkout || b.date || b.checkin || "",
     time: b.time,
@@ -148,6 +161,7 @@ export async function GET(req: NextRequest) {
       pickupTime: b.pickupTime,
       groomHealthInfo: b.groomHealthInfo,
       groomProgram: b.groomProgram,
+      transport: b.transport,
       roomUnit: b.roomUnit,
       autoOff: b.autoOff || [],
       customerId: customer?.id,
@@ -195,11 +209,12 @@ export async function POST(req: NextRequest) {
     lineUserId: customer.lineUserId,
     notes: body.notes,
     groomProgram,
+    transport: cleanTransport(body.transport),
   });
 
   const cal = await createCalendarEvent({
-    summary: `${body.service === "room" ? "🏠" : "🛁"} ${body.catName} (${customer.name})`,
-    description: `${body.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${body.notes || ""}`,
+    summary: `${body.service === "room" ? "🏠" : "🛁"}${hasTransport(booking.transport) ? "🚗" : ""} ${body.catName} (${customer.name})`,
+    description: `${body.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${body.notes || ""}${transportCalendarText(booking.transport)}`,
     start: body.date || body.checkin,
     end: body.checkout || body.date || body.checkin,
     time: body.time,
@@ -219,6 +234,7 @@ export async function POST(req: NextRequest) {
       น้องแมว: body.catName,
       บริการ: body.service === "room" ? "ห้องพัก" : "อาบน้ำ",
       ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram, groomPrograms) } : {}),
+      ...(hasTransport(booking.transport) ? { รับส่ง: transportLabel(booking.transport) } : {}),
       วันที่: `${body.date || body.checkin}${body.time ? ` ${body.time}` : ""}`,
       ปฏิทิน: cal.googleUrl || icsUrl,
     })
@@ -355,6 +371,7 @@ export async function PATCH(req: NextRequest) {
         room: b.room,
         notes: b.notes,
         groomProgram: b.groomProgram,
+        transport: b.transport,
       });
 
       if (preview) return NextResponse.json({ ok: true, preview: [flex] });
@@ -503,6 +520,7 @@ export async function PATCH(req: NextRequest) {
             room: b.room,
             notes: b.notes,
             groomProgram: b.groomProgram,
+            transport: b.transport,
           })
         );
       } else if (part === "consent") {
@@ -941,6 +959,8 @@ export async function PATCH(req: NextRequest) {
       const programs = resolveGroomPrograms((await getSiteConfig()).groomPricePrograms);
       patch.groomProgram = pid && groomProgramName(pid, programs) ? pid : "";
     }
+    // รับ-ส่ง — ส่ง null/{} มา = ยกเลิกบริการรับ-ส่งของนัดนี้
+    if (body.transport !== undefined) patch.transport = cleanTransport(body.transport);
     // หัวข้อข้อความอัตโนมัติที่นัดนี้ไม่ต้องส่ง
     if (Array.isArray(body.autoOff)) {
       const valid = new Set(AUTO_MESSAGE_TOPICS.map((t) => t.id));

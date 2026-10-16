@@ -8,6 +8,8 @@ import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
+import { TransportPicker } from "@/components/TransportPicker";
+import type { BookingTransport } from "@/lib/transport";
 import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import {
@@ -425,6 +427,7 @@ export default function NewBookingPage() {
   const [roomId, setRoomId] = useState("");
   // ห้องจริงที่ปักหมุด (เลขห้อง) — เฉพาะห้องเดี่ยว ไม่ใช่ห้องเชื่อม (ห้องเชื่อมจัดให้อัตโนมัติเหมือนเดิม)
   const [roomUnit, setRoomUnit] = useState<number | null>(null);
+  const [transport, setTransport] = useState<BookingTransport>({});
   const boardRooms = rooms.map((r) => ({
     id: r.id,
     name: r.name,
@@ -542,6 +545,7 @@ export default function NewBookingPage() {
       checkin: service === "room" ? String(fd.get("checkin") || "") : undefined,
       checkout: service === "room" ? String(fd.get("checkout") || "") : undefined,
       notes,
+      transport: transport.pickup || transport.dropoff ? transport : undefined,
     };
 
     const created: {
@@ -585,6 +589,7 @@ export default function NewBookingPage() {
       setCatInput("");
       setLineUserId("");
       setFreebies([]);
+      setTransport({});
       setRoomUnit(null);
       form.reset();
       setTimeout(() => setSaved(false), 2500);
@@ -925,6 +930,8 @@ export default function NewBookingPage() {
           </div>
         </div>
         )}
+
+        <TransportPicker value={transport} onChange={setTransport} service={service} />
 
         <Field label="โน้ตนิสัยน้อง (ลูกค้าใหม่)" name="notes" textarea />
 
