@@ -485,6 +485,11 @@ function PaymentTab({
       <Field label="ธนาคาร" value={form.bankName} onChange={(v) => setForm({ ...form, bankName: v })} />
       <Field label="เลขบัญชี" value={form.accountNumber} onChange={(v) => setForm({ ...form, accountNumber: v })} />
       <Field label="ชื่อบัญชี" value={form.accountName} onChange={(v) => setForm({ ...form, accountName: v })} />
+      <Field
+        label="พร้อมเพย์ (เบอร์มือถือ หรือเลข 13 หลัก) — ใช้ทำ QR ที่หน้าขาย POS"
+        value={form.promptpayId || ""}
+        onChange={(v) => setForm({ ...form, promptpayId: v.replace(/[^0-9]/g, "") })}
+      />
       <p className="rounded-catcha-sm bg-paper px-3 py-2 text-[11px] text-brown-faint">
         ข้อความสรุป/แจ้งมัดจำ/เก็บเงิน และข้อความอื่นๆ ที่ส่งให้ลูกค้า
         ย้ายไปแก้ที่แท็บ <b>ข้อความ</b> แล้ว

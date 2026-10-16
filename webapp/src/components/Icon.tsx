@@ -204,6 +204,27 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M10 8l-4 4 4 4M6 12h10" />
     </>
   ),
+  cart: (
+    <>
+      <path d="M3 4h2.2l2.1 10.6a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1" />
+      <circle cx="9.5" cy="19.5" r="1.3" />
+      <circle cx="17" cy="19.5" r="1.3" />
+    </>
+  ),
+  box: (
+    <>
+      <path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z" />
+      <path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" />
+    </>
+  ),
+  qr: (
+    <>
+      <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="14" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="3.5" y="14" width="6.5" height="6.5" rx="1" />
+      <path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5" />
+    </>
+  ),
   car: (
     <>
       <path d="M5 17H3.5v-4.5L5.5 7h13l2 5.5V17H19" />
@@ -308,6 +329,7 @@ export const ADMIN_TAB_ICONS: Record<string, string> = {
   "/admin/bookings/new": "plus",
   "/admin/customers": "users",
   "/admin/billing": "card",
+  "/admin/pos": "cart",
   "/admin/finance": "wallet",
   "/admin/tax": "receipt",
   "/admin/insights": "chart",
@@ -330,6 +352,7 @@ export const ADMIN_TAB_EN: Record<string, string> = {
   "/admin/bookings/new": "New booking",
   "/admin/customers": "Customers",
   "/admin/billing": "Billing",
+  "/admin/pos": "POS",
   "/admin/finance": "Finance",
   "/admin/tax": "Tax & Documents",
   "/admin/insights": "Insights",
@@ -349,7 +372,7 @@ export const ADMIN_TAB_EN: Record<string, string> = {
 export const ADMIN_TAB_GROUPS: { title: string; hrefs: string[] }[] = [
   {
     title: "Daily",
-    hrefs: ["/admin", "/admin/schedule", "/admin/bookings/new", "/admin/customers", "/admin/billing"],
+    hrefs: ["/admin", "/admin/schedule", "/admin/bookings/new", "/admin/customers", "/admin/billing", "/admin/pos"],
   },
   { title: "Finance", hrefs: ["/admin/finance", "/admin/tax", "/admin/insights"] },
   {
