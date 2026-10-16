@@ -8,6 +8,7 @@ import { hasTransport, transportLabel, type BookingTransport } from "./transport
 import { getLineCredentials } from "./line-config";
 import { BUSINESS } from "./business";
 import { groomProgramName } from "./grooming-prices";
+import { DEEMED_CONSENT_NOTICE } from "./messages";
 import type { CardStyleConfig } from "./config-types";
 
 const BRAND_GREEN = "#5A8F5A";
@@ -366,6 +367,35 @@ export function buildAppointmentConfirmFlex(booking: {
   };
 }
 
+/** กล่องข้อความ "ไม่ตอบ = ยอมรับข้อตกลง" ใช้ในการ์ดที่ให้ลูกค้ายืนยันเงื่อนไขก่อนเข้าพัก */
+function deemedConsentBox(): Record<string, unknown> {
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "lg",
+    paddingAll: "12px",
+    backgroundColor: "#F4F1EC",
+    cornerRadius: "10px",
+    contents: [
+      {
+        type: "text",
+        text: "ข้อตกลงโดยปริยาย",
+        size: "xs",
+        weight: "bold",
+        color: "#5C4033",
+      },
+      {
+        type: "text",
+        text: DEEMED_CONSENT_NOTICE,
+        size: "xxs",
+        color: "#7A6A5A",
+        margin: "xs",
+        wrap: true,
+      },
+    ],
+  };
+}
+
 /** การ์ดเงื่อนไขก่อนเข้าพัก — มีปุ่มไปหน้ากดยอมรับ + แจ้งการดูแลเพิ่มเติม */
 export function buildConsentFlex(data: {
   businessName: string;
@@ -436,6 +466,7 @@ export function buildConsentFlex(data: {
       },
     ],
   });
+  body.push(deemedConsentBox());
   body.push({
     type: "text",
     text: "แจ้งการดูแลเพิ่มเติมของน้องในหน้าเดียวกันได้เลยค่ะ 🧡",
@@ -1332,6 +1363,9 @@ export function buildPrestayFlex(data: {
       ],
     });
   }
+
+  // มีปุ่มยืนยันการเข้าพัก → แจ้งว่าไม่ตอบ = ยอมรับโดยปริยาย
+  if (data.consentUrl) body.push(deemedConsentBox());
 
   if (style?.closing) {
     body.push({

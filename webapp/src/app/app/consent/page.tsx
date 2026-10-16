@@ -6,7 +6,7 @@ import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import type { Booking } from "@/lib/business";
 
-import { DEFAULT_MESSAGES } from "@/lib/messages";
+import { DEFAULT_MESSAGES, DEEMED_CONSENT_NOTICE } from "@/lib/messages";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
@@ -290,6 +290,9 @@ function ConsentContent() {
                 </li>
               ))}
             </ol>
+            <p className="mt-2 rounded-catcha border border-catcha-line bg-cream px-3 py-2.5 text-[11px] leading-relaxed text-brown">
+              {DEEMED_CONSENT_NOTICE}
+            </p>
           </section>
 
           <section className="mt-5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
