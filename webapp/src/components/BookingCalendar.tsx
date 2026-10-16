@@ -889,6 +889,7 @@ export function BookingCalendar() {
           groomSlots={groomSlots}
           groomPrograms={groomPrograms}
           roomBookings={liveBookings}
+          customerId={editing.b.customerId}
           onClose={() => setEditing(null)}
           onSaved={load}
         />
