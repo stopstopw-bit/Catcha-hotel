@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { bahtText } from "@/lib/baht-text";
+import { formalItemLabel, stripEmoji } from "@/lib/invoice-item-label";
 import { exportDocPdf } from "@/lib/doc-pdf";
 import { Icon } from "@/components/Icon";
 import { toast } from "@/components/Toast";
@@ -186,16 +187,16 @@ export function InvoiceDocument({
             </header>
 
             {/* รายการ */}
-            {/* จอมือถือ: เลื่อนตารางข้างได้ ไม่บีบชื่อรายการจนอ่านไม่ออก */}
-            <div className="mt-5 overflow-x-auto print:overflow-visible">
-            <table className="w-full min-w-[520px] border-collapse print:min-w-0">
+            {/* จอมือถือ: บีบคอลัมน์ตัวเลขให้แคบลง ให้ช่องราคาเห็นครบโดยไม่ต้องเลื่อนข้าง */}
+            <div className="mt-5">
+            <table className="w-full table-fixed border-collapse">
               <thead>
                 <tr className="border-y border-[#ccc] text-[11px]">
-                  <th className="w-8 py-1.5 text-left font-bold">#</th>
+                  <th className="w-6 py-1.5 text-left font-bold sm:w-8 print:w-8">#</th>
                   <th className="py-1.5 text-left font-bold">รายละเอียด</th>
-                  <th className="w-14 py-1.5 text-right font-bold">จำนวน</th>
-                  <th className="w-24 py-1.5 text-right font-bold">ราคาต่อหน่วย</th>
-                  <th className="w-24 py-1.5 text-right font-bold">มูลค่า</th>
+                  <th className="w-10 py-1.5 text-right font-bold sm:w-14 print:w-14">จำนวน</th>
+                  <th className="w-[4.5rem] py-1.5 text-right font-bold leading-tight sm:w-24 print:w-24">ราคาต่อหน่วย</th>
+                  <th className="w-[4.5rem] py-1.5 text-right font-bold sm:w-24 print:w-24">มูลค่า</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,8 +206,8 @@ export function InvoiceDocument({
                   return (
                     <tr key={idx} className="border-b border-[#eee] align-top">
                       <td className="py-1.5">{idx + 1}</td>
-                      <td className="py-1.5">
-                        {it.label}
+                      <td className="break-words py-1.5 pr-2">
+                        {formalItemLabel(it.label)}
                       </td>
                       <td className="py-1.5 text-right">{qty}</td>
                       <td className="py-1.5 text-right">{money(unit)}</td>
@@ -226,7 +227,7 @@ export function InvoiceDocument({
                 <dd>{money(inv.subtotal)} บาท</dd>
                 {inv.discount > 0 && (
                   <>
-                    <dt className="text-latte-deep">ส่วนลด{inv.promoLabel ? ` (${inv.promoLabel})` : ""}</dt>
+                    <dt className="text-latte-deep">ส่วนลด{inv.promoLabel ? ` (${stripEmoji(inv.promoLabel)})` : ""}</dt>
                     <dd>-{money(inv.discount)} บาท</dd>
                   </>
                 )}
@@ -254,7 +255,7 @@ export function InvoiceDocument({
             {doc.note && (
               <div className="mt-4">
                 <p className="text-latte-deep">หมายเหตุ</p>
-                <p className="whitespace-pre-line">{doc.note}</p>
+                <p className="whitespace-pre-line">{stripEmoji(doc.note)}</p>
               </div>
             )}
 
