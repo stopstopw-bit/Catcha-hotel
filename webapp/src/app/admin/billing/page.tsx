@@ -1617,14 +1617,25 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
             {editingId ? "แก้ไขบิล" : "คิดเงิน · ออกบิล"}
           </h1>
         </div>
-        {/* เรียกดูใบเสร็จ / ใบกำกับภาษี / ใบเสนอราคา ที่เคยออกไปแล้ว */}
-        <a
-          href="/admin/billing/docs"
-          className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
-        >
-          <Icon name="doc" size={15} />
-          เอกสารที่ออกแล้ว
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* ตรวจบิลเทียบนัดทั้งร้าน — หาบิลซ้ำ/คิดคืนเกิน */}
+          <a
+            href="/admin/billing/check"
+            aria-label="ตรวจบิลซ้ำ"
+            title="ตรวจบิลซ้ำ"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-catcha-line bg-card text-catcha-chocolate shadow-catcha-sm"
+          >
+            <Icon name="search" size={16} />
+          </a>
+          {/* เรียกดูใบเสร็จ / ใบกำกับภาษี / ใบเสนอราคา ที่เคยออกไปแล้ว */}
+          <a
+            href="/admin/billing/docs"
+            className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
+          >
+            <Icon name="doc" size={15} />
+            เอกสารที่ออกแล้ว
+          </a>
+        </div>
       </div>
       {tabs}
 
