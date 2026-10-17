@@ -54,6 +54,8 @@ type AudienceQuery = {
   inactiveDays: number;
   segments: ReturnType<typeof parseSegments>;
   regularMinVisits: number;
+  /** เจาะจงรายคน (มาจากกลุ่มในหน้าสรุปข้อมูล) — ว่าง = ไม่จำกัด */
+  customerIds: string[];
 };
 
 function readAudienceQuery(get: (k: string) => unknown): AudienceQuery {
@@ -63,6 +65,11 @@ function readAudienceQuery(get: (k: string) => unknown): AudienceQuery {
     inactiveDays: Number(get("inactiveDays")) || 0,
     segments: parseSegments(get("segments")),
     regularMinVisits: Number(get("regularMinVisits")) || DEFAULT_REGULAR_MIN_VISITS,
+    customerIds: (() => {
+      const v = get("customerIds");
+      const raw = Array.isArray(v) ? v : String(v || "").split(",");
+      return raw.map((x) => String(x).trim()).filter(Boolean);
+    })(),
   };
 }
 
@@ -71,7 +78,16 @@ const daysSince = (d: string) =>
 
 /** กลุ่มผู้รับ = ระดับ + พันธุ์ + กลุ่มที่ติ๊ก + หายไปนาน (ต้องตรงทุกข้อ) */
 async function resolveAudience(q: AudienceQuery) {
-  const audience = await getBroadcastAudience(q.tier, { breed: q.breed });
+  const all = await getBroadcastAudience(q.tier, { breed: q.breed });
+  // รายชื่อเจาะจงกรองจากลูกค้าที่มีอยู่จริงเท่านั้น — id แปลกๆ หลุดมาก็ไม่มีผล
+  const only = q.customerIds.length ? new Set(q.customerIds) : null;
+  const pick = (list: CustomerRecord[]) => (only ? list.filter((c) => only.has(c.id)) : list);
+  const audience = {
+    ...all,
+    recipients: pick(all.recipients),
+    skippedNoLine: pick(all.skippedNoLine),
+    skippedNoConsent: pick(all.skippedNoConsent),
+  };
   if (!q.segments.length && q.inactiveDays <= 0) return audience;
   const everyone = [
     ...audience.recipients,
