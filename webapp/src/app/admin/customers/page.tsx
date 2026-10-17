@@ -28,6 +28,7 @@ import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { Icon } from "@/components/Icon";
 import { GroomProgramPicker, useGroomPrograms } from "@/components/GroomProgramPicker";
 import { groomProgramName } from "@/lib/grooming-prices";
+import { tidyServiceText } from "@/lib/stay-line";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
 
 type Summary = {
@@ -784,7 +785,7 @@ function ServiceHistorySection({
   const serviceRows: Row[] = services.map((s) => ({
     key: `s${s.id}`,
     date: s.date,
-    text: `${s.catName} · ${s.service}${s.amount ? ` · ${s.amount} บาท` : ""}`,
+    text: `${s.catName} · ${tidyServiceText(s.service)}${s.amount ? ` · ${s.amount} บาท` : ""}`,
     onDelete: () =>
       remove("ลบรายการนี้ออกจากประวัติ? กู้คืนไม่ได้", () =>
         fetch("/api/customers", {
