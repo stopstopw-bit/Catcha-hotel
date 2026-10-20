@@ -1,6 +1,7 @@
 "use client";
 
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
+import { isDayCareStay } from "@/lib/day-care";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -55,6 +56,7 @@ function formatThaiDateTime(iso: string) {
 
 function bookingWhen(b: CalendarDay) {
   if (b.service === "room" || b.checkin) {
+    if (isDayCareStay({ ...b, service: "room" })) return `Day Care ${b.checkin}`;
     return `${b.checkin || b.date}${b.checkout ? ` → ${b.checkout}` : ""}`;
   }
   return `${b.date} ${b.time || ""}`.trim();
@@ -666,7 +668,8 @@ export function BookingCalendar() {
     if (!moving) return;
     const h = moving.group[0];
     const isRoom = h.service === "room";
-    if (isRoom && moving.checkout && moving.checkout <= moving.checkin) {
+    // วันออก = วันเข้า ได้ (Day Care ไม่ค้างคืน) แต่ห้ามก่อนวันเข้า
+    if (isRoom && moving.checkout && moving.checkout < moving.checkin) {
       toast("วันออกต้องหลังวันเข้าพักนะ", "error");
       return;
     }
