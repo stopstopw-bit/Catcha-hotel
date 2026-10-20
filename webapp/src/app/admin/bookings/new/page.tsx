@@ -659,6 +659,8 @@ export default function NewBookingPage() {
       setLineUserId("");
       setFreebies([]);
       setTransport({});
+      // ลูกค้า Day Care มีน้อย — จองเสร็จกลับไปที่ "ค้างคืน" เสมอ
+      setDayCare(false);
       setRoomUnit(null);
       closeRoom2();
       form.reset();
@@ -739,7 +741,10 @@ export default function NewBookingPage() {
 
       <Segmented
         value={service}
-        onChange={setService}
+        onChange={(v) => {
+          setService(v);
+          setDayCare(false);
+        }}
         className="mb-4"
         options={[
           { id: "groom", label: "อาบน้ำ", icon: "bath" },
