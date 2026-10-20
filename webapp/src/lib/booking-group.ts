@@ -69,16 +69,18 @@ export function groupForBilling<T extends GroupableBooking>(list: T[]): T[][] {
     const isStay = (b: T) => !!(b.checkin && b.checkout);
     const stays = house.filter(isStay).sort((a, b) => day(a.checkin).localeCompare(day(b.checkin)));
     // ช่วงพักที่เหลื่อมกัน (เข้าก่อนอีกตัวออก) = การมาพักครั้งเดียวกันของบ้านนี้
+    // Day Care (เข้า-ออกวันเดียวกัน) ใช้ห้องทั้งวันนั้น — ปลายช่วงเป็น "ท้ายวันเข้า" ไม่ใช่ช่วงว่าง
+    const endOf = (b: T) => (day(b.checkout) > day(b.checkin) ? day(b.checkout) : `${day(b.checkin)}~`);
     let cur: T[] = [];
     let curEnd = "";
     for (const b of stays) {
       if (cur.length && day(b.checkin) < curEnd) {
         cur.push(b);
-        if (day(b.checkout) > curEnd) curEnd = day(b.checkout);
+        if (endOf(b) > curEnd) curEnd = endOf(b);
       } else {
         if (cur.length) out.push(cur);
         cur = [b];
-        curEnd = day(b.checkout);
+        curEnd = endOf(b);
       }
     }
     if (cur.length) out.push(cur);

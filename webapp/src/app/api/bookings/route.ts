@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isDayCareStay } from "@/lib/day-care";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   createCalendarEvent,
@@ -189,9 +190,11 @@ export async function POST(req: NextRequest) {
     transport: cleanTransport(body.transport),
   });
 
+  const serviceLabel =
+    body.service === "room" ? (isDayCareStay(body) ? "Day Care" : "ห้องพัก") : "อาบน้ำ";
   const cal = await createCalendarEvent({
     summary: `${body.service === "room" ? "🏠" : "🛁"}${hasTransport(booking.transport) ? "🚗" : ""} ${body.catName} (${customer.name})`,
-    description: `${body.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${body.notes || ""}${transportCalendarText(booking.transport)}`,
+    description: `${serviceLabel} · ${body.notes || ""}${transportCalendarText(booking.transport)}`,
     start: body.date || body.checkin,
     end: body.checkout || body.date || body.checkin,
     time: body.time,
@@ -209,7 +212,7 @@ export async function POST(req: NextRequest) {
     formatBookingTelegram("📌 จองใหม่", {
       ลูกค้า: customer.name,
       น้องแมว: body.catName,
-      บริการ: body.service === "room" ? "ห้องพัก" : "อาบน้ำ",
+      บริการ: serviceLabel,
       ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram, groomPrograms) } : {}),
       ...(hasTransport(booking.transport) ? { รับส่ง: transportLabel(booking.transport) } : {}),
       วันที่: `${body.date || body.checkin}${body.time ? ` ${body.time}` : ""}`,
@@ -871,7 +874,7 @@ export async function PATCH(req: NextRequest) {
     if (body.time != null) patch.time = String(body.time) || undefined;
     if (body.checkin != null) patch.checkin = String(body.checkin) || undefined;
     if (body.checkout != null) patch.checkout = String(body.checkout) || undefined;
-    if (patch.checkin && patch.checkout && patch.checkout <= patch.checkin) {
+    if (patch.checkin && patch.checkout && patch.checkout < patch.checkin) {
       return NextResponse.json({ error: "checkout_before_checkin" }, { status: 400 });
     }
     const res = await rescheduleGroup(id, patch, body.applyToGroup !== false);
