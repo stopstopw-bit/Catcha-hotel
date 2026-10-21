@@ -247,7 +247,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "confirm") {
-    await updateBooking(id, { status: "confirmed", checkinTime });
+    // เวลาที่เลือกตอนกดยืนยัน = เวลามาส่งน้อง (ที่เดียวกับหน้าเลือกเวลา/หลังบ้าน/แจ้งเตือน)
+    await updateBooking(id, {
+      status: "confirmed",
+      ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+    });
     if (b.calendarEventId) {
       await updateCalendarEventConfirmed(b.calendarEventId, {
         summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
@@ -285,7 +289,10 @@ export async function PATCH(req: NextRequest) {
       if (!bk) continue;
       // ยืนยันได้เฉพาะนัดของตัวเอง แม้จะมาในกลุ่มเดียวกัน — กันแอบยัด id ของคนอื่นปนมา
       if (!admin && !(!!lineUserId && bk.lineUserId === lineUserId)) continue;
-      await updateBooking(bk.id, { status: "confirmed", checkinTime });
+      await updateBooking(bk.id, {
+        status: "confirmed",
+        ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+      });
       if (bk.calendarEventId) {
         await updateCalendarEventConfirmed(bk.calendarEventId, {
           summary: `${bk.service === "room" ? "🏠" : "🛁"} ${bk.catName} (${bk.customerName})`,
