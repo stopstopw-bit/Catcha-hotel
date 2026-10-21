@@ -7,6 +7,7 @@ import {
   resolveGroomForm,
   type GroomFormConfig,
 } from "@/lib/groom-form";
+import { FOLLOW_UP_MESSAGES, followUpKey } from "@/lib/sales-insights";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 
@@ -551,6 +552,18 @@ const CARDS: CardMeta[] = [
     hasTitleSize: true,
   },
   {
+    key: "followUp",
+    name: "ข้อความตามลูกค้า (กลุ่มที่ควรทัก)",
+    desc: "ข้อความตั้งต้นของปุ่มส่ง LINE ในหน้าสรุปข้อมูล แยกตามกลุ่มลูกค้า — ส่งเป็นการ์ดโปรโมชั่น",
+    colors: [],
+    fields: [],
+    texts: [],
+    styleTexts: FOLLOW_UP_MESSAGES.flatMap((m) => [
+      { key: followUpKey(m.id, "Title"), label: `${m.label} · หัวข้อ`, placeholder: m.title },
+      { key: followUpKey(m.id, "Body"), label: `${m.label} · ข้อความ`, placeholder: m.body, multiline: true },
+    ]),
+  },
+  {
     key: "groomFormFields",
     name: "ฟอร์มถามประวัติน้อง",
     desc: "คำถามที่ลูกค้าเห็นในฟอร์มก่อนอาบน้ำ — เปิด/ปิด แก้คำถาม เพิ่ม-ลบตัวเลือกเองได้",
@@ -1068,6 +1081,27 @@ function Preview({
           {st.closing && <p className="whitespace-pre-line text-[10px] text-[#A2907E]">{st.closing}</p>}
         </div>
         {btn(c("buttonColor", "#4A7348"), "ดูรายละเอียด")}
+      </div>
+    );
+  }
+
+  if (meta.key === "followUp") {
+    return (
+      <div className="space-y-3">
+        {FOLLOW_UP_MESSAGES.map((m) => (
+          <div key={m.id}>
+            <p className="mb-1 text-center text-[10px] font-bold text-white">{m.label}</p>
+            <div className={bubble}>
+              <div className="px-4 py-2.5" style={{ background: "#5A8F5A" }}>
+                <p className="text-[11px] font-extrabold text-white">✨ โปรโมชั่น CatCha</p>
+              </div>
+              <div className="space-y-1 px-4 py-3 text-[11px] text-[#4E3E32]">
+                <p className="text-sm font-extrabold text-[#5C4033]">{t(followUpKey(m.id, "Title"), m.title)}</p>
+                <p className="whitespace-pre-line">{t(followUpKey(m.id, "Body"), m.body)}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
