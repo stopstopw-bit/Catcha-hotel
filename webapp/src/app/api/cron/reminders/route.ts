@@ -311,7 +311,7 @@ export async function GET(req: NextRequest) {
               ? cfg.messages.consentTerms
               : DEFAULT_MESSAGES.consentTerms,
             url: consentUrl,
-          })
+          }, cfg.cards?.consent)
         );
       }
       // มีบิลค้าง + มัดจำแล้ว → แนบการ์ดยอดคงเหลือที่ต้องโอนก่อนเข้าพัก

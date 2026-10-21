@@ -525,7 +525,7 @@ export async function PATCH(req: NextRequest) {
                 ? cfg.messages.consentTerms
                 : DEFAULT_MESSAGES.consentTerms,
               url,
-            })
+            }, cfg.cards?.consent)
           );
         }
       } else if (part === "prestay") {
@@ -812,7 +812,7 @@ export async function PATCH(req: NextRequest) {
           ? cfg.messages.consentTerms
           : DEFAULT_MESSAGES.consentTerms,
         url,
-      });
+      }, cfg.cards?.consent);
       try {
         if (preview) return NextResponse.json({ ok: true, preview: [flex] });
         await pushLineMessage(to, [flex]);
