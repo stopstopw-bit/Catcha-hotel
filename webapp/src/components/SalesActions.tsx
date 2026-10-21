@@ -132,6 +132,7 @@ export function SalesActions(props: {
           customerIds: s.people.map((p) => p.id),
           title: s.message.title,
           body: s.message.body,
+          actions: s.message.actions,
         })
       );
     } catch {

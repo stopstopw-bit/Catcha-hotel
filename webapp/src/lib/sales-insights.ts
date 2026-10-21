@@ -4,6 +4,8 @@
  * ฟังก์ชันล้วน (ไม่เรียก API) ใช้ได้ทั้งฝั่งหน้าเว็บและทดสอบ
  */
 
+import { parseBroadcastActions, type BroadcastActionId } from "@/lib/line-broadcast";
+
 export type InsightCustomer = {
   id: string;
   name: string;
@@ -50,7 +52,7 @@ export type ActionSegment = {
   people: SegmentPerson[];
   /** ยอดที่น่าจะได้กลับมา ถ้ามีคนตอบรับตามอัตราที่คาด */
   potential: number;
-  message: { title: string; body: string };
+  message: { title: string; body: string; actions: BroadcastActionId[] };
 };
 
 const DAY = 86400000;
@@ -87,65 +89,88 @@ type Profile = {
  * ข้อความตั้งต้นที่ส่งตามลูกค้าแต่ละกลุ่ม (ปุ่มในการ์ด "กลุ่มลูกค้าที่ควรทัก")
  * ร้านแก้เองได้ในหน้าปรับการ์ด → config.cards.followUp.texts.<id>Title / <id>Body
  */
-export const FOLLOW_UP_MESSAGES: { id: string; label: string; title: string; body: string }[] = [
+export const FOLLOW_UP_MESSAGES: {
+  id: string;
+  label: string;
+  title: string;
+  body: string;
+  /** ปุ่มตั้งต้นในการ์ด (id จาก BROADCAST_ACTIONS) */
+  actions: BroadcastActionId[];
+}[] = [
   {
     id: "due-groom",
     label: "ถึงรอบอาบน้ำแล้ว ยังไม่ได้จอง",
     title: "ถึงรอบอาบน้ำน้องแล้วนะคะ 🛁",
     body: "น้องอาบน้ำครั้งล่าสุดเมื่อเดือนที่แล้ว จองคิวรอบถัดไปได้เลยค่ะ คิวสุดสัปดาห์เต็มไว จองล่วงหน้าได้ที่ปุ่มด้านล่าง",
+    actions: ["grooming", "line_chat"],
   },
   {
     id: "at-risk",
     label: "ลูกค้าประจำที่เริ่มหาย",
     title: "คิดถึงน้องจังเลยค่ะ 🧡",
     body: "ไม่ได้เจอน้องนานแล้ว ร้านมีส่วนลดพิเศษสำหรับลูกค้าประจำ ใช้ได้ทั้งอาบน้ำและฝากพักภายในเดือนนี้ค่ะ",
+    actions: ["grooming", "rooms", "line_chat"],
   },
   {
     id: "lost",
     label: "ลูกค้าที่หายไปนาน (เกิน 4 เดือน)",
     title: "ของขวัญสำหรับน้องที่เราคิดถึง 🎁",
     body: "กลับมาใช้บริการภายใน 30 วัน รับส่วนลดพิเศษสำหรับลูกค้าเก่าทันทีค่ะ",
+    actions: ["grooming", "rooms", "line_chat"],
   },
   {
     id: "never-came",
     label: "สมัครแล้ว แต่ยังไม่เคยมาใช้บริการ",
     title: "ลองครั้งแรก ลดพิเศษ ✨",
     body: "ขอบคุณที่สมัครสมาชิกนะคะ ครั้งแรกที่มาใช้บริการรับส่วนลดพิเศษ จองคิวได้เลยที่ปุ่มด้านล่างค่ะ",
+    actions: ["grooming", "rooms", "line_chat"],
   },
   {
     id: "groom-only",
     label: "อาบน้ำอย่างเดียว ยังไม่เคยฝากพัก",
     title: "ไปเที่ยววันหยุดยาว ฝากน้องกับเราได้นะคะ 🏨",
     body: "ห้องพักแอร์ มีกล้องดูน้องได้ทั้งวัน พี่เลี้ยงคนเดิมที่น้องคุ้นเคย จองล่วงหน้าได้เลยค่ะ",
+    actions: ["rooms", "line_chat"],
   },
   {
     id: "stay-only",
     label: "ฝากพักอย่างเดียว ยังไม่เคยอาบน้ำ",
     title: "รับน้องกลับบ้านแบบตัวหอม 🫧",
     body: "ครั้งหน้าที่ฝากพัก เพิ่มอาบน้ำก่อนวันรับกลับได้ในราคาพิเศษค่ะ",
+    actions: ["grooming", "line_chat"],
   },
   {
     id: "vip-course",
     label: "ลูกค้า VIP ที่ยังไม่มีคอร์ส",
     title: "คอร์สสุดคุ้มสำหรับลูกค้าคนพิเศษ 💎",
     body: "ซื้อคอร์สอาบน้ำล่วงหน้า คุ้มกว่าจ่ายทีละครั้ง และได้คิวก่อนใครค่ะ",
+    actions: ["line_chat"],
   },
   {
     id: "birthday",
     label: "น้องเกิดเดือนนี้",
     title: "สุขสันต์วันเกิดน้องนะคะ 🎂",
     body: "เดือนเกิดน้อง รับของขวัญพิเศษจากร้านเมื่อมาใช้บริการภายในเดือนนี้ค่ะ",
+    actions: ["grooming", "line_chat"],
   },
 ];
 
 /** key ใน config.cards.followUp.texts ของแต่ละกลุ่ม */
-export const followUpKey = (id: string, part: "Title" | "Body") => `${id}${part}`;
+export const followUpKey = (id: string, part: "Title" | "Body" | "Buttons") => `${id}${part}`;
+
+/** ปุ่มของกลุ่มนั้น — ร้านตั้งไว้ (รวมตั้งเป็น "ไม่มีปุ่ม" ได้) หรือค่าตั้งต้น */
+export function followUpActions(id: string, texts?: Record<string, string>): BroadcastActionId[] {
+  const raw = texts?.[followUpKey(id, "Buttons")];
+  if (raw === undefined) return FOLLOW_UP_MESSAGES.find((m) => m.id === id)?.actions || [];
+  return parseBroadcastActions(raw);
+}
 
 function followUpMessage(id: string, texts?: Record<string, string>) {
   const d = FOLLOW_UP_MESSAGES.find((m) => m.id === id)!;
   return {
     title: texts?.[followUpKey(id, "Title")]?.trim() || d.title,
     body: texts?.[followUpKey(id, "Body")]?.trim() || d.body,
+    actions: followUpActions(id, texts),
   };
 }
 

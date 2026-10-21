@@ -7,7 +7,9 @@ import {
   resolveGroomForm,
   type GroomFormConfig,
 } from "@/lib/groom-form";
-import { FOLLOW_UP_MESSAGES, followUpKey } from "@/lib/sales-insights";
+import { FOLLOW_UP_MESSAGES, followUpActions, followUpKey } from "@/lib/sales-insights";
+import { broadcastActionLabel } from "@/lib/line-broadcast";
+import { BroadcastButtonPicker } from "@/components/BroadcastButtonPicker";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 
@@ -558,10 +560,6 @@ const CARDS: CardMeta[] = [
     colors: [],
     fields: [],
     texts: [],
-    styleTexts: FOLLOW_UP_MESSAGES.flatMap((m) => [
-      { key: followUpKey(m.id, "Title"), label: `${m.label} · หัวข้อ`, placeholder: m.title },
-      { key: followUpKey(m.id, "Body"), label: `${m.label} · ข้อความ`, placeholder: m.body, multiline: true },
-    ]),
   },
   {
     key: "groomFormFields",
@@ -1099,6 +1097,16 @@ function Preview({
                 <p className="text-sm font-extrabold text-[#5C4033]">{t(followUpKey(m.id, "Title"), m.title)}</p>
                 <p className="whitespace-pre-line">{t(followUpKey(m.id, "Body"), m.body)}</p>
               </div>
+              {followUpActions(m.id, st.texts).map((id, i) => (
+                <div key={id} className="px-3 pb-2 last:pb-3">
+                  <div
+                    className="rounded-lg py-1.5 text-center text-[11px] font-bold"
+                    style={i === 0 ? { background: "#4A7348", color: "#fff" } : { border: "1px solid #4A7348", color: "#4A7348" }}
+                  >
+                    {broadcastActionLabel(id)}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -1656,6 +1664,78 @@ export default function CardsStudioPage() {
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeKey === "followUp" && (
+            <div className="space-y-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Groups · ข้อความ + ปุ่มของแต่ละกลุ่ม</p>
+              {FOLLOW_UP_MESSAGES.map((m) => {
+                const setKey = (key: string, v: string | undefined) => {
+                  const next = { ...st.texts };
+                  if (v === undefined || v === "") delete next[key];
+                  else next[key] = v;
+                  patch({ texts: Object.keys(next).length ? next : undefined });
+                };
+                const buttonsKey = followUpKey(m.id, "Buttons");
+                const actions = followUpActions(m.id, st.texts);
+                return (
+                  <details key={m.id} className="group rounded-catcha-sm border border-catcha-line bg-paper/40 [&_summary::-webkit-details-marker]:hidden">
+                    <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 py-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-extrabold text-catcha-chocolate">{m.label}</span>
+                        <span className="block truncate text-[10px] text-brown-soft">
+                          {actions.length ? actions.map(broadcastActionLabel).join(" · ") : "ไม่มีปุ่ม"}
+                        </span>
+                      </span>
+                      <Icon name="chevron" size={14} className="text-brown-faint transition group-open:rotate-90" />
+                    </summary>
+                    <div className="space-y-2.5 border-t border-catcha-line px-3 py-3">
+                      <label className="block text-[11px] font-bold text-brown-soft">
+                        หัวข้อ
+                        <input
+                          value={st.texts?.[followUpKey(m.id, "Title")] || ""}
+                          onChange={(e) => setKey(followUpKey(m.id, "Title"), e.target.value)}
+                          placeholder={m.title}
+                          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-xs font-normal"
+                        />
+                      </label>
+                      <label className="block text-[11px] font-bold text-brown-soft">
+                        ข้อความ
+                        <textarea
+                          value={st.texts?.[followUpKey(m.id, "Body")] || ""}
+                          onChange={(e) => setKey(followUpKey(m.id, "Body"), e.target.value)}
+                          placeholder={m.body}
+                          rows={3}
+                          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-xs font-normal"
+                        />
+                      </label>
+                      <div>
+                        <p className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-brown-soft">
+                          ปุ่มในการ์ด (สูงสุด 3)
+                          {st.texts?.[buttonsKey] !== undefined && (
+                            <button
+                              type="button"
+                              onClick={() => setKey(buttonsKey, undefined)}
+                              className="font-bold text-latte-deep underline"
+                            >
+                              ใช้ปุ่มตั้งต้น
+                            </button>
+                          )}
+                        </p>
+                        <BroadcastButtonPicker
+                          value={actions}
+                          // เก็บแม้เป็นค่าว่าง — "ไม่มีปุ่ม" ต่างจาก "ยังไม่ได้ตั้ง"
+                          onChange={(next) => {
+                            const t = { ...st.texts, [buttonsKey]: next.join(",") };
+                            patch({ texts: t });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
             </div>
           )}
 
