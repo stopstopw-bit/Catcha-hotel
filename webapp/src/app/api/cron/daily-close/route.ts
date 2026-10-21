@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendTelegram } from "@/lib/telegram";
 import { buildEndOfDaySummaryMessage } from "@/lib/telegram-commands";
+import { buildTransportSummaryMessage } from "@/lib/transport-summary";
 import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
@@ -22,6 +23,11 @@ export async function GET(req: NextRequest) {
   try {
     const msg = await buildEndOfDaySummaryMessage(today, tomorrow);
     const res = await sendTelegram(msg);
+    // รับ-ส่งพรุ่งนี้ ส่งตั้งแต่คืนก่อน จะได้วางเส้นทาง/ทักลูกค้าที่ยังไม่ส่งพิกัดทัน
+    const transport = await buildTransportSummaryMessage(tomorrow, {
+      heading: `🚗 รับ-ส่งพรุ่งนี้ (${tomorrow})`,
+    });
+    if (transport) await sendTelegram(transport);
     return NextResponse.json({ ok: res.ok, today });
   } catch (e) {
     return NextResponse.json(
