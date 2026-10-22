@@ -4,6 +4,7 @@ import {
   registerCustomerFromLine,
   findCustomerByReferralCode,
   setReferredBy,
+  normalizeWeightKg,
 } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -17,6 +18,7 @@ type CatBody = {
   medical?: string;
   furLength?: string;
   color?: string;
+  weightKg?: number | string;
   staffNote?: string;
 };
 
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
         furLength:
           c.furLength === "short" || c.furLength === "long" ? c.furLength : undefined,
         color: c.color ? String(c.color) : undefined,
+        weightKg: normalizeWeightKg(c.weightKg),
         staffNote: c.staffNote ? String(c.staffNote) : undefined,
       }))
     : [];

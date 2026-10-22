@@ -117,3 +117,13 @@ export async function resolveCustomerLineId(
   const raw = String(claimed || "").trim();
   return raw || null;
 }
+
+/**
+ * ตัวตนลูกค้าจากคุกกี้ที่ตรวจกับ LINE แล้วเท่านั้น — ไม่เชื่อ lineUserId ที่ client ส่งมา
+ * route ใหม่ฝั่งลูกค้าที่แก้/อ่านข้อมูลส่วนตัวต้องใช้ตัวนี้
+ */
+export async function requireCustomerSession(
+  req: NextRequest
+): Promise<CustomerSessionPayload | null> {
+  return verifyCustomerSession(req.cookies.get(CUSTOMER_SESSION_COOKIE)?.value);
+}

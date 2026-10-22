@@ -5,6 +5,7 @@ import {
   updateCustomer,
   updateCat,
   addCat,
+  normalizeWeightKg,
 } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
         breed: x.breed || "",
         ageValue: x.ageValue ?? "",
         ageUnit: x.ageUnit || "year",
+        weightKg: x.weightKg ?? "",
         birthday: x.birthday || "",
         medical: x.medical || "",
         note: x.staffNote || "",
@@ -105,11 +107,20 @@ export async function POST(req: NextRequest) {
         staffNote: cat.note ? String(cat.note).trim() : undefined,
       };
       // ไม่มี id = น้องที่ลูกค้าเพิ่มเองในหน้านี้ → สร้างใหม่ (ไม่ต้องทักแชทให้ร้านเพิ่มให้)
+      const weightKg = normalizeWeightKg(cat.weightKg);
       if (!cat.id) {
-        const after = await addCat(c.id, fields, { source: "customer" });
+        const after = await addCat(c.id, { ...fields, weightKg }, { source: "customer" });
         const id = after?.cats[after.cats.length - 1]?.id;
         if (id) created.push({ index, id });
-      } else await updateCat(c.id, String(cat.id), fields, { source: "customer" });
+      } else {
+        // หน้าเก่าที่ยังไม่มีช่องน้ำหนักจะไม่ส่ง weightKg มา — อย่าไปลบค่าที่ร้านกรอกไว้
+        await updateCat(
+          c.id,
+          String(cat.id),
+          { ...fields, ...("weightKg" in cat ? { weightKg: weightKg ?? null } : {}) },
+          { source: "customer" }
+        );
+      }
     }
   }
 

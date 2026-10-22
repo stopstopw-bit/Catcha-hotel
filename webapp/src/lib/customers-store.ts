@@ -31,6 +31,8 @@ export type CatRecord = {
   furLength?: "short" | "long";
   /** สี/ลักษณะเด่น — ถามตอนสมัครสมาชิก */
   color?: string;
+  /** น้ำหนักตัว (กก.) — ถามตอนสมัครสมาชิก แก้ได้ทั้งลูกค้าและหลังบ้าน */
+  weightKg?: number;
   photoDataUrl?: string;
   staffNote?: string;
   /** โน้ตลับของร้าน — ซ่อนจากลูกค้า (ต้องรัน OVERNIGHT_SQL.md ก่อนถึงจะเซฟได้) */
@@ -158,6 +160,7 @@ type CatRow = {
   medical: string | null;
   fur_length?: string | null;
   color?: string | null;
+  weight_kg?: number | string | null;
   photo_data_url: string | null;
   staff_note: string | null;
   staff_private_note?: string | null;
@@ -300,6 +303,7 @@ function mapCustomer(row: CustomerRow): CustomerRecord {
       medical: c.medical ?? undefined,
       furLength: (c.fur_length as "short" | "long" | undefined) ?? undefined,
       color: c.color ?? undefined,
+      weightKg: c.weight_kg != null && c.weight_kg !== "" ? Number(c.weight_kg) : undefined,
       photoDataUrl: c.photo_data_url ?? undefined,
       staffNote: c.staff_note ?? undefined,
       staffPrivateNote: c.staff_private_note ?? undefined,
@@ -1108,7 +1112,16 @@ const SHARED_PROFILE_FIELDS = [
   "medical",
   "furLength",
   "color",
+  "weightKg",
 ] as const;
+
+/** น้ำหนัก (กก.) ที่รับได้ — ตัดค่าที่ไม่ใช่ตัวเลข/ติดลบ/เกินจริงทิ้ง และปัดเหลือทศนิยม 2 ตำแหน่ง */
+export function normalizeWeightKg(v: unknown): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = Number(v);
+  if (!isFinite(n) || n <= 0 || n > 200) return undefined;
+  return Math.round(n * 100) / 100;
+}
 
 export async function updateCat(
   customerId: string,
@@ -1128,7 +1141,7 @@ export async function updateCat(
       | "furLength"
       | "color"
     >
-  >,
+  > & { weightKg?: number | null },
   opts: { source?: "staff" | "customer" } = {}
 ) {
   const c = await getCustomer(customerId);
@@ -1154,7 +1167,11 @@ export async function updateCat(
     cat.needsOwnerConfirm = opts.source === "customer" ? false : true;
   }
 
-  Object.assign(cat, patch);
+  const { weightKg, ...rest } = patch;
+  Object.assign(cat, rest);
+  // null = ลบน้ำหนักออก, ไม่ส่งมา = คงค่าเดิม
+  const weightChanged = "weightKg" in patch;
+  if (weightChanged) cat.weightKg = normalizeWeightKg(weightKg);
   // ถ้าแก้อายุ → อัปเดตวันที่อ้างอิงอายุเป็นวันนี้ (ไว้คำนวณอายุปัจจุบัน)
   if (patch.ageValue != null) {
     cat.ageAsOf = new Date().toISOString().slice(0, 10);
@@ -1190,6 +1207,17 @@ export async function updateCat(
         .eq("id", catId);
     } catch {
       /* ยังไม่ได้ migrate คอลัมน์เพิ่ม — ข้าม (ชื่อ/โน้ตยังบันทึกได้) */
+    }
+    if (weightChanged) {
+      // คอลัมน์ใหม่ — แยกเขียนเผื่อยังไม่ได้รัน migration จะได้ไม่ทำให้ช่องอื่นเซฟไม่ติด
+      await sb
+        .from("cats")
+        .update({ weight_kg: cat.weightKg ?? null })
+        .eq("id", catId)
+        .then(
+          () => {},
+          () => {}
+        );
     }
   } else {
     memCustomers.set(customerId, c);
@@ -1283,6 +1311,7 @@ export async function addCat(
     medical?: string;
     furLength?: "short" | "long";
     color?: string;
+    weightKg?: number;
     staffNote?: string;
   },
   opts: { source?: "staff" | "customer" } = {}
@@ -1309,6 +1338,7 @@ export async function addCat(
     medical: data.medical?.trim() || undefined,
     furLength: data.furLength,
     color: data.color?.trim() || undefined,
+    weightKg: normalizeWeightKg(data.weightKg),
     staffNote: data.staffNote?.trim() || undefined,
     // พนักงานสร้างเรคคอร์ดนี้เอง → ยังไม่มีลูกค้ายืนยันข้อมูล ต่างจากลูกค้าสมัครเอง
     needsOwnerConfirm: opts.source === "staff",
@@ -1342,6 +1372,16 @@ export async function addCat(
           color: cat.color || null,
           needs_owner_confirm: cat.needsOwnerConfirm || false,
         })
+        .eq("id", catId)
+        .then(
+          () => {},
+          () => {}
+        );
+    }
+    if (cat.weightKg != null) {
+      await sb
+        .from("cats")
+        .update({ weight_kg: cat.weightKg })
         .eq("id", catId)
         .then(
           () => {},
@@ -2252,6 +2292,7 @@ export async function registerCustomerFromLine(data: {
     medical?: string;
     furLength?: "short" | "long";
     color?: string;
+    weightKg?: number;
     staffNote?: string;
   }[];
 }) {
@@ -2269,6 +2310,7 @@ export async function registerCustomerFromLine(data: {
       medical: c.medical?.trim(),
       furLength: c.furLength,
       color: c.color?.trim(),
+      weightKg: c.weightKg,
       staffNote: c.staffNote?.trim(),
     }))
     .filter((c) => c.name);
