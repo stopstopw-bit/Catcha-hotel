@@ -311,7 +311,10 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const bkId = params.get("id");
-      router.replace(`/app/groom-info?id=${bkId || ""}`);
+      const bkKind = params.get("kind");
+      router.replace(
+        `/app/groom-info?id=${bkId || ""}${bkKind === "stay" || bkKind === "groom" ? `&kind=${bkKind}` : ""}`
+      );
       return;
     }
     if (path === "register") {
