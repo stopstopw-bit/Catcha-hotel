@@ -2333,7 +2333,7 @@ function AutomationTab({
         </p>
       </div>
 
-      <div className="rounded-petflow-sm border border-petflow-line p-3">
+      <div className="rounded-catcha-sm border border-catcha-line p-3">
         <Toggle
           label="ถามข้อมูลก่อนรับน้องอัตโนมัติ"
           checked={form.intakeAutoEnabled !== false}
