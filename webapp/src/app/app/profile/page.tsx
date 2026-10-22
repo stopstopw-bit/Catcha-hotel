@@ -12,6 +12,7 @@ import { EmptyState, SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { CatPhoto } from "@/components/CatPhoto";
 import { toJpegDataUrl } from "@/lib/image-convert";
+import { customerFetch } from "@/lib/customer-fetch";
 
 const REFERRAL_FALLBACK = [
   "Facebook",
@@ -124,7 +125,7 @@ export default function ProfilePage() {
   }, [profile?.lineUserId, reloadKey]);
 
   const postPhoto = async (lineUserId: string, catId: string, photoDataUrl: string) => {
-    const res = await fetch("/api/customers/cat-photo", {
+    const res = await customerFetch("/api/customers/cat-photo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lineUserId, catId, photoDataUrl }),
@@ -191,7 +192,7 @@ export default function ProfilePage() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await fetch("/api/customers/self", {
+      const res = await customerFetch("/api/customers/self", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -14,6 +14,7 @@ import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
+import { customerFetch } from "@/lib/customer-fetch";
 
 type StayBooking = Booking & {
   checkin?: string;
@@ -188,7 +189,7 @@ function ConsentContent() {
     setIdCardBusy(true);
     try {
       const image = await watermarkIdCard(file);
-      const res = await fetch("/api/customers/id-card", {
+      const res = await customerFetch("/api/customers/id-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lineUserId: profile.lineUserId, image }),

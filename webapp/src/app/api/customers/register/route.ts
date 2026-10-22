@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveCustomerLineId } from "@/lib/customer-session";
+import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import {
   registerCustomerFromLine,
   findCustomerByReferralCode,
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     : [];
 
   if (!lineUserId) {
-    return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
+    return noCustomerSessionResponse();
   }
   if (!name || !phone || cats.filter((c: { name: string }) => c.name.trim()).length === 0) {
     return NextResponse.json(

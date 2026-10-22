@@ -32,6 +32,7 @@ type CatInput = {
 import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { REFERRAL_OPTIONS } from "@/lib/referral-options";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
+import { customerFetch } from "@/lib/customer-fetch";
 
 function emptyCat(): CatInput {
   return {
@@ -130,7 +131,7 @@ export default function RegisterPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/customers/register", {
+      const res = await customerFetch("/api/customers/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -4,7 +4,7 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { pushLineMessage, buildPointsAwardFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
-import { resolveCustomerLineId } from "@/lib/customer-session";
+import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import { logAudit } from "@/lib/audit-log";
 
 /** /api/points เปิดให้แอปลูกค้าเรียกตรงๆ ได้ (ดูแต้ม/แลกรางวัลตัวเอง) — แต่ปรับแต้มมือ (admin_add)
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("lineUserId")
   );
   if (!lineUserId) {
-    return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
+    return noCustomerSessionResponse();
   }
 
   const displayName = req.nextUrl.searchParams.get("displayName") || "";

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { CustomerProfile } from "@/lib/business";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import type { CustomerTier } from "@/lib/customer-tier";
+import { customerFetch, setCustomerSessionRefresher } from "@/lib/customer-fetch";
 
 type LineCustomer = {
   id: string;
@@ -45,7 +46,7 @@ async function fetchAccount(lineUserId: string, displayName: string, customerId?
   const q = new URLSearchParams({ lineUserId, displayName });
   if (customerId) q.set("customerId", customerId);
   // no-store — กัน webview ของ LINE เก็บผลแต้มเก่าไว้แล้วโชว์ค้าง (เช่น 0 ทั้งที่มีแต้ม)
-  const res = await fetch(`/api/points?${q}`, { cache: "no-store" });
+  const res = await customerFetch(`/api/points?${q}`, { cache: "no-store" });
   if (!res.ok) return null;
   return res.json() as Promise<{
     points: number;
@@ -54,7 +55,7 @@ async function fetchAccount(lineUserId: string, displayName: string, customerId?
 }
 
 async function syncLineCustomer(lineUserId: string, displayName: string) {
-  const res = await fetch("/api/customers/line", {
+  const res = await customerFetch("/api/customers/line", {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
@@ -188,20 +189,28 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
             if (reloginIfTokenExpired(liff.default as unknown as LiffAuthModule)) return;
             // แลก ID token เป็นคุกกี้เซสชัน — จากนั้นฝั่งเซิร์ฟเวอร์จะรู้เองว่าเป็นใคร
             // โดยไม่ต้องเชื่อ lineUserId ที่ส่งไปกับ request
-            //
-            // ล้มเหลวก็ไม่เป็นไร (LINE ล่ม/ยังไม่ได้ตั้ง channel) — ระบบยังทำงานแบบเดิมได้
-            // ระหว่างช่วงเปลี่ยนผ่าน จึงไม่บล็อกการเปิดแอปเพราะเรื่องนี้
-            try {
-              const idToken = liff.default.getIDToken();
-              if (idToken) {
-                await fetch("/api/customers/session", {
+            // ไม่ผ่านรอบแรก (เน็ตสะดุด/LINE ตอบช้า) ลองซ้ำอีกครั้ง และเก็บไว้ให้ customerFetch
+            // เรียกแลกใหม่ได้เองตอนเซิร์ฟเวอร์ตอบว่าไม่มีเซสชัน
+            const exchange = async (): Promise<boolean> => {
+              try {
+                const idToken = liff.default.getIDToken();
+                if (!idToken) return false;
+                const r = await fetch("/api/customers/session", {
                   method: "POST",
+                  cache: "no-store",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ idToken }),
                 });
+                const d = await r.json().catch(() => ({}));
+                return Boolean(d?.ok);
+              } catch {
+                return false;
               }
-            } catch {
-              /* ไม่มีคุกกี้ก็ยังใช้งานได้ตามเดิม */
+            };
+            setCustomerSessionRefresher(exchange);
+            if (!(await exchange())) {
+              await new Promise((r) => setTimeout(r, 800));
+              await exchange();
             }
 
             const p = await liff.default.getProfile();

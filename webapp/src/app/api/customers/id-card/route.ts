@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveCustomerLineId } from "@/lib/customer-session";
+import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import { findCustomerByLine, setCustomerIdCard } from "@/lib/customers-store";
 import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
 
@@ -10,7 +10,7 @@ import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const lineUserId = await resolveCustomerLineId(req, body.lineUserId);
-  if (!lineUserId) return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
+  if (!lineUserId) return noCustomerSessionResponse();
   const image = String(body.image || "");
   if (!image.startsWith("data:image/")) {
     return NextResponse.json({ error: "image required" }, { status: 400 });

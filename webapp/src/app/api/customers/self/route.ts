@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveCustomerLineId } from "@/lib/customer-session";
+import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import {
   findCustomerByLine,
   updateCustomer,
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("lineUserId")
   );
   if (!lineUserId) {
-    return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
+    return noCustomerSessionResponse();
   }
   const c = await findCustomerByLine(lineUserId);
   if (!c) return NextResponse.json({ found: false });
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const lineUserId = await resolveCustomerLineId(req, body.lineUserId);
   if (!lineUserId) {
-    return NextResponse.json({ error: "lineUserId required" }, { status: 400 });
+    return noCustomerSessionResponse();
   }
   const c = await findCustomerByLine(lineUserId);
   if (!c) return NextResponse.json({ error: "not_found" }, { status: 404 });
