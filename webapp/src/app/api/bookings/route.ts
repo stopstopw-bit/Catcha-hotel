@@ -159,10 +159,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+  // ลูกค้าจองเองจากแอป: ผูกนัดกับ LINE จากคุกกี้ที่ตรวจแล้วเท่านั้น — ห้ามเชื่อ body.lineUserId
+  // ไม่งั้นจองแทน/ยัดนัดเข้าบัญชีคนอื่นได้แค่รู้ LINE ID (หลังบ้านระบุให้ลูกค้าได้ตามเดิม)
+  const lineUserId = (await isAdmin(req))
+    ? body.lineUserId
+    : (await resolveCustomerLineId(req, body.lineUserId)) || undefined;
   const customer = await resolveCustomerForBooking({
     customerName: body.customerName,
     catName: body.catName,
-    lineUserId: body.lineUserId,
+    lineUserId,
     customerId: body.customerId,
     phone: body.phone,
     staffNote: body.notes,
@@ -236,7 +241,11 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const { id, action, lineUserId, checkinTime } = body;
+  const { id, action, checkinTime } = body;
+  // ลูกค้า (ไม่ได้ล็อกอินหลังบ้าน) ยืนยันตัวด้วยคุกกี้ที่ตรวจกับ LINE แล้วเท่านั้น ห้ามเชื่อ lineUserId ใน body
+  const lineUserId: string | undefined = (await isAdmin(req))
+    ? body.lineUserId
+    : (await resolveCustomerLineId(req, body.lineUserId)) || undefined;
   // ดูตัวอย่างการ์ดก่อนส่งจริง — ทำทุกอย่างเหมือนส่งจริงเป๊ะ (ข้อมูล/เงื่อนไขเดียวกัน)
   // แค่ข้ามขั้นตอน push เข้า LINE + การเขียนข้อมูลที่มีผลจริง (เช่น ผูกมัดจำ) เท่านั้น
   const preview = body.preview === true;

@@ -91,19 +91,22 @@ export function customerSessionCookieOptions() {
   };
 }
 
-/** บังคับให้ต้องมีคุกกี้แล้วหรือยัง — เปิดได้เมื่อมั่นใจว่าลูกค้าทุกคนได้คุกกี้ครบ */
+/** บังคับให้ต้องมีคุกกี้ — เปิดเป็นค่าตั้งต้น ปิดได้ชั่วคราวด้วย CUSTOMER_SESSION_REQUIRED=0 */
 export function customerSessionRequired(): boolean {
-  return process.env.CUSTOMER_SESSION_REQUIRED === "1";
+  return process.env.CUSTOMER_SESSION_REQUIRED !== "0";
 }
 
 /**
  * หา lineUserId ที่จะใช้ทำงานใน route ฝั่งลูกค้า
  *
- * ลำดับ: คุกกี้ที่เซ็นชื่อไว้ (เชื่อถือได้) → ค่าที่ client ส่งมา (ของเดิม ระหว่างเปลี่ยนผ่าน)
- * ถ้ามีคุกกี้อยู่แล้วแต่ client ส่ง id คนอื่นมา จะยึดตามคุกกี้เสมอ — กันสวมรอย
- * ทั้งที่ตัวเองล็อกอินอยู่
+ * ยึดคุกกี้ที่เซ็นชื่อไว้ (ได้จากการแลก LIFF ID token ที่ตรวจกับ LINE แล้ว) เท่านั้น —
+ * ไม่เชื่อ lineUserId ที่ client ส่งมาอีกแล้ว ไม่งั้นใครรู้ LINE ID ของลูกค้าคนอื่น
+ * ก็ดึงนัด/คูปอง หรือเขียนทับชื่อ-เบอร์-ที่อยู่ของเขาได้
  *
- * @returns lineUserId ที่ใช้ได้ หรือ null ถ้าบังคับใช้คุกกี้แล้วแต่ยังไม่มี
+ * ทางออกฉุกเฉิน: ตั้ง env CUSTOMER_SESSION_REQUIRED=0 จะกลับไปเชื่อค่าที่ส่งมาเหมือนเดิม
+ * (ใช้เฉพาะตอน LINE ตรวจ token ไม่ผ่านจนลูกค้าเข้าแอปไม่ได้) · ตอนพัฒนาในเครื่องใช้ "dev-user" ได้
+ *
+ * @returns lineUserId ที่ใช้ได้ หรือ null ถ้ายังไม่มีคุกกี้
  */
 export async function resolveCustomerLineId(
   req: NextRequest,
@@ -113,8 +116,9 @@ export async function resolveCustomerLineId(
     req.cookies.get(CUSTOMER_SESSION_COOKIE)?.value
   );
   if (session) return session.lineUserId;
-  if (customerSessionRequired()) return null;
   const raw = String(claimed || "").trim();
+  if (process.env.NODE_ENV !== "production" && raw === "dev-user") return raw;
+  if (customerSessionRequired()) return null;
   return raw || null;
 }
 
