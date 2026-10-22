@@ -9,14 +9,22 @@ import {
   activeCustomerCoupons,
   issueCoupon,
 } from "@/lib/coupons-store";
-import { getLineCredentials } from "@/lib/line-config";
+import { getLineCredentials, normalizeLiffId } from "@/lib/line-config";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import { buildLiffUrl } from "@/lib/liff-urls";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
-/** กระเป๋าคูปองของลูกค้า + รหัสชวนเพื่อน (เรียกจากแอปด้วย lineUserId, หรือหลังบ้านด้วย customerId) */
+/** กระเป๋าคูปองของลูกค้า + รหัสชวนเพื่อน (แอปลูกค้า: คุกกี้เซสชันลูกค้า · หลังบ้าน: customerId) */
 export async function GET(req: NextRequest) {
-  const lineUserId = req.nextUrl.searchParams.get("lineUserId")?.trim();
-  const customerId = req.nextUrl.searchParams.get("customerId")?.trim();
+  // เดิม route นี้อยู่หลังด่านหลังบ้าน ลูกค้าใน LINE ยิงมาเลยโดน 401 ทุกครั้ง —
+  // กระเป๋าคูปองว่างตลอด และไม่มีลิงก์ชวนเพื่อน (ปุ่มคัดลอกกดไม่ได้)
+  // ตอนนี้ด่านปล่อย GET ผ่าน แล้วตรวจที่นี่: หลังบ้านดูใครก็ได้ ลูกค้าดูได้แค่ของตัวเอง
+  const staff = !!(await verifySession(req.cookies.get(SESSION_COOKIE)?.value));
+  const claimed = req.nextUrl.searchParams.get("lineUserId")?.trim();
+  const customerId = staff ? req.nextUrl.searchParams.get("customerId")?.trim() : undefined;
+  const lineUserId = staff ? claimed : await resolveCustomerLineId(req, claimed);
+  if (!staff && !lineUserId) return noCustomerSessionResponse();
   const activeOnly = req.nextUrl.searchParams.get("active") === "1";
 
   const cust = customerId
@@ -30,7 +38,10 @@ export async function GET(req: NextRequest) {
     ? await activeCustomerCoupons(cust.id)
     : await listCustomerCoupons(cust.id);
   const referralCode = referralCodeFor(cust.id);
-  const liffId = (await getLineCredentials())?.liffId;
+  // ใช้ LIFF ตัวเดียวกับที่แอปลูกค้าเปิดจริง (LiffProvider ใช้ NEXT_PUBLIC_LIFF_ID ก่อน) —
+  // ร้านมี LIFF 2 ตัว ถ้าหยิบคนละตัว ลิงก์จะเปิดไปคนละ endpoint
+  const liffId =
+    normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID) || (await getLineCredentials())?.liffId;
   const referralUrl = liffId
     ? buildLiffUrl(liffId, { path: "register", ref: referralCode })
     : "";
@@ -45,6 +56,9 @@ export async function GET(req: NextRequest) {
 
 /** ออกคูปองด้วยมือจากหลังบ้าน (แจกลูกค้าพิเศษ / โปร) */
 export async function POST(req: NextRequest) {
+  if (!(await verifySession(req.cookies.get(SESSION_COOKIE)?.value))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
   const customerId = String(body.customerId || "").trim();
   const amount = Math.round(Number(body.amount) || 0);

@@ -56,6 +56,12 @@ const PUBLIC_GET = ["/api/config", "/api/articles", "/api/promos"];
 const SHARED_API = ["/api/bookings", "/api/packages", "/api/package-shop", "/api/points"];
 
 /**
+ * ใช้ร่วมกันเฉพาะ GET ที่ path นี้ตรงตัว (ไม่รวม path ย่อย เช่น /api/coupons/offers ที่เป็นของหลังบ้าน)
+ * route ตรวจเอง: หลังบ้านดูได้ทุกคน ลูกค้าดูได้แค่ของตัวเองจากคุกกี้เซสชัน
+ */
+const SHARED_GET_EXACT = ["/api/coupons"];
+
+/**
  * API ข้อมูลอ่อนไหวที่พนักงานใช้ได้เฉพาะเมื่อเจ้าของเปิดเมนูนั้นให้ (เจ้าของร้านใช้ได้หมด)
  * เดิมจำกัดเมนูแค่ซ่อนปุ่มในหน้าเว็บ พนักงานยิง API ตรงก็ดาวน์โหลดข้อมูลลูกค้าทั้งร้าน
  * ดูบัญชี หรือส่ง LINE หาลูกค้าทุกคนได้
@@ -120,6 +126,9 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
     if (matches(pathname, SHARED_API)) return NextResponse.next();
+    if (req.method === "GET" && SHARED_GET_EXACT.includes(pathname)) {
+      return NextResponse.next();
+    }
 
     const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
     if (!session) {
