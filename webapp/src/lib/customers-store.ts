@@ -238,7 +238,7 @@ function rowToTopup(r: MemberTopupRow): MemberTopupRecord {
   };
 }
 
-const memCustomers: Map<string, CustomerRecord> = ((globalThis as any).__mc ||= new Map());
+const memCustomers = new Map<string, CustomerRecord>();
 const memServices: ServiceRecord[] = [];
 const memMemberTopups: MemberTopupRecord[] = [];
 
