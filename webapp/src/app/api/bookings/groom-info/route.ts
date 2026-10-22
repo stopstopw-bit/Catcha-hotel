@@ -13,7 +13,7 @@ import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { getSiteConfig } from "@/lib/config-store";
 import { resolveGroomForm } from "@/lib/groom-form";
 import { resolveStayForm } from "@/lib/stay-form";
-import { requireCustomerSession } from "@/lib/customer-session";
+import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
 
 type Kind = "groom" | "stay";
 
@@ -43,7 +43,7 @@ async function resolveTarget(lineUserId: string, bookingId: string, catId: strin
 async function getHandler(req: NextRequest) {
   const session = await requireCustomerSession(req);
   if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return noCustomerSessionResponse();
   }
   const sp = req.nextUrl.searchParams;
   const id = sp.get("id")?.trim() || "";
@@ -72,7 +72,7 @@ async function getHandler(req: NextRequest) {
 async function postHandler(req: NextRequest) {
   const session = await requireCustomerSession(req);
   if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return noCustomerSessionResponse();
   }
   const body = await req.json().catch(() => ({}));
   const bookingId = String(body.bookingId || "").trim();
