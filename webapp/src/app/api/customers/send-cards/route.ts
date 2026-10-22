@@ -10,6 +10,7 @@ import {
   buildPrestayFlex,
   buildGroomInfoFlex,
   buildDocRequestFlex,
+  STAY_INFO_HEADER,
 } from "@/lib/line";
 import { buildGroomInfoBody, buildPrestayFlexData, buildStayInfoBody } from "@/lib/booking-reminders";
 import {
@@ -82,7 +83,7 @@ async function handlePost(req: NextRequest) {
             label: cats.length > 1 ? `${button} (${cats.length} ตัว)` : button,
           },
           stay
-            ? { ...style, texts: { ...style?.texts, header: "🐾 ข้อมูลน้องก่อนเข้าพัก" } }
+            ? { ...style, texts: { ...style?.texts, headerTitle: STAY_INFO_HEADER } }
             : style
         )
       );
