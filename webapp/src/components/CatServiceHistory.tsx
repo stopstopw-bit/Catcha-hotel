@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { Avatar, EmptyState } from "@/components/ui";
 import { bangkokToday } from "@/lib/bangkok-date";
@@ -8,7 +9,7 @@ import { formatThaiDateShort } from "@/lib/format-thai-date";
 import { GROOM_PROGRAMS, groomProgramName, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import { ROOMS, type RoomType } from "@/lib/business";
 import type { CountBooking } from "@/lib/monthly-cat-counts";
-import { catServiceHistory, type CatHistory, type HistoryEntry } from "@/lib/cat-service-history";
+import { catServiceHistory, type CatHistory, type HistoryBill, type HistoryEntry } from "@/lib/cat-service-history";
 
 const KIND_ICON: Record<HistoryEntry["kind"], string> = { bath: "bath", stay: "bed", dayCare: "clock" };
 const PAGE = 6;
@@ -97,8 +98,9 @@ function CatDetail({ h }: { h: CatHistory }) {
 
       <p className="mb-1.5 mt-4 text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Timeline · ไทม์ไลน์</p>
       <ol className="relative ml-1 border-l-2 border-catcha-line">
-        {visible.map((e) => (
-          <li key={e.id} className="relative flex min-h-[48px] items-center gap-2.5 py-1.5 pl-5">
+        {visible.map((e) => {
+          const inner = (
+            <>
             <span
               className={`absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-card ${
                 e.upcoming ? "bg-paper text-brown-faint" : e.kind === "bath" ? "bg-sage/25 text-ok" : "bg-honey/40 text-catcha-chocolate"
@@ -119,8 +121,27 @@ function CatDetail({ h }: { h: CatHistory }) {
             {e.inHouse && (
               <span className="shrink-0 rounded-full bg-sage/20 px-2 py-0.5 text-[10px] font-bold text-ok">กำลังพัก</span>
             )}
-          </li>
-        ))}
+            {e.billed && (
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-paper px-2 py-0.5 text-[10px] font-bold text-brown-soft">
+                <Icon name="receipt" size={11} />
+                บิล
+              </span>
+            )}
+            </>
+          );
+          const cls = "relative flex min-h-[48px] items-center gap-2.5 py-1.5 pl-5";
+          return (
+            <li key={e.id}>
+              {e.billBookingId ? (
+                <Link href={`/admin/billing?bookingId=${encodeURIComponent(e.billBookingId)}`} className={cls}>
+                  {inner}
+                </Link>
+              ) : (
+                <div className={cls}>{inner}</div>
+              )}
+            </li>
+          );
+        })}
       </ol>
       {h.entries.length > visible.length && (
         <button
@@ -137,14 +158,17 @@ function CatDetail({ h }: { h: CatHistory }) {
 
 /**
  * ประวัติรายตัว (ในหน้าข้อมูลลูกค้า) — เลือกน้องทีละตัว ดูว่าอาบโปรแกรมไหน วันไหน พักห้องไหนกี่คืน
- * ดูจากนัด ไม่ใช่บิล (ประวัติการจ่ายเงินอยู่ส่วนอื่น)
+ * ดูจากนัด แล้วใช้โปรแกรม/ห้องตามบิลที่ออกจริง (แตะรายการที่มีบิลเพื่อเปิดบิล) · ไม่โชว์ยอดเงิน
  */
 export function CatServiceHistory({
   bookings,
   cats,
+  bills = [],
 }: {
   bookings: CountBooking[];
   cats: { id: string; name: string; photoDataUrl?: string }[];
+  /** บิลของลูกค้า — ใช้ชื่อโปรแกรม/ห้องตามที่ออกบิลจริง */
+  bills?: HistoryBill[];
 }) {
   const [programs, setPrograms] = useState<GroomProgram[]>(GROOM_PROGRAMS);
   const [rooms, setRooms] = useState<RoomType[]>(ROOMS);
@@ -165,11 +189,17 @@ export function CatServiceHistory({
 
   const list = useMemo(
     () =>
-      catServiceHistory(bookings, cats, bangkokToday(), {
-        program: (id?: string) => (id ? groomProgramName(id, programs) || id : ""),
-        room: (id?: string) => (id ? rooms.find((r) => r.id === id)?.name || id : ""),
-      }),
-    [bookings, cats, programs, rooms]
+      catServiceHistory(
+        bookings,
+        cats,
+        bangkokToday(),
+        {
+          program: (id?: string) => (id ? groomProgramName(id, programs) || id : ""),
+          room: (id?: string) => (id ? rooms.find((r) => r.id === id)?.name || id : ""),
+        },
+        bills
+      ),
+    [bookings, cats, programs, rooms, bills]
   );
   const [picked, setPicked] = useState("");
   const current = list.find((h) => h.key === picked) || list[0];
@@ -185,7 +215,7 @@ export function CatServiceHistory({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-extrabold text-catcha-chocolate">ประวัติรายตัว</h2>
-          <p className="truncate text-[11px] text-brown-soft">อาบอะไร วันไหน พักห้องไหน — ไม่รวมการจ่ายเงิน</p>
+          <p className="truncate text-[11px] text-brown-soft">อาบอะไร วันไหน พักห้องไหน — ตามบิลที่ออก</p>
         </div>
       </div>
 

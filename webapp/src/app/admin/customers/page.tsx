@@ -15,6 +15,7 @@ import { RegistrationQrSection } from "@/components/LineSetupSection";
 import { AddCustomerModal } from "@/components/AddCustomerModal";
 import { EditCustomerSheet } from "@/components/EditCustomerSheet";
 import { CatServiceHistory } from "@/components/CatServiceHistory";
+import type { HistoryBill } from "@/lib/cat-service-history";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { CustomerLinkSection } from "@/components/CustomerLinkSection";
@@ -51,6 +52,7 @@ type Summary = {
     memberTopups: MemberTopupRecord[];
     memberCreditUsage: MemberCreditUsageRecord[];
     packageUsage: PackageUsageRecord[];
+    serviceBills?: HistoryBill[];
   };
 };
 
@@ -3207,6 +3209,7 @@ export default function CustomersPage() {
 
         <CatServiceHistory
           cats={c.cats}
+          bills={selected.history.serviceBills}
           bookings={[
             ...(selected.history.upcomingBookings || []),
             ...(selected.history.pastBookings || []),
