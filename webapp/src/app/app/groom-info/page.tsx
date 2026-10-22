@@ -10,6 +10,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { customerFetch } from "@/lib/customer-fetch";
 
 type Answers = Record<string, string | string[]>;
 
@@ -66,6 +67,8 @@ function GroomInfoContent() {
   const [done, setDone] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [attempted, setAttempted] = useState(false);
+  // โหลดไม่ขึ้นเพราะอะไร — ยืนยัน LINE ไม่ผ่าน กับ หาน้อง/นัดไม่เจอ ต้องบอกลูกค้าคนละแบบ
+  const [loadError, setLoadError] = useState("");
   // นัดเข้าพัก / ลิงก์ kind=stay → ฟอร์มก่อนเข้าพัก (คนละชุดคำถามกับก่อนอาบน้ำ)
   const kindParam = params.get("kind") || "";
   const [isStay, setIsStay] = useState(kindParam === "stay");
@@ -80,7 +83,7 @@ function GroomInfoContent() {
     if (!profile?.lineUserId) return;
     Promise.all(
       ids.map((id) =>
-        fetch(
+        customerFetch(
           `/api/bookings/groom-info?${catMode ? "cat" : "id"}=${encodeURIComponent(id)}${kindParam ? `&kind=${kindParam}` : ""}`
         )
           .then((r) => r.json())
@@ -90,8 +93,14 @@ function GroomInfoContent() {
       .then((results) => {
         const loaded: CatForm[] = [];
         // เซิร์ฟเวอร์บอกว่าเป็นฟอร์มไหน (นัดเข้าพัก = ก่อนเข้าพัก) — ใช้ชุดคำถามนั้นทั้งหน้า
-        const stay = results.some((d) => d?.kind === "stay");
+        // ไม่มีตัวไหนโหลดขึ้น → คงฟอร์มตามลิงก์ไว้ (ไม่งั้นการ์ดก่อนเข้าพักจะโชว์หัว "ก่อนอาบน้ำ")
+        const anyFound = results.some((d) => d?.found);
+        const stay = anyFound ? results.some((d) => d?.kind === "stay") : kindParam === "stay";
         setIsStay(stay);
+        if (!anyFound) {
+          const authErr = results.find((d) => d?.code === "no_session");
+          setLoadError(authErr?.error || "");
+        }
         const fs = stay ? stayFields : groomFields;
         results.forEach((d, i) => {
           if (!d?.found) return;
@@ -157,7 +166,7 @@ function GroomInfoContent() {
     try {
       const results = await Promise.all(
         forms.map((f) =>
-          fetch("/api/bookings/groom-info", {
+          customerFetch("/api/bookings/groom-info", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -251,7 +260,10 @@ function GroomInfoContent() {
         <LoadingScreen />
       ) : forms.length === 0 ? (
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="calendar" title="ไม่พบข้อมูลการนัด" />
+          <EmptyState
+            icon="calendar"
+            title={loadError || (catMode ? "ไม่พบข้อมูลน้องในบัญชี LINE นี้" : "ไม่พบข้อมูลการนัด")}
+          />
         </div>
       ) : (
         <>
