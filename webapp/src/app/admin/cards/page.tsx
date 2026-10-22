@@ -8,6 +8,7 @@ import {
   type GroomFormConfig,
 } from "@/lib/groom-form";
 import { FOLLOW_UP_MESSAGES, followUpActions, followUpKey } from "@/lib/sales-insights";
+import { MISS_YOU_DEFAULT_TITLE, missYouActions } from "@/lib/miss-you-card";
 import { broadcastActionLabel } from "@/lib/line-broadcast";
 import { BroadcastButtonPicker } from "@/components/BroadcastButtonPicker";
 import { toast } from "@/components/Toast";
@@ -562,6 +563,31 @@ const CARDS: CardMeta[] = [
     texts: [],
   },
   {
+    key: "missYou",
+    name: "คิดถึงน้อง (ทักลูกค้าที่หายไป)",
+    desc: "การ์ดที่ส่งตอนกด \"ทักลูกค้าทาง LINE\" ในหน้าลูกค้า และตอนระบบทักลูกค้าที่ไม่มานานให้อัตโนมัติ",
+    colors: [
+      { key: "headerColor", label: "สีแถบหัว", fallback: "#4A7348" },
+      { key: "headerTextColor", label: "สีตัวหนังสือหัว", fallback: "#FFFFFF" },
+      { key: "buttonColor", label: "สีปุ่มแรก", fallback: "#4A7348" },
+    ],
+    fields: [{ key: "header", label: "แถบหัวการ์ด (ชื่อร้าน)" }],
+    texts: [
+      {
+        stateKey: "followUpMessage",
+        label: "ข้อความ",
+        multiline: true,
+        hint: "ใช้ได้: {name} = ชื่อลูกค้า · {cats} = ชื่อน้อง · {days} = จำนวนวันที่ไม่ได้มา",
+      },
+    ],
+    styleTexts: [
+      { key: "header", label: "ข้อความบนแถบหัว (ว่าง = ชื่อร้าน)", placeholder: "🐾 ชื่อร้าน" },
+      { key: "title", label: "หัวข้อ", placeholder: MISS_YOU_DEFAULT_TITLE },
+    ],
+    closingLabel: "ข้อความท้ายการ์ด (ว่าง = ไม่มี)",
+    hasTitleSize: true,
+  },
+  {
     key: "groomFormFields",
     name: "ฟอร์มถามประวัติน้อง",
     desc: "คำถามที่ลูกค้าเห็นในฟอร์มก่อนอาบน้ำ — เปิด/ปิด แก้คำถาม เพิ่ม-ลบตัวเลือกเองได้",
@@ -1114,6 +1140,41 @@ function Preview({
     );
   }
 
+  if (meta.key === "missYou") {
+    // ตัวอย่างใช้ชื่อสมมติ — ตอนส่งจริงระบบเติมชื่อลูกค้า/น้อง/จำนวนวันของคนนั้นให้
+    const body = (texts.followUpMessage || "")
+      .replace(/\{name\}/g, "คุณตาล")
+      .replace(/\{cats\}/g, "มะลิ")
+      .replace(/\{days\}/g, "75");
+    const actions = missYouActions(st.texts);
+    return (
+      <div className={bubble}>
+        {show("header") && (
+          <div className="px-4 py-3" style={{ background: c("headerColor", "#4A7348") }}>
+            <p className="text-xs font-extrabold" style={{ color: c("headerTextColor", "#FFFFFF") }}>
+              {t("header", "🐾 CatCha Hotel")}
+            </p>
+          </div>
+        )}
+        <div className="space-y-1 px-4 py-4 text-[11px] text-[#4E3E32]">
+          <p className={`${titleCls} font-extrabold text-[#5C4033]`}>{t("title", MISS_YOU_DEFAULT_TITLE)}</p>
+          <p className="whitespace-pre-line pt-1">{body}</p>
+          {st.closing && <p className="whitespace-pre-line pt-2 text-[10px] text-[#A2907E]">{st.closing}</p>}
+        </div>
+        {actions.map((id, i) => (
+          <div key={id} className="px-3 pb-2 last:pb-3">
+            <div
+              className="rounded-lg py-1.5 text-center text-[11px] font-bold"
+              style={i === 0 ? { background: c("buttonColor", "#4A7348"), color: "#fff" } : { background: "#EFEFEF", color: "#4E3E32" }}
+            >
+              {broadcastActionLabel(id)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (meta.key === "readyForPickup") {
     return (
       <div className={bubble}>
@@ -1245,6 +1306,11 @@ export default function CardsStudioPage() {
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [groomForm, setGroomForm] = useState<GroomFormConfig>({});
   const [activeKey, setActiveKey] = useState(CARDS[0].key);
+  // เปิดตรงการ์ดที่ต้องการจากลิงก์ (เช่น ?card=missYou จากหน้าลูกค้า)
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get("card");
+    if (want && CARDS.some((c) => c.key === want)) setActiveKey(want);
+  }, []);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1265,6 +1331,8 @@ export default function CardsStudioPage() {
           depositRequestBody: cfg.messages?.depositRequestBody || "",
           reviewRequest: cfg.messages?.reviewRequest || "",
           groomInfoIntro: cfg.messages?.groomInfoIntro || "",
+          // การ์ดคิดถึงน้อง — เนื้อความเก็บที่เดียวกับหน้าตั้งค่า › ลูกค้า (crm.followUpMessage)
+          followUpMessage: cfg.crm?.followUpMessage || "",
           consentTitle: cfg.messages?.consentTitle || "",
           consentTerms: (cfg.messages?.consentTerms || []).join("\n"),
           // การ์ดเลือกเวลาเช็คอิน/เช็คเอาท์
@@ -1333,6 +1401,8 @@ export default function CardsStudioPage() {
           patch: {
             cards,
             groomForm,
+            // ว่าง = ไม่แตะ (ส่งข้อความว่างให้ลูกค้าไม่ได้)
+            ...(texts.followUpMessage?.trim() ? { crm: { followUpMessage: texts.followUpMessage } } : {}),
             billing: {
               summaryBookingTitle: texts.summaryBookingTitle,
               summaryDepositTitle: texts.summaryDepositTitle,
@@ -1664,6 +1734,32 @@ export default function CardsStudioPage() {
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeKey === "missYou" && (
+            <div>
+              <p className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
+                Buttons · ปุ่มในการ์ด (สูงสุด 3)
+                {st.texts?.buttons !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = { ...st.texts };
+                      delete next.buttons;
+                      patch({ texts: Object.keys(next).length ? next : undefined });
+                    }}
+                    className="font-bold normal-case tracking-normal text-latte-deep underline"
+                  >
+                    ใช้ปุ่มตั้งต้น
+                  </button>
+                )}
+              </p>
+              <BroadcastButtonPicker
+                value={missYouActions(st.texts)}
+                // เก็บแม้เป็นค่าว่าง — "ไม่มีปุ่ม" ต่างจาก "ยังไม่ได้ตั้ง"
+                onChange={(next) => patch({ texts: { ...st.texts, buttons: next.join(",") } })}
+              />
             </div>
           )}
 
