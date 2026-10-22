@@ -9,6 +9,7 @@ import type { CatRecord, CustomerRecord, MemberCreditUsageRecord, MemberTopupRec
 import type { CustomerTier } from "@/lib/customer-tier";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { CatPhoto } from "@/components/CatPhoto";
+import { BuyerSheet, type Buyer } from "@/components/BuyerSheet";
 import { CatMediaGallery } from "@/components/CatMediaGallery";
 import { TIER_LABELS, tierBadgeClass } from "@/lib/customer-tier";
 import { RegistrationQrSection } from "@/components/LineSetupSection";
@@ -3216,6 +3217,8 @@ export default function CustomersPage() {
           ]}
         />
 
+        <BillingProfileCard customerId={c.id} customerName={c.name} />
+
         <RoomPlanSection
           customerId={c.id}
           hasLine={!!c.lineUserId}
@@ -3633,5 +3636,75 @@ function SortableTh({
         <span className="text-[9px]">{isActive ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
       </button>
     </th>
+  );
+}
+
+/**
+ * ข้อมูลออกใบเสร็จ / ใบกำกับภาษีของลูกค้าคนนี้ (ในนามบริษัท ที่อยู่ เลขผู้เสียภาษี)
+ * บันทึกไว้ครั้งเดียว บิลถัดไปของลูกค้าคนนี้จะออกในนามนี้อัตโนมัติ
+ */
+function BillingProfileCard({ customerId, customerName }: { customerId: string; customerName: string }) {
+  const [buyer, setBuyer] = useState<Buyer | null | undefined>(undefined);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setBuyer(undefined);
+    fetch(`/api/invoice-docs?profile=${encodeURIComponent(customerId)}`)
+      .then((r) => (r.ok ? r.json() : { buyer: null }))
+      .then((d) => setBuyer(d.buyer || null))
+      .catch(() => setBuyer(null));
+  }, [customerId]);
+
+  const save = async (b: Buyer | null) => {
+    const res = await fetch("/api/invoice-docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile: customerId, buyer: b }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast("บันทึกไม่สำเร็จ", "error");
+      return;
+    }
+    setBuyer(d.buyer || null);
+    setEditing(false);
+    toast(b ? "บันทึกข้อมูลออกบิลแล้ว" : "ลบข้อมูลออกบิลแล้ว", "success");
+  };
+
+  return (
+    <section className="mb-4">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Billing info · ข้อมูลออกบิล</p>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        disabled={buyer === undefined}
+        className="flex min-h-[64px] w-full items-center gap-3 rounded-catcha bg-card px-4 py-3 text-left shadow-catcha-sm"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-honey/35 text-catcha-chocolate">
+          <Icon name="receipt" size={18} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-extrabold text-catcha-chocolate">
+            {buyer === undefined ? "กำลังโหลด…" : buyer ? buyer.name : "ออกในชื่อลูกค้า"}
+          </span>
+          <span className="block truncate text-[11px] text-brown-soft">
+            {buyer
+              ? [buyer.taxId && `เลขผู้เสียภาษี ${buyer.taxId}`, buyer.branch, buyer.address?.split("\n")[0]].filter(Boolean).join(" · ")
+              : "ตั้งชื่อบริษัท ที่อยู่ เลขผู้เสียภาษี ไว้ใช้กับใบเสร็จทุกใบ"}
+          </span>
+        </span>
+        <Icon name="chevron" size={16} className="text-brown-faint" />
+      </button>
+      {editing && (
+        <BuyerSheet
+          mode="profile"
+          initial={buyer || undefined}
+          fallbackName={customerName}
+          onClose={() => setEditing(false)}
+          onSave={(b) => save(b)}
+          onUseCustomer={buyer ? () => save(null) : undefined}
+        />
+      )}
+    </section>
   );
 }

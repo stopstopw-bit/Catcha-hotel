@@ -6,12 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { EmptyState, MoreMenu, Segmented } from "@/components/ui";
 import { toast } from "@/components/Toast";
+import { BuyerSheet } from "@/components/BuyerSheet";
 import {
   DocPdfButton,
   InvoiceDocument,
   docNumberOf,
   money,
-  type Buyer,
   type Data,
   type Kind,
 } from "@/components/InvoiceDocument";
@@ -71,6 +71,23 @@ export default function InvoiceDocPage({ params }: { params: Promise<{ id: strin
     const next = { ...data, doc: d.doc };
     setData(next);
     return next;
+  };
+
+  const saveBuyer = async (payload: Record<string, unknown>) => {
+    if (!inv) return;
+    const res = await fetch("/api/invoice-docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId: inv.id, ...payload }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast("บันทึกไม่สำเร็จ", "error");
+      return;
+    }
+    setData((cur) => (cur ? { ...cur, doc: d.doc || cur.doc, fromProfile: false } : cur));
+    setEditBuyer(false);
+    toast(payload.remember ? "บันทึกแล้ว และจำไว้ใช้กับบิลถัดไป" : "บันทึกข้อมูลผู้ซื้อแล้ว", "success");
   };
 
   const print = async () => {
@@ -195,7 +212,9 @@ export default function InvoiceDocPage({ params }: { params: Promise<{ id: strin
             </span>
             <span className="block truncate text-[11px] text-brown-soft">
               {doc.buyer
-                ? [doc.buyer.taxId && `เลขผู้เสียภาษี ${doc.buyer.taxId}`, doc.buyer.branch].filter(Boolean).join(" · ") || "แตะเพื่อแก้ไข"
+                ? [data.fromProfile && "ข้อมูลที่จำไว้ของลูกค้า", doc.buyer.taxId && `เลขผู้เสียภาษี ${doc.buyer.taxId}`, doc.buyer.branch]
+                    .filter(Boolean)
+                    .join(" · ") || "แตะเพื่อแก้ไข"
                 : data.suggestedBuyer
                   ? `ใช้ข้อมูลครั้งก่อนได้: ${data.suggestedBuyer.name}`
                   : "ใส่ชื่อบริษัท ที่อยู่ เลขผู้เสียภาษี — ไม่ใส่ = ออกในชื่อลูกค้า"}
@@ -257,112 +276,10 @@ export default function InvoiceDocPage({ params }: { params: Promise<{ id: strin
           note={doc.note || ""}
           fallbackName={inv.customerName}
           onClose={() => setEditBuyer(false)}
-          onSave={async (b, note) => {
-            const res = await fetch("/api/invoice-docs", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ invoiceId: inv.id, buyer: b, note }),
-            });
-            const d = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              toast("บันทึกไม่สำเร็จ", "error");
-              return;
-            }
-            setData((cur) => (cur ? { ...cur, doc: d.doc || cur.doc } : cur));
-            setEditBuyer(false);
-            toast("บันทึกข้อมูลผู้ซื้อแล้ว", "success");
-          }}
+          onSave={(b, note, remember) => saveBuyer({ buyer: b, note, remember })}
+          onUseCustomer={doc.buyer ? (remember) => saveBuyer({ useCustomer: true, note: doc.note || "", remember }) : undefined}
         />
       )}
-    </div>
-  );
-}
-
-function BuyerSheet({
-  initial,
-  note: initialNote,
-  fallbackName,
-  onClose,
-  onSave,
-}: {
-  initial?: Buyer;
-  note: string;
-  fallbackName: string;
-  onClose: () => void;
-  onSave: (b: Buyer | null, note: string) => void;
-}) {
-  const [b, setB] = useState<Buyer>(initial || { name: "", branch: "สำนักงานใหญ่" });
-  const [note, setNote] = useState(initialNote);
-  const field = "mt-1 min-h-[44px] w-full rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm";
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4 print:hidden" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-catcha bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-catcha sm:rounded-catcha"
-      >
-        <div className="mb-3 flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Bill to</p>
-            <p className="text-base font-extrabold text-catcha-chocolate">ออกในนามบริษัท / นิติบุคคล</p>
-          </div>
-          <button type="button" aria-label="ปิด" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full bg-paper text-brown">
-            <Icon name="x" size={18} />
-          </button>
-        </div>
-        <div className="space-y-2.5">
-          <label className="block text-xs font-bold text-brown-soft">
-            ชื่อบริษัท / ผู้ซื้อ
-            <input value={b.name} onChange={(e) => setB({ ...b, name: e.target.value })} placeholder={`เช่น บริษัท ตัวอย่าง จำกัด (ไม่ใส่ = ${fallbackName})`} className={field} />
-          </label>
-          <div className="grid grid-cols-[1fr_120px] gap-2">
-            <label className="block text-xs font-bold text-brown-soft">
-              เลขประจำตัวผู้เสียภาษี
-              <input
-                value={b.taxId || ""}
-                inputMode="numeric"
-                onChange={(e) => setB({ ...b, taxId: e.target.value.replace(/[^0-9-]/g, "").slice(0, 17) })}
-                placeholder="13 หลัก"
-                className={field}
-              />
-            </label>
-            <label className="block text-xs font-bold text-brown-soft">
-              สาขา
-              <input value={b.branch || ""} onChange={(e) => setB({ ...b, branch: e.target.value })} placeholder="สำนักงานใหญ่" className={field} />
-            </label>
-          </div>
-          <label className="block text-xs font-bold text-brown-soft">
-            ที่อยู่ตามทะเบียน
-            <textarea value={b.address || ""} onChange={(e) => setB({ ...b, address: e.target.value })} rows={3} className={field} />
-          </label>
-          <label className="block text-xs font-bold text-brown-soft">
-            เบอร์โทร
-            <input value={b.phone || ""} inputMode="tel" onChange={(e) => setB({ ...b, phone: e.target.value })} className={field} />
-          </label>
-          <label className="block text-xs font-bold text-brown-soft">
-            หมายเหตุบนเอกสาร
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="เช่น ค่าฝากเลี้ยงเดือนตุลาคม" className={field} />
-          </label>
-        </div>
-        <div className="mt-4 grid grid-cols-[auto_1fr] gap-2">
-          {initial && (
-            <button
-              type="button"
-              onClick={() => onSave(null, note)}
-              className="min-h-[48px] rounded-full bg-paper px-4 text-sm font-bold text-brown"
-            >
-              ใช้ชื่อลูกค้า
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onSave(b.name.trim() ? b : null, note)}
-            className={`flex min-h-[48px] items-center justify-center gap-1.5 rounded-full bg-catcha-chocolate text-sm font-extrabold text-card ${initial ? "" : "col-span-2"}`}
-          >
-            <Icon name="check" size={16} strokeWidth={2.4} />
-            บันทึก
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

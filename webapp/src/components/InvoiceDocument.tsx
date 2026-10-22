@@ -57,10 +57,14 @@ export type Data = {
     branch: string;
     vatRegistered: boolean;
     vatRate: number;
+    /** โลโก้บนเอกสาร (ตั้งค่า › ร้าน) ไม่ตั้ง = โลโก้ร้าน */
+    logo?: string;
   };
   payment: { bankName: string; accountNumber: string; accountName: string };
   /** ลูกค้าผูก LINE แล้ว (เฉพาะหลังบ้าน) */
   hasLine?: boolean;
+  /** ผู้ซื้อมาจากข้อมูลออกบิลที่จำไว้ของลูกค้า */
+  fromProfile?: boolean;
 };
 
 export const money = (n: number) => n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -136,7 +140,7 @@ export function InvoiceDocument({
               {/* หัวเอกสาร: โลโก้ซ้าย · ชื่อเอกสารขวา */}
               <header className="flex items-start justify-between">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.jpg" alt="" className="h-[56px] w-[56px] object-cover" />
+                <img src={seller.logo || "/logo.jpg"} alt="" className="h-[56px] max-w-[160px] object-contain object-left" />
                 <div className="pr-[44px] pt-[2px] text-right">
                   <p className="text-[19px] font-bold leading-tight text-latte-deep">{title.th}</p>
                   <p className="mt-[2px] text-[10px] text-latte-deep">{copy}</p>
