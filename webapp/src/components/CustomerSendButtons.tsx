@@ -6,6 +6,7 @@ import { relevantAutoMessageTopics } from "@/lib/auto-messages";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { Icon } from "@/components/Icon";
 import { Segmented } from "@/components/ui";
+import { INTAKE_LABEL } from "@/lib/intake-cards";
 
 type PendingSend = {
   url: string;
@@ -16,6 +17,19 @@ type PendingSend = {
   messages: Record<string, unknown>[];
   skipped?: string[];
 };
+
+/**
+ * ปุ่มลัดบนการ์ดนัด — เรียงตามขั้นตอนรับงานของร้าน ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า (INTAKE_CARDS)
+ * แล้วตามด้วยปุ่มแจ้งยอดโอน
+ */
+const QUICK_STEP_KEYS = [
+  "send_stay_info",
+  "send_groom_info",
+  "send_vaccine_request",
+  "send_idcard_request",
+  "send_consent",
+  "send_prestay",
+];
 
 /**
  * ปุ่มส่งหาลูกค้าแบบรวมศูนย์ — ใช้ได้ทุกที่ (การ์ดในปฏิทิน · บิล · ฯลฯ)
@@ -39,6 +53,7 @@ export function CustomerSendButtons({
   open,
   onOpenChange,
   hideTrigger,
+  quickSteps,
 }: {
   lineUserId?: string;
   customerId?: string;
@@ -58,7 +73,12 @@ export function CustomerSendButtons({
   onOpenChange?: (open: boolean) => void;
   /** ซ่อนปุ่ม "ส่ง LINE" ของตัวเอง (ใช้คู่กับ open/onOpenChange) */
   hideTrigger?: boolean;
+  /** โชว์ปุ่มลัดตามขั้นตอนรับงาน (ข้อมูลน้อง/สมุดวัคซีน/บัตร/กฎ/ยอดโอน) บนการ์ดนัดเลย ไม่ต้องเปิดแผ่นล่าง */
+  quickSteps?: boolean;
 }) {
+  // CatCha เปิดทั้งโรงแรมและอาบน้ำเสมอ
+  const hotelOn = true;
+  const groomOn = true;
   const [busy, setBusy] = useState("");
   const [pending, setPending] = useState<PendingSend | null>(null);
   const [sending, setSending] = useState(false);
@@ -155,7 +175,8 @@ export function CustomerSendButtons({
     );
 
   // นัดที่จองทั้งบ้าน (หลายตัวพร้อมกัน) — ส่งการ์ดเดียว ลิงก์เดียว ให้กรอกประวัติครบทุกตัวในหน้าเดียวกัน
-  const sendGroomInfoAll = () => {
+  // kind: "stay" = ฟอร์มข้อมูลก่อนเข้าพัก, "groom" = ประวัติก่อนอาบน้ำ (ส่งได้ทั้งสองแบบทุกนัด)
+  const sendGroomInfoAll = (kind: "stay" | "groom") => {
     const ids =
       groomBookingIds && groomBookingIds.length > 0
         ? groomBookingIds
@@ -165,11 +186,11 @@ export function CustomerSendButtons({
     if (ids.length === 0) return;
     return requestPreview(
       "/api/bookings",
-      { id: ids[0], action: "send_groom_info_group", ids, lineUserId },
-      ids.length > 1
-        ? `ส่งการ์ดสอบถามประวัติแล้ว (${ids.length} ตัว) 🩺`
-        : "ส่งการ์ดสอบถามประวัติน้องแล้ว 🩺",
-      "send_groom_info"
+      { id: ids[0], action: "send_groom_info_group", ids, lineUserId, kind },
+      `ส่งการ์ด${kind === "stay" ? INTAKE_LABEL.stayInfo : INTAKE_LABEL.groomInfo}แล้ว${
+        ids.length > 1 ? ` (${ids.length} ตัว)` : ""
+      } 🩺`,
+      kind === "stay" ? "send_stay_info" : "send_groom_info"
     );
   };
 
@@ -332,18 +353,19 @@ export function CustomerSendButtons({
   // ครบทุกหัวข้อเท่ากับปุ่มเดี่ยวด้านบน — เลือกผสมได้อิสระ ส่งใน 1 ข้อความ
   // บิลที่มีทั้งอาบน้ำและเข้าพัก (service = "both") ต้องเห็นการ์ดฝั่งเข้าพักด้วย
   const hasRoomStay = service === "room" || service === "both";
+  // ครบทุกการ์ดเท่าที่ส่งได้ (ไม่จำกัดตามบริการ) — นัดอาบน้ำก็ส่งกฎ/เตรียมตัว/เลือกเวลาได้ถ้าร้านต้องการ
+  // ใบที่ต้องมีบิล/จ่ายแล้วยังซ่อนไว้จนกว่าจะมีข้อมูลจริง (กันส่งการ์ดว่าง)
+  // ชุดถามข้อมูลก่อนรับน้องขึ้นก่อน ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า
   const BUNDLE_OPTIONS: { key: string; label: string; when: boolean }[] = [
+    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && hotelOn },
+    { key: "groomInfo", label: INTAKE_LABEL.groomInfo, when: !!bookingId && groomOn },
+    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId },
+    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && hotelOn },
+    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId },
+    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && hotelOn },
     { key: "reminder", label: "แจ้งเตือนนัด", when: !!bookingId },
-    { key: "prestay", label: "แจ้งเตรียมตัวเข้าพัก", when: hasRoomStay },
-    { key: "consent", label: "เงื่อนไข + ลายเซ็น", when: hasRoomStay },
-    {
-      // เข้าพักก็ขอประวัติได้ — เคสพักพร้อมอาบน้ำ หรือมาเพิ่มอาบน้ำระหว่างเข้าพัก
-      key: "groomInfo",
-      label: "ขอประวัติก่อนอาบน้ำ",
-      when: !!bookingId,
-    },
-    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: hasRoomStay },
-    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: hasRoomStay },
+    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId },
+    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId },
     { key: "deposit", label: "เรียกเก็บมัดจำ", when: true },
     {
       key: "depositThanks",
@@ -391,37 +413,55 @@ export function CustomerSendButtons({
       when: !!invId,
       onClick: () => invoiceSummary("booking", "ส่งสรุปการจองแล้ว 🧾"),
     },
+    // ── ชุดถามข้อมูลก่อนรับน้อง (ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า) ──
+    {
+      k: "send_stay_info",
+      label: `${INTAKE_LABEL.stayInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
+      icon: "edit",
+      when: !!bookingId && hotelOn,
+      onClick: () => void sendGroomInfoAll("stay"),
+    },
+    {
+      k: "send_groom_info",
+      label: `${INTAKE_LABEL.groomInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
+      icon: "bath",
+      when: !!bookingId && groomOn,
+      onClick: () => void sendGroomInfoAll("groom"),
+    },
+    {
+      k: "send_vaccine_request",
+      label: INTAKE_LABEL.vaccine,
+      icon: "image",
+      when: !!bookingId,
+      onClick: () => bookingSend("send_vaccine_request", "ส่งการ์ดขอสมุดวัคซีนแล้ว 💉"),
+    },
+    {
+      k: "send_idcard_request",
+      label: INTAKE_LABEL.idcard,
+      icon: "user",
+      when: !!bookingId && hotelOn,
+      onClick: () => bookingSend("send_idcard_request", "ส่งการ์ดขอบัตรประชาชนแล้ว 🪪"),
+    },
+    {
+      k: "send_consent",
+      label: INTAKE_LABEL.consent,
+      icon: "doc",
+      when: !!bookingId,
+      onClick: () => bookingSend("send_consent", "ส่งการ์ดกฎ + กดยินยอมแล้ว 📋"),
+    },
+    {
+      k: "send_prestay",
+      label: INTAKE_LABEL.prestay,
+      icon: "bed",
+      when: !!bookingId && hotelOn,
+      onClick: () => bookingSend("send_prestay", "ส่งการ์ดแจ้งเตรียมตัวเข้าพักแล้ว 🏠"),
+    },
     {
       k: "send_reminder",
       label: "แจ้งเตือนนัด",
       icon: "message",
       when: !!bookingId,
       onClick: () => bookingSend("send_reminder", "ส่งแจ้งเตือนนัดแล้ว 📨"),
-    },
-    {
-      k: "send_prestay",
-      label: "แจ้งเตรียมตัวเข้าพัก",
-      icon: "bed",
-      when: !!bookingId && hasRoomStay,
-      onClick: () => bookingSend("send_prestay", "ส่งการ์ดแจ้งเตรียมตัวเข้าพักแล้ว 🏠"),
-    },
-    {
-      k: "send_consent",
-      label: "เงื่อนไข + ลายเซ็น",
-      icon: "edit",
-      when: !!bookingId && hasRoomStay,
-      onClick: () => bookingSend("send_consent", "ส่งการ์ดเงื่อนไข + ลายเซ็นแล้ว 📋"),
-    },
-    {
-      // เข้าพักก็กดขอประวัติได้ — เคสพักพร้อมอาบน้ำ / มาเพิ่มอาบน้ำระหว่างเข้าพัก
-      k: "send_groom_info",
-      label:
-        groomBookingIds && groomBookingIds.length > 1
-          ? `สอบถามประวัติก่อนอาบน้ำ (${groomBookingIds.length} ตัว)`
-          : "สอบถามประวัติก่อนอาบน้ำ",
-      icon: "bath",
-      when: !!bookingId,
-      onClick: () => void sendGroomInfoAll(),
     },
     {
       k: "send_checkin_reminder",
@@ -501,6 +541,31 @@ export function CustomerSendButtons({
             </span>
           )}
         </button>
+      )}
+
+      {/* ปุ่มลัดตามขั้นตอน — กดแล้วขึ้นตัวอย่างการ์ดก่อนส่งเหมือนปุ่มอื่น */}
+      {quickSteps && bookingId && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[
+            ...QUICK_STEP_KEYS,
+            invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : "dep",
+          ].map((k) => {
+            const a = singleActions.find((x) => x.k === k && x.when);
+            if (!a) return null;
+            return (
+              <button
+                key={k}
+                type="button"
+                disabled={noLine || busy !== ""}
+                onClick={a.onClick}
+                className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3 py-2 text-xs font-bold text-catcha-chocolate active:bg-paper disabled:opacity-40"
+              >
+                <Icon name={a.icon} size={15} />
+                {busy === k ? "กำลังโหลด…" : a.label}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {sheetOpen && (

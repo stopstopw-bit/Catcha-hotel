@@ -25,6 +25,11 @@ const PUBLIC_API = [
   // ตกหล่นไปตอนเพิ่มฟีเจอร์ ลูกค้าเลยโดน 401 แนบไม่ได้ (มีแต่เจ้าของร้านที่ล็อกอินหลังบ้านค้างไว้ที่แนบได้)
   "/api/customers/id-card",
   "/api/bookings/consent",
+  // ลูกค้าแนบสมุดวัคซีนจากลิงก์ที่ร้านส่งให้ — route ตรวจคุกกี้เซสชันลูกค้า + เป็นนัดของตัวเองเอง
+  "/api/bookings/vaccine",
+  // ลิงก์ที่ร้านส่งจากหน้าข้อมูลลูกค้า (ยังไม่มีนัด) — route ตรวจคุกกี้เซสชันลูกค้าเอง
+  "/api/customers/cat-vaccine",
+  "/api/customers/consent",
   "/api/bookings/groom-info",
   "/api/bookings/time",
   "/api/bookings/transport",
@@ -50,6 +55,28 @@ const PUBLIC_GET = ["/api/config", "/api/articles", "/api/promos"];
  */
 const SHARED_API = ["/api/bookings", "/api/packages", "/api/package-shop", "/api/points"];
 
+/**
+ * API ข้อมูลอ่อนไหวที่พนักงานใช้ได้เฉพาะเมื่อเจ้าของเปิดเมนูนั้นให้ (เจ้าของร้านใช้ได้หมด)
+ * เดิมจำกัดเมนูแค่ซ่อนปุ่มในหน้าเว็บ พนักงานยิง API ตรงก็ดาวน์โหลดข้อมูลลูกค้าทั้งร้าน
+ * ดูบัญชี หรือส่ง LINE หาลูกค้าทุกคนได้
+ */
+const STAFF_API_MENUS: [string, string[]][] = [
+  ["/api/admin/backup", ["/admin/settings"]],
+  ["/api/audit", ["/admin/settings"]],
+  ["/api/export/sheets", ["/admin/customers", "/admin/finance", "/admin/tax"]],
+  ["/api/finance", ["/admin/finance", "/admin/tax"]],
+  ["/api/line/broadcast", ["/admin/promos"]],
+  ["/api/setup", ["/admin/setup"]],
+  ["/api/admin/migrate-photos", ["/admin/setup"]],
+  ["/api/admin/cleanup-broadcast-images", ["/admin/setup"]],
+];
+
+function staffMayCall(pathname: string, menus: string[] | undefined): boolean {
+  const rule = STAFF_API_MENUS.find(([p]) => pathname === p || pathname.startsWith(`${p}/`));
+  if (!rule) return true;
+  return rule[1].some((m) => (menus || []).includes(m));
+}
+
 function matches(path: string, list: string[]) {
   return list.some((p) => path === p || path.startsWith(`${p}/`));
 }
@@ -65,8 +92,8 @@ const LOGIN_PATH = "/api/auth/login";
 
 function limitFor(pathname: string, method: string) {
   if (matches(pathname, NO_LIMIT)) return null;
-  // ล็อกอิน: 10 ครั้ง/นาที ต่อ IP — คนพิมพ์รหัสผิดจริงไม่ถึง แต่สคริปต์เดารหัสตันทันที
-  if (pathname === LOGIN_PATH && method === "POST") return { limit: 10, windowMs: 60_000 };
+  // ล็อกอิน: 5 ครั้ง/นาที ต่อ IP — คนพิมพ์รหัสผิดจริงไม่ถึง แต่สคริปต์เดารหัสตันทันที
+  if (pathname === LOGIN_PATH && method === "POST") return { limit: 5, windowMs: 60_000 };
   // เขียนข้อมูล (จอง/จ่าย/แก้ไข) หนักกว่าอ่าน จึงให้โควตาน้อยกว่า
   if (method !== "GET") return { limit: 60, windowMs: 60_000 };
   return { limit: 240, windowMs: 60_000 };
@@ -99,6 +126,12 @@ export async function middleware(req: NextRequest) {
       return NextResponse.json(
         { error: "unauthorized", message: "ต้องเข้าสู่ระบบหลังบ้านก่อน" },
         { status: 401 }
+      );
+    }
+    if (session.role === "staff" && !staffMayCall(pathname, session.menus)) {
+      return NextResponse.json(
+        { error: "forbidden", message: "บัญชีพนักงานนี้ไม่ได้รับสิทธิ์เมนูนี้ — ให้เจ้าของร้านเปิดสิทธิ์ให้" },
+        { status: 403 }
       );
     }
     return NextResponse.next();

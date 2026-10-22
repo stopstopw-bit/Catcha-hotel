@@ -33,8 +33,11 @@ export async function POST(req: NextRequest) {
   const secret = process.env.SETUP_SECRET || process.env.CRON_SECRET;
   const auth = req.headers.get("authorization");
 
-  // เรียกจากสคริปต์ภายนอกด้วย Bearer หรือจากหลังบ้านที่ล็อกอินแล้ว
-  if (secret && auth !== `Bearer ${secret}` && !(await getSessionFrom(req))) {
+  // เรียกจากสคริปต์ภายนอกด้วย Bearer หรือจากหลังบ้านที่ล็อกอินเป็นเจ้าของร้าน
+  // ต้อง fail closed — ยังไม่ตั้ง secret ก็ห้ามปล่อยผ่าน (เดิมไม่ตั้ง secret = ใครก็ยิงสร้าง/ซ่อมตารางได้)
+  // และต้องเป็นเจ้าของร้าน ไม่ใช่พนักงาน เพราะกระทบฐานข้อมูลทั้งร้าน
+  const isOwner = (await getSessionFrom(req))?.role === "owner";
+  if (!isOwner && (!secret || auth !== `Bearer ${secret}`)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

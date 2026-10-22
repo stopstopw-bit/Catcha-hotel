@@ -5,6 +5,7 @@ import {
   updateCustomer,
   updateCat,
   addCat,
+  normalizeWeightKg,
 } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
       addressMapUrl: c.addressMapUrl || "",
       postalCode: c.postalCode || "",
       idCardUrl: c.idCardUrl || "",
+      consentAcceptedAt: c.consentAcceptedAt || "",
       marketingConsent: c.marketingConsent !== false,
       cats: c.cats.map((x) => ({
         id: x.id,
@@ -40,10 +42,15 @@ export async function GET(req: NextRequest) {
         breed: x.breed || "",
         ageValue: x.ageValue ?? "",
         ageUnit: x.ageUnit || "year",
+        weightKg: x.weightKg ?? "",
         birthday: x.birthday || "",
         medical: x.medical || "",
         note: x.staffNote || "",
         needsConfirm: Boolean(x.needsOwnerConfirm),
+        // หน้าแนบสมุดวัคซีน/ฟอร์มประวัติใช้บอกลูกค้าว่าส่งอะไรไปแล้วบ้าง (ไม่ส่งตัวรูปออกไป)
+        vaccineCount: x.vaccinePhotos ? x.vaccinePhotos.split("\n").filter(Boolean).length : 0,
+        hasPetInfo: Boolean(x.groomHealthInfo),
+        hasStayInfo: Boolean(x.stayInfo),
       })),
     },
   });
@@ -105,11 +112,20 @@ export async function POST(req: NextRequest) {
         staffNote: cat.note ? String(cat.note).trim() : undefined,
       };
       // ไม่มี id = น้องที่ลูกค้าเพิ่มเองในหน้านี้ → สร้างใหม่ (ไม่ต้องทักแชทให้ร้านเพิ่มให้)
+      const weightKg = normalizeWeightKg(cat.weightKg);
       if (!cat.id) {
-        const after = await addCat(c.id, fields, { source: "customer" });
+        const after = await addCat(c.id, { ...fields, weightKg }, { source: "customer" });
         const id = after?.cats[after.cats.length - 1]?.id;
         if (id) created.push({ index, id });
-      } else await updateCat(c.id, String(cat.id), fields, { source: "customer" });
+      } else {
+        // หน้าเก่าที่ยังไม่มีช่องน้ำหนักจะไม่ส่ง weightKg มา — อย่าไปลบค่าที่ร้านกรอกไว้
+        await updateCat(
+          c.id,
+          String(cat.id),
+          { ...fields, ...("weightKg" in cat ? { weightKg: weightKg ?? null } : {}) },
+          { source: "customer" }
+        );
+      }
     }
   }
 

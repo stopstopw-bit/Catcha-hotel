@@ -65,6 +65,8 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
   { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
   { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
+  { table: "cats", column: "vaccine_photos", feature: "สมุดวัคซีนที่ตัวน้อง (ขอก่อนมีนัด)" },
+  { table: "customers", column: "consent_accepted_at", feature: "ยอมรับข้อตกลงจากหน้าลูกค้า" },
 ];
 
 export type SchemaCheckRow = {
@@ -225,6 +227,11 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
   {
     name: "cats.color",
     sql: "alter table cats add column if not exists color text;",
+  },
+  {
+    // น้ำหนักน้อง (กก.) — กรอกตอนสมัครสมาชิก / แก้ในหลังบ้าน
+    name: "cats.weight_kg",
+    sql: "alter table cats add column if not exists weight_kg numeric;",
   },
   {
     // รายชื่อข้อความอัตโนมัติที่ "นัดนี้" ไม่ต้องส่ง (ปิดเป็นรายเคส ไม่ใช่ปิดทั้งร้าน)
@@ -475,6 +482,18 @@ where staff_note like '%🎁%';`,
     // เพิ่มคอลัมน์อย่างเดียว ไม่แก้ข้อมูลเดิม (แถวเก่าได้ค่าเริ่มต้น false / null)
     name: "member_topups.cancel_credit",
     sql: "alter table member_topups add column if not exists is_cancel_credit boolean not null default false, add column if not exists source_invoice_id text;",
+  },
+  {
+    // ขอสมุดวัคซีน / ข้อตกลง จากหน้าข้อมูลลูกค้า ก่อนลงนัด — เก็บที่ตัวน้อง/ลูกค้า
+    name: "cats.vaccine_photos+customers.consent",
+    sql: `
+      alter table cats add column if not exists vaccine_photos text, add column if not exists stay_info text;
+      alter table customers
+        add column if not exists consent_accepted_at timestamptz,
+        add column if not exists consent_signature text,
+        add column if not exists consent_flea_tick boolean,
+        add column if not exists consent_care_note text;
+    `,
   },
 ];
 

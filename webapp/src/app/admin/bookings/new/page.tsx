@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { RoomType } from "@/lib/business";
 import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
+import { CustomerIntakeCards } from "@/components/CustomerIntakeCards";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { TransportPicker } from "@/components/TransportPicker";
@@ -726,6 +727,7 @@ export default function NewBookingPage() {
                   customerId={b.customerId}
                   lineUserId={b.lineUserId}
                   service={b.service}
+                  quickSteps
                 />
               </div>
             </div>
@@ -793,6 +795,9 @@ export default function NewBookingPage() {
             setCatNames((prev) => [...prev, ...names.filter((n) => !prev.includes(n))])
           }
         />
+
+        {/* ถามข้อมูลก่อนรับน้องได้เลยตั้งแต่ตอนเลือกลูกค้า — ยังไม่ต้องกดบันทึกนัด */}
+        {pickedCustomer && <CustomerIntakeCards key={pickedCustomer.id} customer={pickedCustomer} onDone={() => {}} />}
 
         {lineUserId && (
           <p className="flex items-center gap-2 rounded-catcha-sm bg-sage/15 px-3 py-2 text-[11px] font-bold text-ok">

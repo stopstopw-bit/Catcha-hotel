@@ -262,7 +262,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     }
     if (path === "consent") {
       const bkId = params.get("id");
-      router.replace(bkId ? `/app/consent?id=${encodeURIComponent(bkId)}` : "/app/consent");
+      if (params.get("mode") === "customer") {
+        router.replace(`/app/consent?mode=customer`);
+        return;
+      }
+      router.replace(bkId ? `/app/consent?id=${encodeURIComponent(bkId)}` : `/app/consent`);
       return;
     }
     if (path === "booking-time") {
@@ -291,9 +295,26 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       router.replace(offer ? `/app/claim-coupon?offer=${encodeURIComponent(offer)}` : "/app/coupons");
       return;
     }
+    if (path === "pet-docs") {
+      const q = new URLSearchParams({ need: params.get("need") === "idcard" ? "idcard" : "vaccine" });
+      // ลิงก์จากนัด (id) หรือจากหน้าข้อมูลลูกค้า (cats = ตัวน้อง ไม่ต้องมีนัด)
+      if (params.get("id")) q.set("id", params.get("id")!);
+      if (params.get("cats")) q.set("cats", params.get("cats")!);
+      router.replace(`/app/pet-docs?${q}`);
+      return;
+    }
     if (path === "groom-info") {
+      const cats = params.get("cats");
+      if (cats) {
+        const kind = params.get("kind") === "stay" ? "stay" : "groom";
+        router.replace(`/app/groom-info?cats=${encodeURIComponent(cats)}&kind=${kind}`);
+        return;
+      }
       const bkId = params.get("id");
-      router.replace(`/app/groom-info?id=${bkId || ""}`);
+      const bkKind = params.get("kind");
+      router.replace(
+        `/app/groom-info?id=${bkId || ""}${bkKind === "stay" || bkKind === "groom" ? `&kind=${bkKind}` : ""}`
+      );
       return;
     }
     if (path === "register") {
@@ -329,6 +350,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith("/app/booking-transport") ||
       pathname.startsWith("/app/profile") ||
       pathname.startsWith("/app/groom-info") ||
+      pathname.startsWith("/app/pet-docs") ||
       pathname.startsWith("/app/coupons") ||
       pathname.startsWith("/app/claim-coupon");
 
