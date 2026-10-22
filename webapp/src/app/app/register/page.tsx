@@ -27,16 +27,8 @@ type CatInput = {
   note: string;
 };
 
-const REFERRAL_OPTIONS = [
-  "Facebook",
-  "Instagram",
-  "TikTok",
-  "Google / ค้นหา",
-  "Google Maps",
-  "เพื่อนแนะนำ / ผ่านหน้าร้าน",
-];
-
 import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
+import { REFERRAL_OPTIONS } from "@/lib/referral-options";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 
 function emptyCat(): CatInput {
