@@ -15,10 +15,12 @@ import {
   type CustomerTier as StoreCustomerTier,
 } from "@/lib/customer-tier";
 import {
-  BROADCAST_ACTIONS,
   BROADCAST_TEMPLATES,
+  broadcastActionLabel,
+  parseBroadcastActions,
   type BroadcastActionId,
 } from "@/lib/line-broadcast";
+import { BroadcastButtonPicker } from "@/components/BroadcastButtonPicker";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import type { SegmentId } from "@/lib/customer-segments";
 import { BROADCAST_DRAFT_KEY } from "@/components/SalesActions";
@@ -175,6 +177,7 @@ export default function PromosAdminPage() {
       setTargetGroup({ label: String(d.label || "กลุ่มที่เลือก"), customerIds: d.customerIds.map(String) });
       if (d.title) setBroadcastTitle(String(d.title));
       if (d.body) setBroadcastBody(String(d.body));
+      if (Array.isArray(d.actions)) setBroadcastActions(parseBroadcastActions(d.actions));
       setView("broadcast");
     } catch {
       /* ไม่มีร่าง — เปิดหน้าโปรตามปกติ */
@@ -219,7 +222,7 @@ export default function PromosAdminPage() {
         ? ` และอีก ${broadcastRecipients.length - 5} คน`
         : "";
     const actionLabels = broadcastActions
-      .map((id) => BROADCAST_ACTIONS.find((a) => a.id === id)?.label || id)
+      .map(broadcastActionLabel)
       .join(", ");
     if (
       !confirm(
@@ -275,14 +278,6 @@ export default function PromosAdminPage() {
       reader.onload = () => setBroadcastImage(String(reader.result));
       reader.readAsDataURL(file);
     }
-  };
-
-  const toggleBroadcastAction = (id: BroadcastActionId) => {
-    setBroadcastActions((prev) => {
-      if (prev.includes(id)) return prev.filter((a) => a !== id);
-      if (prev.length >= 3) return prev;
-      return [...prev, id];
-    });
   };
 
   const hasBroadcastImage =
@@ -758,32 +753,8 @@ export default function PromosAdminPage() {
           <section>
             <SectionLabel>Buttons · ปุ่มในการ์ด (สูงสุด 3)</SectionLabel>
             <div className="rounded-catcha bg-card p-4 shadow-catcha-sm">
-              <p className="mb-3 text-[11px] text-brown-soft">ลูกค้ากดแล้วเปิดแอป / แชท LINE / แผนที่ได้ทันที</p>
-              <div className="flex flex-wrap gap-2">
-                {BROADCAST_ACTIONS.map((action) => {
-                  const selected = broadcastActions.includes(action.id);
-                  const disabled = !selected && broadcastActions.length >= 3;
-                  return (
-                    <button
-                      key={action.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => toggleBroadcastAction(action.id)}
-                      title={action.description}
-                      className={`flex h-9 items-center gap-1 rounded-full px-3.5 text-xs font-bold ${
-                        selected
-                          ? "bg-catcha-chocolate text-card"
-                          : disabled
-                            ? "bg-paper text-brown-faint opacity-50"
-                            : "bg-paper text-brown"
-                      }`}
-                    >
-                      {selected && <Icon name="check" size={14} strokeWidth={2.4} />}
-                      {action.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <p className="mb-3 text-[11px] text-brown-soft">ลูกค้ากดแล้วเปิดแอป / แชท LINE / แผนที่ / รับคูปองได้ทันที</p>
+              <BroadcastButtonPicker value={broadcastActions} onChange={setBroadcastActions} />
             </div>
           </section>
 
@@ -822,7 +793,7 @@ export default function PromosAdminPage() {
                 </div>
                 <div className="flex flex-col gap-2 px-4 pb-4">
                   {(broadcastActions.length
-                    ? broadcastActions.map((id) => BROADCAST_ACTIONS.find((a) => a.id === id)?.label || id)
+                    ? broadcastActions.map(broadcastActionLabel)
                     : ["ดูรายละเอียด"]
                   ).map((label, i) => (
                     <div
