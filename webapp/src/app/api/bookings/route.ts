@@ -672,6 +672,11 @@ export async function PATCH(req: NextRequest) {
             }, cfg.cards?.groomInfo)
           );
         }
+      } else if (part === "checkin" && b.arrivalTime) {
+        // ลูกค้าเลือกเวลาส่งน้องไว้แล้ว → ไม่ถามซ้ำ (อยากถามใหม่ใช้ปุ่มส่งเดี่ยวแทน)
+        skipped.push(`เลือกเวลาเข้าพักไว้แล้ว (${b.arrivalTime}) ไม่ถามซ้ำ`);
+      } else if (part === "checkout" && b.pickupTime) {
+        skipped.push(`เลือกเวลารับน้องไว้แล้ว (${b.pickupTime}) ไม่ถามซ้ำ`);
       } else if (part === "checkin" || part === "checkout") {
         const url = await getBookingTimeUrl(b.id, part);
         messages.push(
