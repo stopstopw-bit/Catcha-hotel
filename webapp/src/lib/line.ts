@@ -1517,6 +1517,9 @@ export function buildTimePickerFlex(data: {
   };
 }
 
+/** หัวการ์ดขอข้อมูลน้องก่อนเข้าพัก — ใช้แทนหัวการ์ดก่อนอาบน้ำ (ที่ร้านตั้งเองได้) เสมอ ไม่งั้นนัดเข้าพักจะขึ้นว่า "ก่อนอาบน้ำ" */
+export const STAY_INFO_HEADER = "🐾 ข้อมูลน้องก่อนเข้าพัก";
+
 /** การ์ดสอบถามประวัติน้องก่อนอาบน้ำ — ข้อความ + ปุ่มไปกรอกแบบฟอร์มใน LIFF */
 export function buildGroomInfoFlex(data: {
   catName: string;
