@@ -52,6 +52,7 @@ import {
   recalculateCustomerTier,
   adjustDepositCredit,
   getCatGroomInfo,
+  getCatStayInfo,
   getCustomer,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
@@ -385,10 +386,23 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+type InfoKind = "stay" | "groom";
+const defaultInfoKind = (b: StoredBooking): InfoKind => (b.service === "room" ? "stay" : "groom");
+/** ร้านเลือกเองได้ว่าจะถามแบบไหน (ทุกนัดส่งได้ทั้งสองแบบ) — ไม่ส่งมา = ตามบริการของนัด */
+const pickInfoKind = (raw: unknown, b: StoredBooking): InfoKind =>
+  raw === "stay" || raw === "groom" ? raw : defaultInfoKind(b);
+/** เคยกรอกฟอร์มแบบนี้ไว้แล้วหรือยัง (ผูกกับตัวน้อง ข้ามนัดก็ยังจำได้) */
+const infoAlreadyFilled = (to: string, catName: string, kind: InfoKind) =>
+  kind === "stay" ? getCatStayInfo(to, catName) : getCatGroomInfo(to, catName);
+
 /** นัดเข้าพักใช้การ์ดขอประวัติใบเดียวกัน — เปลี่ยนหัวการ์ด/วันที่ให้ตรงบริการ (ร้านตั้งหัวการ์ดเองไว้ก็ใช้ของร้าน) */
-function groomInfoCardFor(b: StoredBooking, cfg: Awaited<ReturnType<typeof getSiteConfig>>) {
+function groomInfoCardFor(
+  b: StoredBooking,
+  cfg: Awaited<ReturnType<typeof getSiteConfig>>,
+  kind: InfoKind = defaultInfoKind(b)
+) {
   const style = cfg.cards?.groomInfo;
-  if (b.service !== "room") {
+  if (kind === "groom") {
     return {
       body: buildGroomInfoBody,
       style,
@@ -410,9 +424,10 @@ function groomInfoCardFor(b: StoredBooking, cfg: Awaited<ReturnType<typeof getSi
     if (!to) {
       return NextResponse.json({ error: NO_LINE_ERROR }, { status: 400 });
     }
+    const kind = pickInfoKind(body.kind, b);
     const cfg = await getSiteConfig();
-    const url = await getGroomInfoUrl(b.id);
-    const card = groomInfoCardFor(b, cfg);
+    const url = await getGroomInfoUrl(b.id, kind);
+    const card = groomInfoCardFor(b, cfg, kind);
     const flex = buildGroomInfoFlex({
       catName: String(b.catName),
       dateText: card.dateText,
@@ -440,13 +455,14 @@ function groomInfoCardFor(b: StoredBooking, cfg: Awaited<ReturnType<typeof getSi
     const bookings = (
       await Promise.all(ids.map((x: string) => getBooking(x)))
     ).filter((x): x is StoredBooking => !!x);
+    const kind = pickInfoKind(body.kind, b);
     if (bookings.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     const cfg = await getSiteConfig();
-    const url = await getGroomInfoUrl(bookings.map((x) => x.id));
+    const url = await getGroomInfoUrl(bookings.map((x) => x.id), kind);
     const catNames = bookings.map((x) => x.catName).join(", ");
-    const card = groomInfoCardFor(b, cfg);
+    const card = groomInfoCardFor(b, cfg, kind);
     const flex = buildGroomInfoFlex({
       catName: catNames,
       dateText: card.dateText,
@@ -725,7 +741,9 @@ function groomInfoCardFor(b: StoredBooking, cfg: Awaited<ReturnType<typeof getSi
             );
           }
         }
-      } else if (part === "groomInfo") {
+      } else if (part === "groomInfo" || part === "stayInfo") {
+        // stayInfo = ฟอร์มข้อมูลก่อนเข้าพัก · groomInfo = ประวัติก่อนอาบน้ำ (ชุดเดียวกับหน้าข้อมูลลูกค้า)
+        const kind: InfoKind = part === "stayInfo" ? "stay" : "groom";
         // บ้านเดียวกันมาหลายตัว = ถามประวัติทั้งบ้านในการ์ดเดียว ลิงก์เดียว กรอกครบในหน้าเดียว
         // (เหมือนปุ่มส่งเดี่ยว "สอบถามประวัติ" ไม่ใช่ถามแค่ตัวที่กดมาจากแถวนั้น)
         const groupIds: string[] =
@@ -741,14 +759,14 @@ function groomInfoCardFor(b: StoredBooking, cfg: Awaited<ReturnType<typeof getSi
         // ถ้าอยากถามใหม่จริง ๆ ให้ใช้ปุ่มส่งเดี่ยว "ขอประวัติ" แทน
         const needInfo: StoredBooking[] = [];
         for (const g of groupBookings) {
-          const existing = to ? await getCatGroomInfo(to, String(g.catName)) : undefined;
+          const existing = to ? await infoAlreadyFilled(to, String(g.catName), kind) : undefined;
           if (existing) skipped.push(`${g.catName}: เคยกรอกประวัติแล้ว ไม่ขอซ้ำ`);
           else needInfo.push(g);
         }
         if (needInfo.length > 0) {
-          const url = await getGroomInfoUrl(needInfo.map((x) => x.id));
+          const url = await getGroomInfoUrl(needInfo.map((x) => x.id), kind);
           const catNames = needInfo.map((x) => x.catName).join(", ");
-          const card = groomInfoCardFor(b, cfg);
+          const card = groomInfoCardFor(b, cfg, kind);
           messages.push(
             buildGroomInfoFlex({
               catName: catNames,
