@@ -1,6 +1,6 @@
 import { getLineCredentials } from "./line-config";
 import { politeCat } from "./line";
-import { buildConsentUrl, buildBookingTimeUrl, buildGroomInfoUrl } from "./liff-urls";
+import { buildConsentUrl, buildBookingTimeUrl, buildGroomInfoUrl, buildPetDocsUrl } from "./liff-urls";
 import { renderTemplate, DEFAULT_MESSAGES, DEEMED_CONSENT_NOTICE } from "./messages";
 import { formatThaiDateShort } from "./format-thai-date";
 import type { StoredBooking } from "./bookings-store";
@@ -34,6 +34,12 @@ export function bookingScheduleText(b: {
 export async function getConsentUrl(bookingId?: string): Promise<string> {
   const liffId = (await getLineCredentials())?.liffId;
   return liffId ? buildConsentUrl(liffId, bookingId) : "";
+}
+
+/** ลิงก์หน้าแนบสมุดวัคซีน / บัตรประชาชน ของนัดนั้น (คืน "" ถ้ายังไม่ได้ตั้ง LIFF ID) */
+export async function getPetDocsUrl(bookingIds: string | string[], need: "vaccine" | "idcard"): Promise<string> {
+  const liffId = (await getLineCredentials())?.liffId;
+  return liffId ? buildPetDocsUrl(liffId, bookingIds, need) : "";
 }
 
 /** ลิงก์หน้าเลือกเวลาส่ง/รับน้อง (คืน "" ถ้ายังไม่ได้ตั้ง LIFF ID) */
@@ -140,6 +146,15 @@ export function buildGroomInfoBody(
     cat: politeCat(b.catName),
   });
   return `${intro}\n\n${GROOM_PHOTO_REQUEST}`;
+}
+
+/** เนื้อความการ์ดขอข้อมูลน้องก่อนเข้าพัก — ฟอร์มเดียวกับก่อนอาบน้ำ แต่ไม่พูดถึงวันอาบน้ำ */
+export function buildStayInfoBody(b: Pick<StoredBooking, "catName">, cfg: SiteConfig): string {
+  return (
+    `เพื่อเตรียมรับ${politeCat(b.catName)}เข้าพักกับ ${cfg.business.name} 🏠🐾\n\n` +
+    `รบกวนแจ้งข้อมูลน้องสั้นๆ (นิสัย สุขภาพ การดูแล — กดเลือกเอา ไม่ต้องพิมพ์เยอะ) ` +
+    `เพื่อให้เราดูแลน้องได้ถูกวิธีตลอดการเข้าพักนะคะ 🧡\n\n${GROOM_PHOTO_REQUEST}`
+  );
 }
 
 /**

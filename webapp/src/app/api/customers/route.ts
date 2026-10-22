@@ -23,12 +23,17 @@ import {
   recalcAllTiers,
   adoptLineFromBookings,
   unlinkCustomerLine,
+  addCatVaccinePhotos,
+  setCatVaccinePhotos,
 } from "@/lib/customers-store";
+import { splitVaccinePhotos } from "@/lib/vaccine-photos";
+import { parseCatInput, type CatInput } from "@/lib/cat-input";
 import type { CustomerTier } from "@/lib/customer-tier";
 import { getAllPointsMap } from "@/lib/points-store";
 import {
   customerActivityInfo,
   listInactiveCustomers,
+  previewCustomerFollowUp,
   sendCustomerFollowUp,
   sendInactiveFollowUps,
 } from "@/lib/customer-crm";
@@ -83,30 +88,52 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const catName = String(body.catName || "").trim();
+  // ฟอร์ม "เพิ่มลูกค้าเอง" ส่งน้องมาเป็นรายการ (หลายตัว + รายละเอียดเหมือนตอนสมัคร) · ที่อื่นยังส่ง catName ตัวเดียว
+  const cats: CatInput[] = Array.isArray(body.cats)
+    ? body.cats.map(parseCatInput).filter((c: CatInput) => c.name)
+    : [];
+  const catName = cats[0]?.name || String(body.catName || "").trim();
   const customerName = String(body.customerName || "").trim();
   if (!customerName || !catName) {
     return NextResponse.json(
-      { error: "กรอกชื่อลูกค้าและชื่อน้องแมว" },
+      { error: "กรอกชื่อลูกค้าและชื่อน้อง" },
       { status: 400 }
     );
   }
-  const customer = await upsertCustomerFromBooking({
+  let customer = await upsertCustomerFromBooking({
     customerName,
     catName,
     lineUserId: body.lineUserId,
     phone: body.phone,
-    staffNote: body.staffNote,
+    staffNote: cats.length ? undefined : body.staffNote,
   });
-  // ข้อมูลเสริมตอนร้านเพิ่มลูกค้าเอง (ที่อยู่/แผนที่/อีเมล) — ใส่เฉพาะช่องที่กรอกมา
+  // ข้อมูลเสริมตอนร้านเพิ่มลูกค้าเอง — ใส่เฉพาะช่องที่กรอกมา
   const extra: Parameters<typeof updateCustomer>[1] = {};
-  for (const k of ["email", "address", "addressMapUrl"] as const) {
+  for (const k of [
+    "email",
+    "birthday",
+    "referralSource",
+    "address",
+    "addressMapUrl",
+    "postalCode",
+  ] as const) {
     const v = typeof body[k] === "string" ? body[k].trim() : "";
     if (v) extra[k] = v;
   }
   if (Object.keys(extra).length > 0) {
-    const updated = await updateCustomer(customer.id, extra);
-    return NextResponse.json({ ok: true, customer: updated ?? customer });
+    customer = (await updateCustomer(customer.id, extra)) ?? customer;
+  }
+  // รายละเอียดน้อง — ตัวแรกถูกสร้างไว้แล้ว (หรือเป็นตัวเดิมของลูกค้าคนนี้) ก็เติมรายละเอียดให้ ตัวอื่นเพิ่มใหม่
+  for (const cat of cats) {
+    const found = customer.cats.find((x) => x.name.trim() === cat.name);
+    // ช่องที่เว้นว่างไม่ส่งต่อ — ไม่งั้นจะไปลบรายละเอียดเดิมของน้องตัวที่มีอยู่แล้ว
+    const filled = Object.fromEntries(
+      Object.entries(cat).filter(([, v]) => v !== undefined)
+    ) as CatInput;
+    const updated = found
+      ? await updateCat(customer.id, found.id, filled)
+      : await addCat(customer.id, filled);
+    if (updated) customer = updated;
   }
   return NextResponse.json({ ok: true, customer });
 }
@@ -130,6 +157,28 @@ export async function PATCH(req: NextRequest) {
     const c = await updateCat(id, body.catId, body.patch, { source: "staff" });
     if (!c) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ ok: true, customer: c });
+  }
+
+  // พนักงานแนบ / ลบรูปสมุดวัคซีนที่ตัวน้องเอง (ไม่ต้องมีนัด)
+  if (action === "add_cat_vaccine") {
+    const photos: string[] = Array.isArray(body.photos) ? body.photos.map((v: unknown) => String(v || "")) : [];
+    const res = await addCatVaccinePhotos(id, String(body.catId || ""), photos);
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: res.error === "no_photo" ? "ไม่พบรูปที่แนบ" : res.error === "not_found" ? "not found" : "บันทึกไม่สำเร็จ" },
+        { status: res.error === "need_sql" ? 500 : 400 }
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+  if (action === "remove_cat_vaccine") {
+    const c = await getCustomer(id);
+    const cat = c?.cats.find((x) => x.id === body.catId);
+    if (!c || !cat) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const urls = splitVaccinePhotos(cat.vaccinePhotos).filter((u) => u !== String(body.url || ""));
+    const res = await setCatVaccinePhotos(id, cat.id, urls);
+    if (!res.ok) return NextResponse.json({ error: "บันทึกไม่สำเร็จ" }, { status: 500 });
+    return NextResponse.json({ ok: true });
   }
 
   if (action === "update_cat_private_note") {
@@ -402,6 +451,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "send_follow_up") {
+    // ดูตัวอย่างการ์ดก่อนส่งจริง — ยังไม่ส่ง ไม่นับ cooldown
+    if (body.preview === true) {
+      const preview = await previewCustomerFollowUp(id, {
+        message: body.message ? String(body.message) : undefined,
+      });
+      if (!preview.ok) return NextResponse.json({ error: preview.error }, { status: 400 });
+      return NextResponse.json({ ok: true, preview: preview.messages });
+    }
     const result = await sendCustomerFollowUp(id, {
       message: body.message ? String(body.message) : undefined,
       force: Boolean(body.force),

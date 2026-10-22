@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFrom } from "@/lib/auth";
 import { handleTelegramCommand } from "@/lib/telegram-commands";
 import {
   getTelegramCredentials,
@@ -25,6 +26,12 @@ export const dynamic = "force-dynamic";
  * GET /api/telegram/webhook?register=1 — ลงทะเบียน webhook อัตโนมัติ
  */
 export async function GET(req: NextRequest) {
+  // GET ใช้ดูสถานะ/ลงทะเบียน webhook/ส่งเมนูบอท (มี chat id ของเจ้าของร้าน) — เจ้าของร้านที่ล็อกอินเท่านั้น
+  // Telegram เองยิงมาแค่ POST ไม่กระทบการรับข้อความ
+  const session = await getSessionFrom(req);
+  if (session?.role !== "owner") {
+    return NextResponse.json({ ok: true, endpoint: "telegram-webhook" });
+  }
   const creds = await getTelegramCredentials();
   if (!creds?.botToken) {
     return NextResponse.json(

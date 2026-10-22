@@ -18,6 +18,19 @@ type PendingSend = {
 };
 
 /**
+ * ปุ่มลัดบนการ์ดนัด — เรียงตามขั้นตอนรับงานของร้าน:
+ * ① กรอกข้อมูลน้อง → ② สมุดวัคซีน → ③ บัตรประชาชน (เข้าพัก) → ④ กฎ + กดยินยอม (เข้าพัก) → ⑤ แจ้งยอดโอน
+ */
+const QUICK_STEP_LABELS: Record<string, string> = {
+  send_vaccine_request: "ขอสมุดวัคซีน",
+  send_idcard_request: "ขอบัตรประชาชน",
+  send_consent: "กฎ + กดยินยอม",
+  "inv:full": "แจ้งยอดโอน",
+  "inv:remaining": "แจ้งยอดที่เหลือ",
+  dep: "แจ้งยอดมัดจำ",
+};
+
+/**
  * ปุ่มส่งหาลูกค้าแบบรวมศูนย์ — ใช้ได้ทุกที่ (การ์ดในปฏิทิน · บิล · ฯลฯ)
  * ปุ่มไหนโผล่ขึ้นกับ context ที่มี (booking / invoice / customer)
  * booking-based → /api/bookings · invoice/มัดจำ → /api/invoices
@@ -39,6 +52,7 @@ export function CustomerSendButtons({
   open,
   onOpenChange,
   hideTrigger,
+  quickSteps,
 }: {
   lineUserId?: string;
   customerId?: string;
@@ -58,6 +72,8 @@ export function CustomerSendButtons({
   onOpenChange?: (open: boolean) => void;
   /** ซ่อนปุ่ม "ส่ง LINE" ของตัวเอง (ใช้คู่กับ open/onOpenChange) */
   hideTrigger?: boolean;
+  /** โชว์ปุ่มลัดตามขั้นตอนรับงาน (ข้อมูลน้อง/สมุดวัคซีน/บัตร/กฎ/ยอดโอน) บนการ์ดนัดเลย ไม่ต้องเปิดแผ่นล่าง */
+  quickSteps?: boolean;
 }) {
   const [busy, setBusy] = useState("");
   const [pending, setPending] = useState<PendingSend | null>(null);
@@ -332,18 +348,17 @@ export function CustomerSendButtons({
   // ครบทุกหัวข้อเท่ากับปุ่มเดี่ยวด้านบน — เลือกผสมได้อิสระ ส่งใน 1 ข้อความ
   // บิลที่มีทั้งอาบน้ำและเข้าพัก (service = "both") ต้องเห็นการ์ดฝั่งเข้าพักด้วย
   const hasRoomStay = service === "room" || service === "both";
+  // ครบทุกการ์ดเท่าที่ส่งได้ (ไม่จำกัดตามบริการ) — นัดอาบน้ำก็ส่งกฎ/เตรียมตัว/เลือกเวลาได้ถ้าร้านต้องการ
+  // ใบที่ต้องมีบิล/จ่ายแล้วยังซ่อนไว้จนกว่าจะมีข้อมูลจริง (กันส่งการ์ดว่าง)
   const BUNDLE_OPTIONS: { key: string; label: string; when: boolean }[] = [
     { key: "reminder", label: "แจ้งเตือนนัด", when: !!bookingId },
-    { key: "prestay", label: "แจ้งเตรียมตัวเข้าพัก", when: hasRoomStay },
-    { key: "consent", label: "เงื่อนไข + ลายเซ็น", when: hasRoomStay },
-    {
-      // เข้าพักก็ขอประวัติได้ — เคสพักพร้อมอาบน้ำ หรือมาเพิ่มอาบน้ำระหว่างเข้าพัก
-      key: "groomInfo",
-      label: "ขอประวัติก่อนอาบน้ำ",
-      when: !!bookingId,
-    },
-    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: hasRoomStay },
-    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: hasRoomStay },
+    { key: "groomInfo", label: hasRoomStay ? "ข้อมูลน้องก่อนเข้าพัก" : "ขอประวัติก่อนอาบน้ำ", when: !!bookingId },
+    { key: "vaccine", label: "ขอสมุดวัคซีน", when: !!bookingId },
+    { key: "idcard", label: "ขอบัตรประชาชน", when: !!bookingId },
+    { key: "consent", label: "กฎ + กดยินยอม", when: !!bookingId },
+    { key: "prestay", label: "แจ้งเตรียมตัวเข้าพัก", when: !!bookingId },
+    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId },
+    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId },
     { key: "deposit", label: "เรียกเก็บมัดจำ", when: true },
     {
       key: "depositThanks",
@@ -409,17 +424,31 @@ export function CustomerSendButtons({
       k: "send_consent",
       label: "เงื่อนไข + ลายเซ็น",
       icon: "edit",
-      when: !!bookingId && hasRoomStay,
+      when: !!bookingId,
       onClick: () => bookingSend("send_consent", "ส่งการ์ดเงื่อนไข + ลายเซ็นแล้ว 📋"),
+    },
+    {
+      k: "send_vaccine_request",
+      label: "ขอรูปสมุดวัคซีน",
+      icon: "image",
+      when: !!bookingId,
+      onClick: () => bookingSend("send_vaccine_request", "ส่งการ์ดขอสมุดวัคซีนแล้ว 💉"),
+    },
+    {
+      k: "send_idcard_request",
+      label: "ขอรูปบัตรประชาชน",
+      icon: "user",
+      when: !!bookingId,
+      onClick: () => bookingSend("send_idcard_request", "ส่งการ์ดขอบัตรประชาชนแล้ว 🪪"),
     },
     {
       // เข้าพักก็กดขอประวัติได้ — เคสพักพร้อมอาบน้ำ / มาเพิ่มอาบน้ำระหว่างเข้าพัก
       k: "send_groom_info",
-      label:
-        groomBookingIds && groomBookingIds.length > 1
-          ? `สอบถามประวัติก่อนอาบน้ำ (${groomBookingIds.length} ตัว)`
-          : "สอบถามประวัติก่อนอาบน้ำ",
-      icon: "bath",
+      // นัดเข้าพักส่งฟอร์มข้อมูลก่อนเข้าพัก (อาหาร/นิสัย/การดูแล) — เซิร์ฟเวอร์เลือกฟอร์มตามบริการ
+      label: `${hasRoomStay ? "สอบถามประวัติน้องก่อนเข้าพัก" : "สอบถามประวัติก่อนอาบน้ำ"}${
+        groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""
+      }`,
+      icon: hasRoomStay ? "edit" : "bath",
       when: !!bookingId,
       onClick: () => void sendGroomInfoAll(),
     },
@@ -501,6 +530,40 @@ export function CustomerSendButtons({
             </span>
           )}
         </button>
+      )}
+
+      {/* ปุ่มลัดตามขั้นตอน — กดแล้วขึ้นตัวอย่างการ์ดก่อนส่งเหมือนปุ่มอื่น */}
+      {quickSteps && bookingId && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[
+            "send_groom_info",
+            "send_vaccine_request",
+            "send_idcard_request",
+            "send_consent",
+            invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : "dep",
+          ].map((k) => {
+            const a = singleActions.find((x) => x.k === k && x.when);
+            if (!a) return null;
+            return (
+              <button
+                key={k}
+                type="button"
+                disabled={noLine || busy !== ""}
+                onClick={a.onClick}
+                className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3 py-2 text-xs font-bold text-catcha-chocolate active:bg-paper disabled:opacity-40"
+              >
+                <Icon name={a.icon} size={15} />
+                {busy === k
+                  ? "กำลังโหลด…"
+                  : k === "send_groom_info"
+                    ? hasRoomStay
+                      ? "ประวัติก่อนเข้าพัก"
+                      : "ประวัติก่อนอาบน้ำ"
+                    : QUICK_STEP_LABELS[k] || a.label}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {sheetOpen && (

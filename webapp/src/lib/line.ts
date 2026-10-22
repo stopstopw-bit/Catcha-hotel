@@ -10,6 +10,7 @@ import { BUSINESS } from "./business";
 import { groomProgramName } from "./grooming-prices";
 import { DEEMED_CONSENT_NOTICE } from "./messages";
 import type { CardStyleConfig } from "./config-types";
+import { MISS_YOU_DEFAULT_TITLE } from "./miss-you-card";
 
 const BRAND_GREEN = "#5A8F5A";
 const BRAND_GREEN_DARK = "#4A7348";
@@ -1601,8 +1602,79 @@ export function buildGroomInfoFlex(data: {
   }
   return {
     type: "flex",
-    altText: `ประวัติน้องก่อนอาบน้ำ 🩺 ${politeCat(data.catName)}`,
+    altText: `${st.texts?.header || "🩺 ประวัติน้องก่อนอาบน้ำ"} — ${politeCat(data.catName)}`,
     contents: bubble,
+  };
+}
+
+/**
+ * การ์ดขอเอกสารก่อนเข้าพัก — ขอรูปสมุดวัคซีน หรือ ขอรูปบัตรประชาชนผู้ปกครอง
+ * ปุ่มเปิดหน้าแนบรูปในแอปลูกค้า (/app/pet-docs) ซึ่งแนบได้อย่างเดียว ไม่ต้องเซ็นข้อตกลงซ้ำ
+ */
+export function buildDocRequestFlex(data: {
+  kind: "vaccine" | "idcard";
+  businessName: string;
+  catName: string;
+  dateText?: string;
+  url: string;
+}) {
+  const vaccine = data.kind === "vaccine";
+  const header = vaccine ? "💉 ขอรูปสมุดวัคซีนน้อง" : "🪪 ขอรูปบัตรประชาชนผู้ปกครอง";
+  const bodyText = vaccine
+    ? `รบกวนถ่ายรูปสมุดวัคซีนของ${politeCat(data.catName)}ส่งให้ทางร้านหน่อยนะคะ 📸\nแนบได้หลายหน้า กดปุ่มด้านล่างแล้วเลือกรูปได้เลยค่ะ`
+    : `รบกวนแนบรูปบัตรประชาชนของผู้ปกครองน้อง เพื่อลงทะเบียนเข้าพักนะคะ 🙏\nระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง แนบครั้งเดียวพอ รอบหน้าไม่ต้องแนบอีกค่ะ`;
+  const contents: Record<string, unknown>[] = [
+    {
+      type: "text",
+      text: `🐱 ${politeCat(data.catName)}`,
+      weight: "bold",
+      size: "lg",
+      color: "#5C4033",
+      wrap: true,
+    },
+    {
+      type: "text",
+      text: data.dateText ? `${data.businessName} · ${data.dateText}` : data.businessName,
+      size: "xs",
+      color: "#A2907E",
+      margin: "xs",
+      wrap: true,
+    },
+    { type: "text", text: bodyText, size: "sm", color: "#4E3E32", margin: "md", wrap: true },
+  ];
+  return {
+    type: "flex",
+    altText: `${header} — ${politeCat(data.catName)}`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: BRAND_GREEN_DARK,
+        paddingAll: "16px",
+        contents: [{ type: "text", text: header, color: "#FFFFFF", weight: "bold", size: "sm" }],
+      },
+      body: { type: "box", layout: "vertical", paddingAll: "16px", contents },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "12px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: BRAND_GREEN,
+            height: "sm",
+            action: {
+              type: "uri",
+              label: vaccine ? "📸 แนบสมุดวัคซีน" : "🪪 แนบบัตรประชาชน",
+              uri: data.url,
+            },
+          },
+        ],
+      },
+    },
   };
 }
 
@@ -2700,6 +2772,94 @@ export function buildPointsAwardFlex(data: {
     contents: {
       type: "bubble",
       body: { type: "box", layout: "vertical", contents },
+    },
+  };
+}
+
+/**
+ * การ์ด "คิดถึงน้อง" — ทักลูกค้าที่หายไปนาน (ปุ่มในหน้าลูกค้า + ส่งอัตโนมัติ)
+ * body = ข้อความตามลูกค้าที่ร้านตั้งไว้ (เติมชื่อ/น้อง/จำนวนวันแล้ว)
+ * หัว/หัวข้อ/สี/ปุ่ม แก้ได้ในหน้า "ปรับแต่งการ์ด LINE" → cards.missYou
+ */
+export function buildMissYouFlex(data: {
+  body: string;
+  shopName?: string;
+  buttons?: { label: string; uri: string }[];
+}, style?: CardStyleConfig) {
+  const show = (k: string) => style?.show?.[k] !== false;
+  const buttonColor = style?.buttonColor || BRAND_GREEN_DARK;
+  const contents: Record<string, unknown>[] = [];
+  const title = style?.texts?.title || MISS_YOU_DEFAULT_TITLE;
+  contents.push({
+      type: "text",
+      text: title,
+      weight: "bold",
+      size: style?.titleSize || "lg",
+    color: "#5C4033",
+    wrap: true,
+  });
+  contents.push({
+    type: "text",
+    text: data.body,
+    size: "sm",
+    color: "#4E3E32",
+    margin: "md",
+    wrap: true,
+  });
+  if (style?.closing) {
+    contents.push({
+      type: "text",
+      text: style.closing,
+      size: "xs",
+      color: "#A2907E",
+      margin: "lg",
+      wrap: true,
+    });
+  }
+  const buttons = (data.buttons || []).slice(0, 3);
+
+  return {
+    type: "flex",
+    altText: data.body.split("\n")[0].slice(0, 100) || "คิดถึงน้องนะคะ",
+    contents: {
+      type: "bubble",
+      ...(show("header")
+        ? {
+            header: {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: style?.headerColor || BRAND_GREEN_DARK,
+              paddingAll: "16px",
+              contents: [
+                {
+                  type: "text",
+                  text: style?.texts?.header || `🐾 ${data.shopName || "ร้านของเรา"}`,
+                  color: style?.headerTextColor || "#FFFFFF",
+                  weight: "bold",
+                  size: "md",
+                  wrap: true,
+                },
+              ],
+            },
+          }
+        : {}),
+      body: { type: "box", layout: "vertical", paddingAll: "16px", contents },
+      ...(buttons.length
+        ? {
+            footer: {
+              type: "box",
+              layout: "vertical",
+              spacing: "sm",
+              contents: buttons.map((b, i) => ({
+                type: "button",
+                style: i === 0 ? "primary" : "secondary",
+                ...(i === 0 ? { color: buttonColor } : {}),
+                height: "sm",
+                action: { type: "uri", label: b.label.slice(0, 40), uri: b.uri },
+              })),
+            },
+          }
+        : {}),
     },
   };
 }

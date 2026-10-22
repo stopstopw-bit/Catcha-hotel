@@ -19,9 +19,11 @@ import { CatServiceHistory } from "@/components/CatServiceHistory";
 import type { HistoryBill } from "@/lib/cat-service-history";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
+import { CustomerIntakeCards } from "@/components/CustomerIntakeCards";
 import { CustomerLinkSection } from "@/components/CustomerLinkSection";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
+import { resolveStayForm } from "@/lib/stay-form";
 import type { Booking } from "@/lib/business";
 import { bookingGroupKey, groupBookings } from "@/lib/booking-group";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
@@ -1328,6 +1330,7 @@ function CustomerSummaryCard({
   const [tier, setTier] = useState<CustomerTier>(customer.tier || "new");
   const [msg, setMsg] = useState("");
   const [followUpBusy, setFollowUpBusy] = useState(false);
+  const [followUpPreview, setFollowUpPreview] = useState<Record<string, unknown>[] | null>(null);
   const [addAmt, setAddAmt] = useState("");
   const [addReason, setAddReason] = useState("");
   const [addBusy, setAddBusy] = useState(false);
@@ -1677,12 +1680,32 @@ function CustomerSummaryCard({
     }
   };
 
-  const sendFollowUp = async () => {
+  /** กดปุ่ม → ดูตัวอย่างการ์ดที่ลูกค้าจะเห็นก่อน แล้วค่อยยืนยันส่ง */
+  const previewFollowUp = async () => {
     if (!customer.lineUserId) {
       setMsg("❌ ลูกค้ายังไม่ได้ผูก LINE");
       return;
     }
-    if (!confirm(`ส่งข้อความตาม ${customer.name} ทาง LINE?`)) return;
+    setFollowUpBusy(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: customer.id, action: "send_follow_up", preview: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.preview)) {
+        setFollowUpPreview(data.preview);
+      } else {
+        setMsg(`❌ ${data.error || "ดูตัวอย่างการ์ดไม่สำเร็จ"}`);
+        setTimeout(() => setMsg(""), 3000);
+      }
+    } finally {
+      setFollowUpBusy(false);
+    }
+  };
+
+  const sendFollowUp = async () => {
     setFollowUpBusy(true);
     const res = await fetch("/api/customers", {
       method: "PATCH",
@@ -1690,13 +1713,15 @@ function CustomerSummaryCard({
       body: JSON.stringify({
         id: customer.id,
         action: "send_follow_up",
+        // ส่งเพราะร้านกดเอง ดูการ์ดแล้ว — ไม่ต้องติดเงื่อนไข "ไม่ส่งซ้ำภายใน X วัน" ของระบบส่งอัตโนมัติ
         force: !canFollowUp,
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setFollowUpBusy(false);
+    setFollowUpPreview(null);
     if (res.ok) {
-      setMsg("✅ ส่งข้อความตามแล้ว");
+      setMsg("✅ ส่งการ์ดทักลูกค้าแล้ว");
       onSaved();
     } else {
       setMsg(`❌ ${data.error || "ส่งไม่สำเร็จ"}`);
@@ -1835,6 +1860,8 @@ function CustomerSummaryCard({
         </li>
       </ul>
 
+      <CustomerIntakeCards customer={customer} onDone={onSaved} />
+
       {inactive && (
         <p className="mb-3 flex items-center gap-2 rounded-catcha-sm bg-wait/10 px-3 py-2 text-[11px] font-bold text-wait">
           <Icon name="clock" size={14} />
@@ -1866,29 +1893,47 @@ function CustomerSummaryCard({
       </div>
 
       {(inactive || customer.lineUserId) && (
-        <div className="mb-3 flex items-center gap-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sage/20 text-ok">
-            <Icon name="send" size={18} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-extrabold text-catcha-chocolate">ตามลูกค้าทาง LINE</p>
-            <p className="truncate text-[10px] text-brown-faint">
-              {customer.lastFollowUpAt
-                ? `ส่งล่าสุด: ${customer.lastFollowUpAt.slice(0, 10)}`
-                : !customer.lineUserId
+        <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sage/20 text-ok">
+              <Icon name="send" size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-extrabold text-catcha-chocolate">ทักลูกค้าทาง LINE</p>
+              <p className="text-[10px] text-brown-faint">
+                {!customer.lineUserId
                   ? "ต้องผูก LINE ก่อนจึงส่งได้"
-                  : "ยังไม่เคยส่ง"}
-            </p>
+                  : customer.lastFollowUpAt
+                    ? `ส่งการ์ด "คิดถึงน้อง" ล่าสุด ${customer.lastFollowUpAt.slice(0, 10)}`
+                    : `ส่งการ์ด "คิดถึงน้อง" ชวนกลับมาใช้บริการ · ยังไม่เคยส่ง`}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={followUpBusy || !customer.lineUserId}
+              onClick={previewFollowUp}
+              className="flex min-h-[40px] shrink-0 items-center gap-1 rounded-full bg-sage/25 px-3.5 py-2 text-xs font-bold text-ok disabled:opacity-50"
+            >
+              <Icon name="eye" size={14} />
+              {followUpBusy && !followUpPreview ? "กำลังโหลด…" : customer.lastFollowUpAt ? "ดูการ์ด + ส่งอีกครั้ง" : "ดูการ์ด + ส่ง"}
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={followUpBusy || !customer.lineUserId}
-            onClick={sendFollowUp}
-            className="min-h-[40px] shrink-0 rounded-full bg-sage/25 px-3.5 py-2 text-xs font-bold text-ok disabled:opacity-50"
+          <a
+            href="/admin/cards?card=missYou"
+            className="mt-1.5 block text-right text-[10px] font-bold text-latte-deep underline"
           >
-            {followUpBusy ? "กำลังส่ง…" : canFollowUp ? "ส่งข้อความ" : "ส่งซ้ำ (ข้าม cooldown)"}
-          </button>
+            แก้ข้อความ/หน้าตาการ์ดนี้
+          </a>
         </div>
+      )}
+
+      {followUpPreview && (
+        <PreviewSendModal
+          messages={followUpPreview}
+          sending={followUpBusy}
+          onConfirm={sendFollowUp}
+          onCancel={() => setFollowUpPreview(null)}
+        />
       )}
 
       <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
@@ -2918,6 +2963,7 @@ export default function CustomersPage() {
       color?: string;
       ageValue?: number;
       ageUnit?: "year" | "month";
+      weightKg?: number | null;
       birthday?: string;
       medical?: string;
     }
@@ -3131,6 +3177,22 @@ export default function CustomersPage() {
                   </label>
                 </div>
                 <label className="block text-[11px] font-bold text-brown-soft">
+                  <span className="mb-1 block">น้ำหนัก (กก.)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    inputMode="decimal"
+                    defaultValue={cat.weightKg}
+                    placeholder="เช่น 4.5"
+                    className={inputCls}
+                    onBlur={(e) => {
+                      const v = e.target.value ? Number(e.target.value) : null;
+                      if (v !== (cat.weightKg ?? null)) saveCat(cat.id, { weightKg: v });
+                    }}
+                  />
+                </label>
+                <label className="block text-[11px] font-bold text-brown-soft">
                   วันเกิดน้อง <span className="font-normal text-brown-faint">(ถ้าทราบ)</span>
                   <BirthdayPicker
                     value={cat.birthday || ""}
@@ -3195,6 +3257,30 @@ export default function CustomersPage() {
                               <dd className="min-w-0 flex-1 break-words">{v}</dd>
                             </div>
                           ))}
+                        </dl>
+                      </div>
+                    );
+                  })()}
+                  {/* ข้อมูลก่อนเข้าพัก (อาหาร/ชอบ-ไม่ชอบ/การดูแล) — โชว์เมื่อลูกค้ากรอกแล้ว */}
+                  {(() => {
+                    const si = parseGroomInfo(cat.stayInfo);
+                    if (!si) return null;
+                    const s = groomInfoSummary(si, resolveStayForm());
+                    return (
+                      <div className="rounded-catcha-sm border border-sage/40 bg-sage/10 px-3 py-2.5">
+                        <p className="flex items-center gap-1.5 text-[11px] font-extrabold text-ok">
+                          <Icon name="bed" size={14} />
+                          ข้อมูลก่อนเข้าพัก (ลูกค้ากรอกไว้)
+                        </p>
+                        <dl className="mt-1.5 space-y-1 text-[11px] text-brown">
+                          {Object.entries(s)
+                            .filter(([, v]) => v !== "-")
+                            .map(([k, v]) => (
+                              <div key={k} className="flex gap-2">
+                                <dt className="w-24 shrink-0 font-bold text-brown-soft">{k}</dt>
+                                <dd className="min-w-0 flex-1 break-words">{v}</dd>
+                              </div>
+                            ))}
                         </dl>
                       </div>
                     );

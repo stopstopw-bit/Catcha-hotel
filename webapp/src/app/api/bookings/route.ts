@@ -17,8 +17,11 @@ import {
   toBooking,
   updateBooking,
   deleteBooking,
+  addBookingVaccinePhotos,
+  setBookingVaccinePhotos,
   type StoredBooking,
 } from "@/lib/bookings-store";
+import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { AUTO_MESSAGE_TOPICS } from "@/lib/auto-messages";
 import { rescheduleGroup, type DatePatch } from "@/lib/stay-sync";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
@@ -38,6 +41,7 @@ import {
   buildReceiptFlex,
   buildReadyForPickupFlex,
   buildDepositThanksFlex,
+  buildDocRequestFlex,
   politeName,
   politeCat,
 } from "@/lib/line";
@@ -64,6 +68,8 @@ import {
   getBookingTimeUrl,
   getGroomInfoUrl,
   getConsentUrl,
+  getPetDocsUrl,
+  buildStayInfoBody,
   bookingScheduleText,
 } from "@/lib/booking-reminders";
 
@@ -153,10 +159,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+  // ลูกค้าจองเองจากแอป: ผูกนัดกับ LINE จากคุกกี้ที่ตรวจแล้วเท่านั้น — ห้ามเชื่อ body.lineUserId
+  // ไม่งั้นจองแทน/ยัดนัดเข้าบัญชีคนอื่นได้แค่รู้ LINE ID (หลังบ้านระบุให้ลูกค้าได้ตามเดิม)
+  const lineUserId = (await isAdmin(req))
+    ? body.lineUserId
+    : (await resolveCustomerLineId(req, body.lineUserId)) || undefined;
   const customer = await resolveCustomerForBooking({
     customerName: body.customerName,
     catName: body.catName,
-    lineUserId: body.lineUserId,
+    lineUserId,
     customerId: body.customerId,
     phone: body.phone,
     staffNote: body.notes,
@@ -230,7 +241,11 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const { id, action, lineUserId, checkinTime } = body;
+  const { id, action, checkinTime } = body;
+  // ลูกค้า (ไม่ได้ล็อกอินหลังบ้าน) ยืนยันตัวด้วยคุกกี้ที่ตรวจกับ LINE แล้วเท่านั้น ห้ามเชื่อ lineUserId ใน body
+  const lineUserId: string | undefined = (await isAdmin(req))
+    ? body.lineUserId
+    : (await resolveCustomerLineId(req, body.lineUserId)) || undefined;
   // ดูตัวอย่างการ์ดก่อนส่งจริง — ทำทุกอย่างเหมือนส่งจริงเป๊ะ (ข้อมูล/เงื่อนไขเดียวกัน)
   // แค่ข้ามขั้นตอน push เข้า LINE + การเขียนข้อมูลที่มีผลจริง (เช่น ผูกมัดจำ) เท่านั้น
   const preview = body.preview === true;
@@ -370,6 +385,25 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+/** นัดเข้าพักใช้การ์ดขอประวัติใบเดียวกัน — เปลี่ยนหัวการ์ด/วันที่ให้ตรงบริการ (ร้านตั้งหัวการ์ดเองไว้ก็ใช้ของร้าน) */
+function groomInfoCardFor(b: StoredBooking, cfg: Awaited<ReturnType<typeof getSiteConfig>>) {
+  const style = cfg.cards?.groomInfo;
+  if (b.service !== "room") {
+    return {
+      body: buildGroomInfoBody,
+      style,
+      dateText: b.date
+        ? `${style?.texts?.datePrefix || "📅 นัดอาบน้ำ:"} ${b.date}${b.time ? ` ${b.time}` : ""}`
+        : undefined,
+    };
+  }
+  return {
+    body: buildStayInfoBody,
+    style: { ...style, texts: { ...style?.texts, header: style?.texts?.header || "🐾 ข้อมูลน้องก่อนเข้าพัก" } },
+    dateText: bookingScheduleText(b),
+  };
+}
+
   // ── การ์ดสอบถามประวัติน้องก่อนอาบน้ำ (กดเอง) ──
   if (action === "send_groom_info") {
     const to = await resolveRecipient(b, lineUserId);
@@ -378,13 +412,14 @@ export async function PATCH(req: NextRequest) {
     }
     const cfg = await getSiteConfig();
     const url = await getGroomInfoUrl(b.id);
+    const card = groomInfoCardFor(b, cfg);
     const flex = buildGroomInfoFlex({
       catName: String(b.catName),
-      dateText: b.date ? `📅 นัดอาบน้ำ: ${b.date}${b.time ? ` ${b.time}` : ""}` : undefined,
-      body: buildGroomInfoBody(b, cfg),
+      dateText: card.dateText,
+      body: card.body(b, cfg),
       url: url || undefined,
-      label: "🩺 แจ้งประวัติน้อง",
-    }, cfg.cards?.groomInfo);
+      label: cfg.cards?.groomInfo?.texts?.button || "🩺 แจ้งประวัติน้อง",
+    }, card.style);
     try {
       if (preview) return NextResponse.json({ ok: true, preview: [flex] });
       await pushLineMessage(to, [flex]);
@@ -411,19 +446,20 @@ export async function PATCH(req: NextRequest) {
     const cfg = await getSiteConfig();
     const url = await getGroomInfoUrl(bookings.map((x) => x.id));
     const catNames = bookings.map((x) => x.catName).join(", ");
+    const card = groomInfoCardFor(b, cfg);
     const flex = buildGroomInfoFlex({
       catName: catNames,
-      dateText: b.date ? `📅 นัดอาบน้ำ: ${b.date}${b.time ? ` ${b.time}` : ""}` : undefined,
-      body: buildGroomInfoBody(
+      dateText: card.dateText,
+      body: card.body(
         { catName: bookings.length > 1 ? `น้องๆ ${bookings.length} ตัว` : catNames },
         cfg
       ),
       url: url || undefined,
       label:
         bookings.length > 1
-          ? `🩺 แจ้งประวัติน้อง (${bookings.length} ตัว)`
-          : "🩺 แจ้งประวัติน้อง",
-    }, cfg.cards?.groomInfo);
+          ? `${cfg.cards?.groomInfo?.texts?.button || "🩺 แจ้งประวัติน้อง"} (${bookings.length} ตัว)`
+          : cfg.cards?.groomInfo?.texts?.button || "🩺 แจ้งประวัติน้อง",
+    }, card.style);
     try {
       if (preview) return NextResponse.json({ ok: true, preview: [flex] });
       await pushLineMessage(to, [flex]);
@@ -432,6 +468,64 @@ export async function PATCH(req: NextRequest) {
       const message = e instanceof Error ? e.message : String(e);
       return NextResponse.json({ error: message }, { status: 500 });
     }
+  }
+
+  // ── การ์ดขอสมุดวัคซีน / ขอบัตรประชาชน (กดเองจากการ์ดนัด) — ปุ่มเปิดหน้าแนบรูปของนัดนี้ ──
+  if (action === "send_vaccine_request" || action === "send_idcard_request") {
+    const to = await resolveRecipient(b, lineUserId);
+    if (!to) {
+      return NextResponse.json({ error: NO_LINE_ERROR }, { status: 400 });
+    }
+    const kind = action === "send_vaccine_request" ? "vaccine" : "idcard";
+    // จองทั้งบ้าน — ลิงก์เดียวแนบสมุดวัคซีนได้ครบทุกตัว (บัตรประชาชนผูกกับเจ้าของ ใช้นัดเดียวพอ)
+    const groupIds: string[] =
+      kind === "vaccine" && Array.isArray(body.ids) && body.ids.length > 0 ? body.ids.map(String) : [b.id];
+    const url = await getPetDocsUrl(groupIds, kind);
+    if (!url) {
+      return NextResponse.json(
+        { error: "ยังไม่ได้ตั้ง LIFF ID — ไป Admin → ติดตั้ง เพื่อตั้งค่าก่อน" },
+        { status: 400 }
+      );
+    }
+    const cfg = await getSiteConfig();
+    const gb = await resolveGroupBooking(b, body.ids);
+    const flex = buildDocRequestFlex({
+      kind,
+      businessName: cfg.business.name,
+      catName: String(gb.catName),
+      dateText: bookingScheduleText(gb),
+      url,
+    });
+    try {
+      if (preview) return NextResponse.json({ ok: true, preview: [flex] });
+      await pushLineMessage(to, [flex]);
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  // ── พนักงานแนบ / ลบรูปสมุดวัคซีนของน้องเองในหลังบ้าน (เฉพาะหลังบ้าน — ลูกค้าโดนกันไว้ด้านบนแล้ว) ──
+  if (action === "add_vaccine_photos") {
+    const photos: string[] = Array.isArray(body.photos)
+      ? body.photos.map((v: unknown) => String(v || ""))
+      : [];
+    const res = await addBookingVaccinePhotos(b.id, photos);
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: res.error === "no_photo" ? "ไม่พบรูปที่แนบ" : "บันทึกไม่สำเร็จ" },
+        { status: res.error === "no_photo" ? 400 : 500 }
+      );
+    }
+    return NextResponse.json({ ok: true, vaccinePhotoUrl: res.urls.join("\n") });
+  }
+  if (action === "remove_vaccine_photo") {
+    const target = String(body.url || "");
+    const urls = splitVaccinePhotos(b.vaccinePhotoUrl).filter((u) => u !== target);
+    const res = await setBookingVaccinePhotos(b.id, urls);
+    if (!res.ok) return NextResponse.json({ error: "บันทึกไม่สำเร็จ" }, { status: 500 });
+    return NextResponse.json({ ok: true });
   }
 
   // ── การ์ดให้ลูกค้าเลือกเวลาส่ง/รับน้อง (กดเอง) ──
@@ -471,7 +565,7 @@ export async function PATCH(req: NextRequest) {
 
   // ── 📦 ส่งชุดการ์ดที่เลือกเอง — หลายการ์ดใน push เดียว (LINE นับเป็น 1 ข้อความ) ──
   // parts: reminder | prestay | consent | groomInfo | checkin | checkout
-  //        | deposit(+depositAmount) | depositThanks | summary | payment
+  //        | vaccine | idcard | deposit(+depositAmount) | depositThanks | summary | payment
   //        | receipt (เฉพาะบิลที่จ่ายแล้ว) | review
   if (action === "send_bundle") {
     const to = await resolveRecipient(b, lineUserId);
@@ -654,22 +748,21 @@ export async function PATCH(req: NextRequest) {
         if (needInfo.length > 0) {
           const url = await getGroomInfoUrl(needInfo.map((x) => x.id));
           const catNames = needInfo.map((x) => x.catName).join(", ");
+          const card = groomInfoCardFor(b, cfg);
           messages.push(
             buildGroomInfoFlex({
               catName: catNames,
-              dateText: b.date
-                ? `📅 นัดอาบน้ำ: ${b.date}${b.time ? ` ${b.time}` : ""}`
-                : undefined,
-              body: buildGroomInfoBody(
+              dateText: card.dateText,
+              body: card.body(
                 { catName: needInfo.length > 1 ? `น้องๆ ${needInfo.length} ตัว` : catNames },
                 cfg
               ),
               url: url || undefined,
               label:
                 needInfo.length > 1
-                  ? `🩺 แจ้งประวัติน้อง (${needInfo.length} ตัว)`
-                  : "🩺 แจ้งประวัติน้อง",
-            }, cfg.cards?.groomInfo)
+                  ? `${cfg.cards?.groomInfo?.texts?.button || "🩺 แจ้งประวัติน้อง"} (${needInfo.length} ตัว)`
+                  : cfg.cards?.groomInfo?.texts?.button || "🩺 แจ้งประวัติน้อง",
+            }, card.style)
           );
         }
       } else if (part === "checkin" && b.arrivalTime) {
@@ -677,6 +770,21 @@ export async function PATCH(req: NextRequest) {
         skipped.push(`เลือกเวลาเข้าพักไว้แล้ว (${b.arrivalTime}) ไม่ถามซ้ำ`);
       } else if (part === "checkout" && b.pickupTime) {
         skipped.push(`เลือกเวลารับน้องไว้แล้ว (${b.pickupTime}) ไม่ถามซ้ำ`);
+      } else if (part === "vaccine" || part === "idcard") {
+        const groupIds: string[] =
+          part === "vaccine" && Array.isArray(body.ids) && body.ids.length > 0 ? body.ids.map(String) : [b.id];
+        const url = await getPetDocsUrl(groupIds, part);
+        if (url) {
+          messages.push(
+            buildDocRequestFlex({
+              kind: part,
+              businessName: cfg.business.name,
+              catName: String(gb.catName),
+              dateText: bookingScheduleText(gb),
+              url,
+            })
+          );
+        } else skipped.push("ยังไม่ได้ตั้ง LIFF ID — ข้ามการ์ดขอเอกสาร");
       } else if (part === "checkin" || part === "checkout") {
         const url = await getBookingTimeUrl(b.id, part);
         messages.push(
