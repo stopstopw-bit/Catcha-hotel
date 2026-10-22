@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLiffIdToken } from "@/lib/liff-auth";
+import { verifyLiffAccessTokenDetailed, verifyLiffIdTokenDetailed } from "@/lib/liff-auth";
 import {
   signCustomerSession,
   customerSessionCookieOptions,
@@ -19,14 +19,24 @@ import {
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const idToken = String(body.idToken || "").trim();
-  if (!idToken) {
+  const accessToken = String(body.accessToken || "").trim();
+  if (!idToken && !accessToken) {
+    console.warn("[liff-auth] แอปไม่ได้ส่ง token มาเลย");
     return NextResponse.json({ ok: false, reason: "no_token" });
   }
 
-  const identity = await verifyLiffIdToken(idToken);
-  if (!identity) {
-    return NextResponse.json({ ok: false, reason: "invalid_token" });
+  // ID token ก่อน · ไม่มี/ไม่ผ่าน (เช่น LIFF ไม่ได้ติ๊ก scope openid) ใช้ access token แทน
+  let verified = idToken
+    ? await verifyLiffIdTokenDetailed(idToken)
+    : ({ ok: false, reason: "no_id_token" } as const);
+  if (!verified.ok && accessToken) {
+    const viaAccess = await verifyLiffAccessTokenDetailed(accessToken);
+    verified = viaAccess.ok ? viaAccess : { ok: false, reason: `${verified.reason}+${viaAccess.reason}` };
   }
+  if (!verified.ok) {
+    return NextResponse.json({ ok: false, reason: verified.reason });
+  }
+  const identity = verified.identity;
 
   const res = NextResponse.json({
     ok: true,

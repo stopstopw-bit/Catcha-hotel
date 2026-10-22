@@ -5,7 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import type { CustomerProfile } from "@/lib/business";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import type { CustomerTier } from "@/lib/customer-tier";
-import { customerFetch, setCustomerSessionRefresher } from "@/lib/customer-fetch";
+import {
+  customerFetch,
+  setCustomerSessionIssue,
+  setCustomerSessionRefresher,
+} from "@/lib/customer-fetch";
 
 type LineCustomer = {
   id: string;
@@ -193,17 +197,26 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
             // เรียกแลกใหม่ได้เองตอนเซิร์ฟเวอร์ตอบว่าไม่มีเซสชัน
             const exchange = async (): Promise<boolean> => {
               try {
+                // ไม่มี ID token = LIFF app ไม่ได้ติ๊ก scope "openid" ใน LINE Developers
+                // ส่ง access token ไปด้วยเสมอ เซิร์ฟเวอร์ใช้ยืนยันแทนได้
                 const idToken = liff.default.getIDToken();
-                if (!idToken) return false;
+                const accessToken = liff.default.getAccessToken();
+                if (!idToken && !accessToken) {
+                  setCustomerSessionIssue("no_token");
+                  return false;
+                }
                 const r = await fetch("/api/customers/session", {
                   method: "POST",
                   cache: "no-store",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ idToken }),
+                  body: JSON.stringify({ idToken, accessToken }),
                 });
                 const d = await r.json().catch(() => ({}));
+                if (!d?.ok) setCustomerSessionIssue(String(d?.reason || `http_${r.status}`));
+                else setCustomerSessionIssue("");
                 return Boolean(d?.ok);
               } catch {
+                setCustomerSessionIssue("network");
                 return false;
               }
             };
