@@ -95,3 +95,44 @@ export async function verifyLiffIdToken(
   const r = await verifyLiffIdTokenDetailed(idToken);
   return r.ok ? r.identity : null;
 }
+
+/**
+ * ทางสำรองเมื่อไม่มี ID token (LIFF app ไม่ได้ติ๊ก scope "openid" — getIDToken() คืน null)
+ * ใช้ access token ของ LIFF แทน: ถาม LINE ว่า token นี้ออกให้ channel ไหน (ต้องเป็นของร้านเรา)
+ * แล้วดึงโปรไฟล์ด้วย token นั้น — userId มาจาก LINE โดยตรง client ปลอมไม่ได้เหมือนกัน
+ */
+export async function verifyLiffAccessTokenDetailed(accessToken: string): Promise<LiffVerifyResult> {
+  if (!accessToken || typeof accessToken !== "string") return { ok: false, reason: "no_token" };
+  const channels = await allowedChannels();
+  if (channels.length === 0) return { ok: false, reason: "no_liff_config" };
+  try {
+    const v = await fetch(
+      `https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(accessToken)}`
+    );
+    if (!v.ok) {
+      const text = await v.text().catch(() => "");
+      console.warn(`[liff-auth] LINE ตรวจ access token ไม่ผ่าน ${v.status}: ${text}`);
+      return { ok: false, reason: `line_at_${v.status}` };
+    }
+    const info = (await v.json()) as { client_id?: string; expires_in?: number };
+    const clientId = String(info.client_id || "");
+    if (!channels.includes(clientId)) {
+      console.warn(`[liff-auth] access token มาจาก channel ${clientId || "?"} ไม่ตรงกับที่ตั้งไว้ (${channels.join(", ")})`);
+      return { ok: false, reason: `channel_${clientId || "unknown"}` };
+    }
+    if (!info.expires_in || info.expires_in <= 0) return { ok: false, reason: "line_at_expired" };
+    const p = await fetch("https://api.line.me/v2/profile", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!p.ok) {
+      console.warn(`[liff-auth] ดึงโปรไฟล์ด้วย access token ไม่ได้ ${p.status}`);
+      return { ok: false, reason: `line_profile_${p.status}` };
+    }
+    const prof = (await p.json()) as { userId?: string; displayName?: string };
+    if (!prof.userId) return { ok: false, reason: "no_sub" };
+    return { ok: true, identity: { lineUserId: prof.userId, displayName: prof.displayName || "" } };
+  } catch (e) {
+    console.warn("[liff-auth] เรียก LINE ไม่สำเร็จ", e);
+    return { ok: false, reason: "line_unreachable" };
+  }
+}

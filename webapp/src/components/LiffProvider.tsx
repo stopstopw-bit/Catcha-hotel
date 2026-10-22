@@ -197,9 +197,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
             // เรียกแลกใหม่ได้เองตอนเซิร์ฟเวอร์ตอบว่าไม่มีเซสชัน
             const exchange = async (): Promise<boolean> => {
               try {
+                // ไม่มี ID token = LIFF app ไม่ได้ติ๊ก scope "openid" ใน LINE Developers
+                // ส่ง access token ไปด้วยเสมอ เซิร์ฟเวอร์ใช้ยืนยันแทนได้
                 const idToken = liff.default.getIDToken();
-                // ไม่มี token เลย = LIFF app ไม่ได้ติ๊ก scope "openid" ใน LINE Developers
-                if (!idToken) {
+                const accessToken = liff.default.getAccessToken();
+                if (!idToken && !accessToken) {
                   setCustomerSessionIssue("no_token");
                   return false;
                 }
@@ -207,7 +209,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
                   method: "POST",
                   cache: "no-store",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ idToken }),
+                  body: JSON.stringify({ idToken, accessToken }),
                 });
                 const d = await r.json().catch(() => ({}));
                 if (!d?.ok) setCustomerSessionIssue(String(d?.reason || `http_${r.status}`));
