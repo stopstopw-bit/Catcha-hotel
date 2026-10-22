@@ -16,17 +16,20 @@ import {
 import { pushLineMessage, buildRoomPlanFlex } from "@/lib/line";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { logAudit } from "@/lib/audit-log";
+import { getSiteConfig } from "@/lib/config-store";
+import type { CardStyleConfig } from "@/lib/config-types";
 
 async function staffName(req: NextRequest) {
   const s = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   return s ? s.name || s.role || "ไม่ทราบ" : null;
 }
 
-function cardFor(v: RoomPlanView, thisPayment?: number) {
+function cardFor(v: RoomPlanView, thisPayment?: number, style?: CardStyleConfig) {
   return buildRoomPlanFlex({
     customerName: v.customerName,
     planName: v.name,
     nights: v.nights,
+    kind: v.kind,
     price: v.price,
     paid: v.paid,
     remaining: v.remaining,
@@ -34,13 +37,14 @@ function cardFor(v: RoomPlanView, thisPayment?: number) {
     nextInstallment: v.nextInstallment,
     thisPayment,
     installmentNo: thisPayment ? v.payments.length : undefined,
-  });
+  }, style);
 }
 
 async function notify(lineUserId: string | undefined, v: RoomPlanView, thisPayment?: number) {
   if (!lineUserId) return "ลูกค้ายังไม่ได้ผูก LINE";
   try {
-    await pushLineMessage(lineUserId, [cardFor(v, thisPayment)]);
+    const style = (await getSiteConfig()).cards?.roomPlan;
+    await pushLineMessage(lineUserId, [cardFor(v, thisPayment, style)]);
     return undefined;
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
@@ -148,7 +152,7 @@ export async function PATCH(req: NextRequest) {
       detail: { ลูกค้า: plan.customerName, รับ: res.amount, คงเหลือ: res.view.remaining },
     });
     await sendTelegram(
-      formatBookingTelegram("💵 รับเงินงวดแพ็กห้อง", {
+      formatBookingTelegram(res.view.kind === "package" ? "💵 รับเงินงวดคอร์ส" : "💵 รับเงินงวดแพ็กห้อง", {
         ลูกค้า: plan.customerName,
         งวดที่: String(res.view.payments.length),
         รับรอบนี้: `${res.amount} บาท`,

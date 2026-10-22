@@ -4,12 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { Icon } from "@/components/Icon";
 import { resolveRange, inRange, type RangeId } from "@/lib/date-range";
+import Link from "next/link";
+import { SalesActions } from "@/components/SalesActions";
+import { MonthlyCatCounts } from "@/components/MonthlyCatCounts";
+import type { InsightBooking } from "@/lib/sales-insights";
+import { summarizeInvoiceItems } from "@/lib/invoice-item-label";
+import { formatThaiDateShort } from "@/lib/format-thai-date";
 
-type Cat = { name?: string; breed?: string };
+type Cat = { name?: string; breed?: string; birthday?: string };
 type Customer = {
   id: string;
   name: string;
   cats: Cat[];
+  lineUserId?: string;
+  marketingConsent?: boolean;
   isMember?: boolean;
   tier?: string;
   createdAt?: string;
@@ -17,6 +25,7 @@ type Customer = {
   referralSource?: string;
 };
 type Invoice = {
+  id?: string;
   customerId?: string;
   customerName: string;
   status: string;
@@ -79,6 +88,8 @@ export default function InsightsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [packages, setPackages] = useState<Pkg[]>([]);
   const [promoStats, setPromoStats] = useState<PromoStat[]>([]);
+  const [bookings, setBookings] = useState<InsightBooking[]>([]);
+  const [historyAll, setHistoryAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rangeId, setRangeId] = useState<RangeId>("all");
   const [customRange, setCustomRange] = useState(() => {
@@ -93,8 +104,10 @@ export default function InsightsPage() {
       fetch("/api/invoices").then((r) => r.json()),
       fetch("/api/packages?all=1").then((r) => r.json()).catch(() => ({ packages: [] })),
       fetch("/api/coupons/stats").then((r) => r.json()).catch(() => ({ perPromo: [] })),
+      fetch("/api/bookings").then((r) => r.json()).catch(() => ({ bookings: [] })),
     ])
-      .then(([c, i, p, cp]) => {
+      .then(([c, i, p, cp, b]) => {
+        setBookings(b.bookings || []);
         setCustomers(c.customers || []);
         setInvoices(i.invoices || []);
         setPackages(p.packages || []);
@@ -204,6 +217,11 @@ export default function InsightsPage() {
       topSpenders,
       revenuePaid,
       paidCount: paid.length,
+      // ประวัติการใช้บริการ — บิลที่จ่ายแล้วในช่วงนี้ (1 บิล = 1 บ้าน) เรียงล่าสุดก่อน
+      history: [...paid].sort((a, b) =>
+        (b.paidAt || b.createdAt || "").localeCompare(a.paidAt || a.createdAt || "")
+      ),
+      households: new Set(paid.map((i) => i.customerId || i.customerName)).size,
     };
   }, [customers, invoices, packages, promoStats, range.from, range.to]);
 
@@ -220,6 +238,15 @@ export default function InsightsPage() {
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Insights</p>
         <h1 className="text-xl font-extrabold text-catcha-chocolate">สรุปข้อมูลร้าน</h1>
+      </div>
+
+      <MonthlyCatCounts bookings={bookings} />
+
+      <SalesActions customers={customers} invoices={invoices} bookings={bookings} packages={packages} />
+
+      <div className="pt-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Details</p>
+        <h2 className="text-base font-extrabold text-catcha-chocolate">ข้อมูลตามช่วงเวลา</h2>
       </div>
 
       <DateRangePicker
@@ -250,6 +277,63 @@ export default function InsightsPage() {
           </p>
         </div>
       </div>
+
+      <Card icon="receipt" title={`ประวัติการใช้บริการ · ${stats.households} บ้าน`}>
+        {stats.history.length ? (
+          <>
+            <ul className="divide-y divide-catcha-line rounded-catcha-sm border border-catcha-line text-xs">
+              {(historyAll ? stats.history : stats.history.slice(0, 10)).map((inv, i) => {
+                const body = (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-bold text-brown">{inv.customerName}</span>
+                      <span className="block truncate text-[11px] text-brown-soft">
+                        {summarizeInvoiceItems(inv.items || [])}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block font-extrabold text-latte-deep">
+                        {inv.total.toLocaleString()} ฿
+                      </span>
+                      <span className="block text-[10px] text-brown-faint">
+                        {formatThaiDateShort((inv.paidAt || inv.createdAt || "").slice(0, 10))}
+                      </span>
+                    </span>
+                  </>
+                );
+                return (
+                  <li key={inv.id || i}>
+                    {inv.customerId ? (
+                      <Link
+                        href={`/admin/customers?id=${inv.customerId}`}
+                        className="flex min-h-[48px] items-center gap-2 px-3 py-1.5"
+                      >
+                        {body}
+                      </Link>
+                    ) : (
+                      <div className="flex min-h-[48px] items-center gap-2 px-3 py-1.5">{body}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {!historyAll && stats.history.length > 10 && (
+              <button
+                type="button"
+                onClick={() => setHistoryAll(true)}
+                className="mt-2 min-h-[40px] w-full rounded-catcha-sm bg-paper py-2 text-xs font-extrabold text-latte-deep"
+              >
+                ดูทั้งหมดอีก {stats.history.length - 10} รายการ
+              </button>
+            )}
+            <p className="mt-2 text-[10px] text-brown-faint">
+              1 แถว = 1 บิลที่ชำระแล้ว (รวมทั้งบ้าน) · แตะเพื่อเปิดหน้าลูกค้า
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-brown-faint">ช่วงนี้ยังไม่มีการใช้บริการที่ชำระแล้ว</p>
+        )}
+      </Card>
 
       <Card icon="paw" title="พันธุ์แมวยอดฮิต (ใช้ตัดสินใจทำสินค้า)">
         {stats.breeds.length ? (

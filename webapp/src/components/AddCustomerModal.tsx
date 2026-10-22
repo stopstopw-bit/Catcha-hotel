@@ -13,6 +13,8 @@ export function AddCustomerModal({
   const [phone, setPhone] = useState("");
   const [catName, setCatName] = useState("");
   const [catNote, setCatNote] = useState("");
+  const [address, setAddress] = useState("");
+  const [addressMapUrl, setAddressMapUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,6 +24,8 @@ export function AddCustomerModal({
     setPhone("");
     setCatName("");
     setCatNote("");
+    setAddress("");
+    setAddressMapUrl("");
     setError("");
   };
 
@@ -39,6 +43,8 @@ export function AddCustomerModal({
         catName: catName.trim(),
         phone: phone.trim() || undefined,
         staffNote: catNote.trim() || undefined,
+        address: address.trim() || undefined,
+        addressMapUrl: addressMapUrl.trim() || undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -64,7 +70,7 @@ export function AddCustomerModal({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-catcha bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-catcha sm:rounded-catcha">
             <div className="mb-4 flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/25 text-catcha-chocolate">
@@ -126,6 +132,25 @@ export function AddCustomerModal({
                   placeholder="นิสัย / แพ้อาหาร"
                   rows={2}
                   className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-bold text-brown-soft">
+                ที่อยู่ (ถ้ามี — ใช้ตอนรับ-ส่งน้อง)
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="บ้านเลขที่ ซอย ถนน เขต"
+                  rows={2}
+                  className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-bold text-brown-soft">
+                ลิงก์ Google Maps (ถ้ามี)
+                <input
+                  value={addressMapUrl}
+                  onChange={(e) => setAddressMapUrl(e.target.value)}
+                  placeholder="วางลิงก์ที่ลูกค้าแชร์มา"
+                  className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-3 text-sm"
                 />
               </label>
               {error && (

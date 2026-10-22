@@ -67,6 +67,39 @@ async function syncLineCustomer(lineUserId: string, displayName: string) {
   }>;
 }
 
+type LiffAuthModule = {
+  getDecodedIDToken: () => { exp?: number } | null;
+  login: (config?: { redirectUri?: string }) => void;
+  logout: () => void;
+  isInClient: () => boolean;
+};
+
+const RELOGIN_KEY = "catcha-liff-relogin";
+
+/**
+ * ID token ของ LIFF หมดอายุราว 1 ชม. แต่เปิดในเบราว์เซอร์นอก LINE แล้ว isLoggedIn() ยังเป็น true
+ * และ getIDToken() คืน token เก่าที่หมดอายุแล้ว — แลกคุกกี้เซสชันไม่ผ่าน พอร้านเปิดบังคับเซสชัน
+ * ลูกค้าจะไม่มีข้อมูลบัญชี (ขึ้น "สมัครสมาชิกให้เสร็จ" ค้าง / จองแล้วบอกว่าไม่มีแมว)
+ * หมดอายุแล้ว → ล็อกอินใหม่เพื่อเอา token สด (กันวนซ้ำ: ลองได้ครั้งเดียวต่อ 1 นาที)
+ * คืน true = กำลังพาไปล็อกอินใหม่ อย่าทำอะไรต่อ
+ */
+function reloginIfTokenExpired(liff: LiffAuthModule): boolean {
+  // ในแอป LINE เปิดใหม่ทุกครั้งได้ token สดอยู่แล้ว (login() ใช้ในนั้นไม่ได้)
+  if (typeof window === "undefined" || liff.isInClient()) return false;
+  const exp = liff.getDecodedIDToken()?.exp;
+  if (exp && exp * 1000 > Date.now() + 30_000) return false;
+  try {
+    const last = Number(sessionStorage.getItem(RELOGIN_KEY) || 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem(RELOGIN_KEY, String(Date.now()));
+  } catch {
+    return false;
+  }
+  liff.logout();
+  liff.login({ redirectUri: window.location.href });
+  return true;
+}
+
 export function LiffProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -152,6 +185,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
               liff.default.login();
               return;
             }
+            if (reloginIfTokenExpired(liff.default as unknown as LiffAuthModule)) return;
             // แลก ID token เป็นคุกกี้เซสชัน — จากนั้นฝั่งเซิร์ฟเวอร์จะรู้เองว่าเป็นใคร
             // โดยไม่ต้องเชื่อ lineUserId ที่ส่งไปกับ request
             //
@@ -239,6 +273,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       );
       return;
     }
+    if (path === "booking-transport") {
+      const bkId = params.get("id");
+      router.replace(`/app/booking-transport?id=${encodeURIComponent(bkId || "")}`);
+      return;
+    }
     if (path === "profile") {
       router.replace("/app/profile");
       return;
@@ -287,6 +326,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith("/app/services") ||
       pathname.startsWith("/app/consent") ||
       pathname.startsWith("/app/booking-time") ||
+      pathname.startsWith("/app/booking-transport") ||
       pathname.startsWith("/app/profile") ||
       pathname.startsWith("/app/groom-info") ||
       pathname.startsWith("/app/coupons") ||

@@ -28,6 +28,12 @@ export type CustomerPackage = {
   roomLabel?: string;
   /** มาจากแพ็กห้องรายเดือนใบไหน (ดู room-plans-store) */
   planId?: string;
+  /**
+   * คอร์สนับครั้งที่ผูกโปรแกรมอาบน้ำ (id โปรแกรมในตั้งค่า) — หักได้เฉพาะโปรแกรมนี้
+   * หักตามจำนวนตัวที่อาบโปรแกรมนี้ในบิล (บ้านมา 2 ตัว = หัก 2 ครั้ง) ใช้ร่วมกันได้ทั้งบ้าน
+   * ไม่ระบุ = คอร์สนับครั้งแบบเดิม หัก 1 ครั้งแล้วบิลนั้นฟรี
+   */
+  groomProgram?: string;
 };
 
 type PackageRow = {
@@ -43,6 +49,7 @@ type PackageRow = {
   room_type?: string | null;
   room_label?: string | null;
   plan_id?: string | null;
+  groom_program?: string | null;
 };
 
 const mem: CustomerPackage[] = [];
@@ -61,6 +68,7 @@ function rowToPackage(r: PackageRow): CustomerPackage {
     roomType: r.room_type || undefined,
     roomLabel: r.room_label || undefined,
     planId: r.plan_id || undefined,
+    groomProgram: r.groom_program || undefined,
   };
 }
 
@@ -79,6 +87,8 @@ export async function sellPackage(data: {
   roomType?: string;
   roomLabel?: string;
   planId?: string;
+  /** ผูกโปรแกรมอาบน้ำ (คอร์สนับครั้งเท่านั้น) */
+  groomProgram?: string;
   /**
    * ไม่ลงรายรับตอนสร้าง — ใช้กับแพ็กที่แบ่งจ่ายเป็นงวด (ลงรายรับทีละงวดตอนรับเงินจริง)
    * ถ้าลงตอนสร้างด้วย ยอดขายจะนับซ้ำสองรอบ
@@ -98,6 +108,7 @@ export async function sellPackage(data: {
     roomType: data.unit === "night" ? data.roomType || undefined : undefined,
     roomLabel: data.unit === "night" ? data.roomLabel || undefined : undefined,
     planId: data.planId || undefined,
+    groomProgram: data.unit === "night" ? undefined : data.groomProgram || undefined,
   };
 
   const sb = getSupabase();
@@ -129,6 +140,17 @@ export async function sellPackage(data: {
       if (res.error) {
         const { ensureMigration } = await import("./migrations");
         if (await ensureMigration("room_plans.setup")) {
+          await sb.from("customer_packages").update(extra).eq("id", pkg.id);
+        }
+      }
+    }
+    // โปรแกรมอาบน้ำที่ผูก — คอลัมน์เพิ่มมาทีหลังเหมือนกัน
+    if (pkg.groomProgram) {
+      const extra = { groom_program: pkg.groomProgram };
+      const res = await sb.from("customer_packages").update(extra).eq("id", pkg.id);
+      if (res.error) {
+        const { ensureMigration } = await import("./migrations");
+        if (await ensureMigration("packages.groom_program")) {
           await sb.from("customer_packages").update(extra).eq("id", pkg.id);
         }
       }

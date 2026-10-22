@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { MoreMenu } from "@/components/ui";
 import { toast } from "@/components/Toast";
+import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 
 type Inv = {
   id: string;
@@ -97,6 +98,8 @@ export function InvoiceActionButtons({
 
   const paid = inv.status === "paid";
   const needDeposit = !paid && hasDeposit && !inv.depositReceivedAt;
+  // ยอดที่รับมาแล้วจริง — โยกเป็นเครดิตได้ทั้งบิลที่จ่ายครบ และบิลที่รับมัดจำ/จ่ายบางส่วนไว้
+  const received = paid ? inv.total : inv.depositReceivedAt ? inv.deposit ?? 0 : 0;
 
   return (
     <div className="mt-2 rounded-catcha-sm border border-catcha-line bg-paper/60 p-2.5">
@@ -119,9 +122,12 @@ export function InvoiceActionButtons({
           {hasDeposit && (
             <p className="truncate text-[11px] text-brown-soft">
               มัดจำ {inv.deposit!.toLocaleString()}
-              {inv.depositReceivedAt ? " (รับแล้ว)" : " (รอรับ)"}
+              {inv.depositReceivedAt || paid ? " (รับแล้ว)" : " (รอรับ)"}
               {remaining > 0 && !paid && (
                 <span className="font-bold text-wait"> · คงเหลือ {remaining.toLocaleString()} บาท</span>
+              )}
+              {paid && (
+                <span className="font-bold text-ok"> · รับครบ {inv.total.toLocaleString()} บาท</span>
               )}
             </p>
           )}
@@ -177,6 +183,20 @@ export function InvoiceActionButtons({
           }
         />
       </div>
+      {/* ลูกค้าจ่ายแล้ว (ครบหรือบางส่วน) แต่ยกเลิก/ไม่มา — ยกเลิกนัด แล้วเก็บยอดไว้เป็นเครดิตใช้ครั้งหน้า */}
+      {received > 0 && inv.customerId && (
+        <div className="mt-2">
+          <CancelToCreditButton
+            invoiceId={inv.id}
+            total={received}
+            paid={paid}
+            onDone={() => {
+              reload();
+              onDone?.();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { toast } from "@/components/Toast";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { Icon } from "@/components/Icon";
 import { EmptyState, MoreMenu, SectionLabel, Segmented } from "@/components/ui";
+import { GroomProgramPicker, useGroomPrograms } from "@/components/GroomProgramPicker";
+import { groomProgramName, type GroomProgram } from "@/lib/grooming-prices";
 
 type PackageKind = "uses" | "credit" | "nights";
 
@@ -19,6 +21,8 @@ type Offer = {
   creditBonus: number;
   description?: string;
   imageUrl?: string;
+  /** เฉพาะ kind==="uses" — ผูกโปรแกรมอาบน้ำ ไม่ระบุ = ทุกโปรแกรม */
+  groomProgram?: string;
   active: boolean;
 };
 
@@ -42,8 +46,10 @@ function OfferRow({
   offer,
   patch,
   pickImage,
+  programs,
 }: {
   offer: Offer;
+  programs: GroomProgram[];
   patch: (body: Record<string, unknown>, okMsg: string, key: string) => Promise<void>;
   pickImage: (file: File, onDone: (dataUrl: string) => void) => Promise<void>;
 }) {
@@ -54,6 +60,7 @@ function OfferRow({
   const [price, setPrice] = useState(String(o.price));
   const [creditBonus, setCreditBonus] = useState(String(o.creditBonus));
   const [desc, setDesc] = useState(o.description || "");
+  const [program, setProgram] = useState(o.groomProgram || "");
   const [saving, setSaving] = useState(false);
   const isCredit = o.kind === "credit";
   const isNights = o.kind === "nights";
@@ -65,6 +72,7 @@ function OfferRow({
     setPrice(String(o.price));
     setCreditBonus(String(o.creditBonus));
     setDesc(o.description || "");
+    setProgram(o.groomProgram || "");
     setEditing(true);
   };
 
@@ -84,6 +92,7 @@ function OfferRow({
           price: Math.round(Number(price) || 0),
           creditBonus: Math.round(Number(creditBonus) || 0),
           description: desc.trim(),
+          ...(o.kind === "uses" ? { groomProgram: program } : {}),
         },
         isCredit ? "แก้ไขแพ็กเกจเครดิตแล้ว ✏️" : "แก้ไขคอร์สแล้ว ✏️",
         o.id
@@ -165,6 +174,9 @@ function OfferRow({
             placeholder="คำโปรย (ถ้ามี)"
             className={field}
           />
+          {o.kind === "uses" && (
+            <GroomProgramPicker value={program} onChange={setProgram} programs={programs} />
+          )}
           <div className="flex gap-2 pt-1">
             <button
               type="button"
@@ -238,6 +250,7 @@ function OfferRow({
                 o.price + o.creditBonus
               ).toLocaleString()} เครดิต`
             : `${o.totalUses} ${unitWord} · ${o.price.toLocaleString()} ฿`}
+          {o.groomProgram && ` · ${groomProgramName(o.groomProgram, programs) || "โปรแกรมที่ลบไปแล้ว"}`}
         </span>
         {o.description ? (
           <span className="block truncate text-[11px] text-brown-faint">{o.description}</span>
@@ -290,6 +303,8 @@ export default function AdminPackagesPage() {
   const [creditBonus, setCreditBonus] = useState("");
   const [desc, setDesc] = useState("");
   const [image, setImage] = useState("");
+  const [program, setProgram] = useState("");
+  const groomPrograms = useGroomPrograms();
 
   /** ย่อรูปก่อนส่งเสมอ — รูปจากมือถือ 5MB ยิงขึ้นไปตรงๆ จะโดนตีกลับ */
   const pickImage = async (file: File, onDone: (dataUrl: string) => void) => {
@@ -347,6 +362,7 @@ export default function AdminPackagesPage() {
           creditBonus: bonus,
           description: desc.trim() || undefined,
           image: image || undefined,
+          groomProgram: kind === "uses" ? program || undefined : undefined,
         }),
       });
       if (res.ok) {
@@ -362,6 +378,7 @@ export default function AdminPackagesPage() {
         setCreditBonus("");
         setDesc("");
         setImage("");
+        setProgram("");
         load();
       } else {
         toast("เพิ่มไม่สำเร็จ", "error");
@@ -526,6 +543,9 @@ export default function AdminPackagesPage() {
               placeholder="คำโปรย (ถ้ามี) เช่น ประหยัดกว่าซื้อแยก 500฿"
               className={field}
             />
+            {kind === "uses" && (
+              <GroomProgramPicker value={program} onChange={setProgram} programs={groomPrograms} />
+            )}
 
             <label className="flex cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2.5">
               {image ? (
@@ -684,7 +704,7 @@ export default function AdminPackagesPage() {
           ) : (
             <ul className="divide-y divide-catcha-line">
               {offers.map((o) => (
-                <OfferRow key={o.id} offer={o} patch={patch} pickImage={pickImage} />
+                <OfferRow key={o.id} offer={o} patch={patch} pickImage={pickImage} programs={groomPrograms} />
               ))}
             </ul>
           )}
@@ -740,7 +760,7 @@ export default function AdminPackagesPage() {
         <button
           type="button"
           onClick={() => setZoomSlip(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={zoomSlip} alt="สลิปโอนเงิน" className="max-h-full max-w-full rounded-catcha object-contain" />

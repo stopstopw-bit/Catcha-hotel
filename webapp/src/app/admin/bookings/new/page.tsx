@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { GroomClashNote, confirmClashes, useGroomClashes } from "@/components/GroomClashNote";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { RoomType } from "@/lib/business";
@@ -8,10 +9,16 @@ import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
+import { TransportPicker } from "@/components/TransportPicker";
+import type { BookingTransport } from "@/lib/transport";
 import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
+import { UNKNOWN_CAT, isUnknownCat } from "@/lib/unknown-cat";
+import { dayCarePrice } from "@/lib/day-care";
 import {
   typeAvailability,
+  attachClosures,
+  type RoomClosure,
   compositionOf,
   roomCapacity,
   freeUnitsForRange,
@@ -22,8 +29,6 @@ type CustomerListItem = CustomerRecord & { upcomingAppointments?: number };
 
 const FREEBIE_OPTIONS = ["กล้องวงจรปิด (CCTV)", "น้ำพุแมว", "รับ-ส่ง", "ขนม/ทรีท"];
 
-const UNKNOWN_CAT = "น้องไม่ระบุชื่อ";
-const isUnknownCat = (name: string) => name === UNKNOWN_CAT || name.startsWith(`${UNKNOWN_CAT} (`);
 
 /**
  * เลือกลูกค้า + น้องแมว แบบแอปจองคิวทั่วไป (Fresha / Booksy / แอปโรงแรมสัตว์เลี้ยง)
@@ -310,7 +315,7 @@ function ClientPetPicker({
               onClick={() => onSetUnknownCount(1)}
               className="rounded-full border border-dashed border-catcha-line px-3.5 py-2 text-sm font-bold text-brown-soft"
             >
-              ยังไม่ทราบตัว
+              ยังไม่ทราบชื่อ
             </button>
           )}
         </div>
@@ -321,7 +326,7 @@ function ClientPetPicker({
               <Icon name="paw" size={18} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-extrabold text-catcha-chocolate">ยังไม่ทราบตัว</p>
+              <p className="text-sm font-extrabold text-catcha-chocolate">ยังไม่ทราบชื่อ</p>
               <p className="text-[11px] text-brown-soft">มากี่ตัว — ล็อกคิวตามจำนวนนี้ ใส่ชื่อทีหลังได้</p>
             </div>
             <div className="flex items-center gap-1">
@@ -349,7 +354,7 @@ function ClientPetPicker({
         <p className="mt-2 text-[11px] text-brown-faint">
           {catNames.length > 0
             ? `รวม ${catNames.length} ตัว · ล็อกคิว ${catNames.length} ที่ · ระบบสร้างนัดให้ทีละตัวและผูกเป็นบ้านเดียวกัน`
-            : "แตะชื่อน้องเพื่อเลือก เลือกได้หลายตัว · ไม่รู้ว่าตัวไหนมา กด “ยังไม่ทราบตัว”"}
+            : "แตะชื่อน้องเพื่อเลือก เลือกได้หลายตัว · ไม่รู้ว่าตัวไหนมา กด “ยังไม่ทราบชื่อ”"}
         </p>
       </section>
     </div>
@@ -382,6 +387,8 @@ export default function NewBookingPage() {
   const [lineUserId, setLineUserId] = useState("");
   const [freebies, setFreebies] = useState<string[]>([]);
   const [appointmentDate, setAppointmentDate] = useState(presetDate);
+  /** Day Care = ฝากรายวัน ไม่ค้างคืน — วันออก = วันเข้า คิดครึ่งราคาห้อง */
+  const [dayCare, setDayCare] = useState(false);
   const [checkoutDate, setCheckoutDate] = useState(() => {
     if (!presetDate) return "";
     const d = new Date(`${presetDate}T12:00:00`);
@@ -402,7 +409,7 @@ export default function NewBookingPage() {
     fetch("/api/config")
       .then((r) => r.json())
       .then((d) => {
-        if (d.config?.rooms) setRooms(d.config.rooms);
+        if (d.config?.rooms) setRooms(attachClosures(d.config.rooms as RoomType[], d.config.roomClosures));
         if (d.config?.groomSlots) setGroomSlots(d.config.groomSlots);
         if (d.config?.options?.freebies?.length) setFreebies_(d.config.options.freebies);
         setGroomPrograms(resolveGroomPrograms(d.config?.groomPricePrograms));
@@ -420,14 +427,22 @@ export default function NewBookingPage() {
       });
   }, []);
 
+  // เวลานัดอาบน้ำ — ใช้เช็กว่าชนกับคิวที่มีอยู่ไหม
+  const [groomTime, setGroomTime] = useState("12:30");
+  const clashes = useGroomClashes(service === "groom" ? appointmentDate : "", groomTime);
+
   const [roomId, setRoomId] = useState("");
+  /** วันออกที่ใช้คิดห้องว่าง — Day Care ใช้ห้องแค่วันเดียว */
+  const stayOut = dayCare ? appointmentDate : checkoutDate || appointmentDate;
   // ห้องจริงที่ปักหมุด (เลขห้อง) — เฉพาะห้องเดี่ยว ไม่ใช่ห้องเชื่อม (ห้องเชื่อมจัดให้อัตโนมัติเหมือนเดิม)
   const [roomUnit, setRoomUnit] = useState<number | null>(null);
+  const [transport, setTransport] = useState<BookingTransport>({});
   const boardRooms = rooms.map((r) => ({
     id: r.id,
     name: r.name,
     count: r.count || 0,
     maxCats: roomCapacity(r),
+    closures: (r as RoomType & { closures?: RoomClosure[] }).closures,
   }));
   /** ห้องแต่ละแบบว่างกี่ห้องตลอดช่วงที่ขอ (ติดคืนไหนบอกคืนนั้น) */
   const availability = useMemo(() => {
@@ -442,12 +457,12 @@ export default function NewBookingPage() {
         existing,
         r.id,
         appointmentDate,
-        checkoutDate || appointmentDate
+        stayOut
       );
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [service, appointmentDate, checkoutDate, rooms, existing]);
+  }, [service, appointmentDate, stayOut, rooms, existing]);
 
   // ห้องที่เลือกไว้เต็มไปแล้ว (เช่นเพิ่งเปลี่ยนวัน) → เด้งไปห้องที่ยังว่าง
   useEffect(() => {
@@ -470,15 +485,36 @@ export default function NewBookingPage() {
       existing,
       roomId,
       appointmentDate,
-      checkoutDate || appointmentDate
+      stayOut
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [service, roomId, appointmentDate, checkoutDate, rooms, existing]);
+  }, [service, roomId, appointmentDate, stayOut, rooms, existing]);
 
   // เปลี่ยนห้อง/วัน แล้วเลขที่เคยเลือกไว้ไม่ว่างแล้ว → เคลียร์ทิ้ง (ให้ระบบเดาเองแทน)
   useEffect(() => {
     if (roomUnit != null && !freeUnits.includes(roomUnit)) setRoomUnit(null);
   }, [freeUnits, roomUnit]);
+
+  // ห้องที่ 2 ของการจองเดียวกัน — แยกน้องบางตัวไปอีกห้อง (บิลยังรวมใบเดียวเพราะเป็นบ้าน/ช่วงวันเดียวกัน)
+  const [room2Id, setRoom2Id] = useState("");
+  const [room2Unit, setRoom2Unit] = useState<number | null>(null);
+  const [room2Cats, setRoom2Cats] = useState<string[]>([]);
+  const free2 = (id: string) => (availability[id]?.free ?? 0) - (id === roomId ? 1 : 0);
+  const freeUnits2 = useMemo(() => {
+    if (service !== "room" || !room2Id || !appointmentDate || compositionOf(room2Id)) return [];
+    return freeUnitsForRange(boardRooms, existing, room2Id, appointmentDate, stayOut).filter(
+      (u) => !(room2Id === roomId && u === roomUnit)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service, room2Id, roomId, roomUnit, appointmentDate, stayOut, rooms, existing]);
+  useEffect(() => {
+    if (room2Unit != null && !freeUnits2.includes(room2Unit)) setRoom2Unit(null);
+  }, [freeUnits2, room2Unit]);
+  const closeRoom2 = () => {
+    setRoom2Id("");
+    setRoom2Unit(null);
+    setRoom2Cats([]);
+  };
 
   const addCatFromInput = () => {
     const name = catInput.trim();
@@ -500,6 +536,7 @@ export default function NewBookingPage() {
   };
 
   const removeCat = (name: string) => {
+    setRoom2Cats((prev) => prev.filter((c) => c !== name));
     setCatNames((prev) => prev.filter((c) => c !== name));
   };
 
@@ -511,9 +548,10 @@ export default function NewBookingPage() {
     const fd = new FormData(form);
     const cats = catNames.length > 0 ? catNames : catInput.trim() ? [catInput.trim()] : [];
     if (cats.length === 0) {
-      toast("กรอกชื่อน้องแมวอย่างน้อย 1 ชื่อ (หรือกด “ยังไม่ทราบตัว”)", "error");
+      toast("กรอกชื่อน้องแมวอย่างน้อย 1 ชื่อ (หรือกด “ยังไม่ทราบชื่อ”)", "error");
       return;
     }
+    if (service === "groom" && !confirmClashes(clashes)) return;
 
     const noteBase = String(fd.get("notes") || "").trim();
     const freebieLine = service === "room" && freebies.length
@@ -537,8 +575,14 @@ export default function NewBookingPage() {
           ? Number(fd.get("roomUnit")) || undefined
           : undefined,
       checkin: service === "room" ? String(fd.get("checkin") || "") : undefined,
-      checkout: service === "room" ? String(fd.get("checkout") || "") : undefined,
+      checkout:
+        service !== "room"
+          ? undefined
+          : dayCare
+            ? String(fd.get("checkin") || "")
+            : String(fd.get("checkout") || ""),
       notes,
+      transport: transport.pickup || transport.dropoff ? transport : undefined,
     };
 
     const created: {
@@ -550,11 +594,43 @@ export default function NewBookingPage() {
     }[] = [];
     let failed = 0;
 
+    const twoRooms = service === "room" && !!room2Id;
+    if (twoRooms && !cats.some((c) => room2Cats.includes(c))) {
+      toast("เลือกน้องที่จะอยู่ห้องที่ 2 ก่อนนะ (แตะชื่อน้องในกล่องห้องที่ 2)", "error");
+      return;
+    }
+    if (twoRooms && cats.every((c) => room2Cats.includes(c))) {
+      toast("ห้องที่ 1 ต้องมีน้องอย่างน้อย 1 ตัว", "error");
+      return;
+    }
+
+    // ประเภทเดียวกันทั้ง 2 ห้อง ถ้าไม่ล็อกเลขห้อง ระบบจัดห้องจะเอาน้องบ้านเดียวกันไว้ห้องเดียวกัน
+    // → ล็อกเลขห้องให้ทั้งคู่ (ใช้ที่เลือกไว้ ไม่งั้นหยิบห้องว่างห้องแรก)
+    let unit1 = roomUnit;
+    let unit2 = room2Unit;
+    if (twoRooms && room2Id === roomId && !compositionOf(roomId)) {
+      unit1 = unit1 ?? freeUnits.find((u) => u !== unit2) ?? null;
+      unit2 = unit2 ?? freeUnits.find((u) => u !== unit1) ?? null;
+      if (unit1 == null || unit2 == null || unit1 === unit2) {
+        toast("ห้องประเภทนี้ว่างไม่ถึง 2 ห้องในช่วงนี้", "error");
+        return;
+      }
+    }
+
     for (const cat of cats) {
+      const inRoom2 = twoRooms && room2Cats.includes(cat);
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...basePayload, catName: cat }),
+        body: JSON.stringify({
+          ...basePayload,
+          ...(inRoom2
+            ? { room: room2Id, roomUnit: unit2 ?? undefined }
+            : twoRooms
+              ? { roomUnit: unit1 ?? undefined }
+              : {}),
+          catName: cat,
+        }),
       });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -582,7 +658,11 @@ export default function NewBookingPage() {
       setCatInput("");
       setLineUserId("");
       setFreebies([]);
+      setTransport({});
+      // ลูกค้า Day Care มีน้อย — จองเสร็จกลับไปที่ "ค้างคืน" เสมอ
+      setDayCare(false);
       setRoomUnit(null);
+      closeRoom2();
       form.reset();
       setTimeout(() => setSaved(false), 2500);
     }
@@ -661,7 +741,10 @@ export default function NewBookingPage() {
 
       <Segmented
         value={service}
-        onChange={setService}
+        onChange={(v) => {
+          setService(v);
+          setDayCare(false);
+        }}
         className="mb-4"
         options={[
           { id: "groom", label: "อาบน้ำ", icon: "bath" },
@@ -734,7 +817,8 @@ export default function NewBookingPage() {
                 name="time"
                 type="time"
                 list="groom-slots"
-                defaultValue="12:30"
+                value={groomTime}
+                onChange={(e) => setGroomTime(e.target.value)}
                 className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown"
               />
               <datalist id="groom-slots">
@@ -745,6 +829,7 @@ export default function NewBookingPage() {
               <p className="mt-1 text-[10px] text-brown-faint">
                 เลือกจากรอบแนะนำ หรือพิมพ์เวลาเองได้
               </p>
+              <GroomClashNote clashes={clashes} />
             </label>
 
             <label className="block text-xs font-bold text-brown-soft">
@@ -768,10 +853,20 @@ export default function NewBookingPage() {
           </>
         ) : (
           <>
+            <Segmented
+              value={dayCare ? "day" : "stay"}
+              onChange={(v) => setDayCare(v === "day")}
+              options={[
+                { id: "stay", label: "ค้างคืน", icon: "bed" },
+                { id: "day", label: "Day Care", icon: "clock" },
+              ]}
+            />
             <div>
               <p className="text-xs font-bold text-brown-soft">ห้อง</p>
               <p className="mb-1.5 text-[10px] text-brown-faint">
-                ตัวเลขคือห้องที่ว่างจริงตลอดช่วงที่เลือก · ห้องเต็มจะกดไม่ได้
+                {dayCare
+                  ? "ฝากรายวัน ไม่ค้างคืน · คิดครึ่งราคาห้อง · ตัวเลขคือห้องที่ว่างวันนั้น"
+                  : "ตัวเลขคือห้องที่ว่างจริงตลอดช่วงที่เลือก · ห้องเต็มจะกดไม่ได้"}
               </p>
               <input type="hidden" name="room" value={roomId} />
               <div className="space-y-1.5">
@@ -804,7 +899,7 @@ export default function NewBookingPage() {
                           </span>
                         </span>
                         <span className="block text-[10px] text-brown-soft">
-                          {r.price} บาท/คืน
+                          {dayCare ? `${dayCarePrice(r.price)} บาท/วัน` : `${r.price} บาท/คืน`}
                           {full && a
                             ? ` · เต็มวันที่ ${a.tightestDate}`
                             : combo
@@ -866,23 +961,114 @@ export default function NewBookingPage() {
                   )}
                 </div>
               )}
+
+              {/* ห้องที่ 2 — การจองเดียวกันแต่แยกน้องบางตัวไปอีกห้อง */}
+              {!room2Id ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const first = rooms.find((r) => free2(r.id) > 0 || (!r.count && compositionOf(r.id)));
+                    if (first) setRoom2Id(first.id);
+                    else toast("ช่วงวันนี้ไม่มีห้องว่างพอสำหรับห้องที่ 2", "error");
+                  }}
+                  className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-catcha-sm border border-dashed border-latte/60 text-xs font-bold text-latte-deep"
+                >
+                  <Icon name="plus" size={15} />
+                  เพิ่มห้องที่ 2 (แยกน้องไปอีกห้อง)
+                </button>
+              ) : (
+                <div className="mt-3 space-y-2 rounded-catcha-sm border border-honey/60 bg-honey/10 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-extrabold text-catcha-chocolate">ห้องที่ 2</p>
+                    <button type="button" onClick={closeRoom2} className="min-h-[36px] px-2 text-[11px] font-bold text-brown-soft">
+                      เอาออก
+                    </button>
+                  </div>
+                  <select
+                    value={room2Id}
+                    onChange={(e) => {
+                      setRoom2Id(e.target.value);
+                      setRoom2Unit(null);
+                    }}
+                    aria-label="ประเภทห้องที่ 2"
+                    className="min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm text-brown"
+                  >
+                    {rooms.map((r) => {
+                      const tracked = r.id in availability;
+                      const f = free2(r.id);
+                      return (
+                        <option key={r.id} value={r.id} disabled={tracked && f <= 0}>
+                          {r.name} · {dayCare ? `${dayCarePrice(r.price)} บาท/วัน` : `${r.price} บาท/คืน`}{tracked ? (f > 0 ? ` · ว่าง ${f}` : " · เต็ม") : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {freeUnits2.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {freeUnits2.map((u) => (
+                        <button
+                          key={u}
+                          type="button"
+                          onClick={() => setRoom2Unit(room2Unit === u ? null : u)}
+                          aria-pressed={room2Unit === u}
+                          className={`min-h-[36px] rounded-full px-3 text-xs font-bold ${
+                            room2Unit === u ? "bg-catcha-chocolate text-card" : "bg-card text-brown-soft ring-1 ring-catcha-line"
+                          }`}
+                        >
+                          ห้อง {u}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] font-bold text-brown-soft">น้องที่อยู่ห้องนี้ (แตะเพื่อเลือก)</p>
+                  {catNames.length === 0 ? (
+                    <p className="text-[10px] text-brown-faint">ใส่ชื่อน้องด้านบนก่อน แล้วค่อยแบ่งห้อง</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {catNames.map((c) => {
+                        const on = room2Cats.includes(c);
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => setRoom2Cats((prev) => (on ? prev.filter((x) => x !== c) : [...prev, c]))}
+                            className={`flex min-h-[36px] items-center gap-1 rounded-full px-3 text-xs font-bold ${
+                              on ? "bg-catcha-chocolate text-card" : "bg-card text-brown-soft ring-1 ring-catcha-line"
+                            }`}
+                          >
+                            {on && <Icon name="check" size={13} strokeWidth={2.4} />}
+                            {c}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-brown-faint">
+                    ตัวที่ไม่ได้เลือกอยู่ห้องที่ 1 · บิลยังรวมเป็นใบเดียว
+                    {room2Id === roomId && !compositionOf(roomId) && " · ห้องแบบเดียวกัน ระบบจะล็อกเลขห้องให้แยกกัน"}
+                  </p>
+                </div>
+              )}
             </div>
             <Field
-              label="เช็คอิน"
+              label={dayCare ? "วันที่ฝาก" : "เช็คอิน"}
               name="checkin"
               type="date"
               required
               value={appointmentDate}
               onChange={setAppointmentDate}
             />
-            <Field
-              label="เช็คเอาท์"
-              name="checkout"
-              type="date"
-              required
-              value={checkoutDate}
-              onChange={setCheckoutDate}
-            />
+            {!dayCare && (
+              <Field
+                label="เช็คเอาท์"
+                name="checkout"
+                type="date"
+                required
+                value={checkoutDate}
+                onChange={setCheckoutDate}
+              />
+            )}
           </>
         )}
 
@@ -922,6 +1108,8 @@ export default function NewBookingPage() {
           </div>
         </div>
         )}
+
+        <TransportPicker value={transport} onChange={setTransport} />
 
         <Field label="โน้ตนิสัยน้อง (ลูกค้าใหม่)" name="notes" textarea />
 

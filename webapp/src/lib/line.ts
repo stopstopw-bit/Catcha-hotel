@@ -4,9 +4,11 @@
  */
 
 import { formatBookingWhen, formatThaiDate } from "./format-thai-date";
+import { hasTransport, transportLabel, type BookingTransport } from "./transport";
 import { getLineCredentials } from "./line-config";
 import { BUSINESS } from "./business";
 import { groomProgramName } from "./grooming-prices";
+import { DEEMED_CONSENT_NOTICE } from "./messages";
 import type { CardStyleConfig } from "./config-types";
 
 const BRAND_GREEN = "#5A8F5A";
@@ -155,6 +157,9 @@ export function buildAppointmentConfirmFlex(booking: {
   notes?: string;
   /** โปรแกรมอาบน้ำที่เลือกไว้ (id ของ GROOM_PROGRAMS) — โชว์ให้ลูกค้าเห็นว่าอาบโปรแกรมไหน */
   groomProgram?: string;
+  /** บริการรับ-ส่ง — โชว์แถวรับ-ส่ง + ปุ่มให้ลูกค้าส่งจุดรับ-ส่ง (ลิงก์ Google Maps) */
+  transport?: BookingTransport;
+  transportUrl?: string;
   confirmUrl: string;
   /** แผนที่/ที่อยู่ของร้าน — มาจาก config ไม่ใช่ค่าตายตัว ไม่มีก็ซ่อนแถวนั้นไป */
   mapsUrl?: string;
@@ -241,6 +246,20 @@ export function buildAppointmentConfirmFlex(booking: {
           ...(show("location") && booking.location
             ? [flexDetailRow("📍", t("locationLabel", "สถานที่"), booking.location)]
             : []),
+          ...(hasTransport(booking.transport)
+            ? [
+                flexDetailRow(
+                  "🚗",
+                  t("transportLabel", "รับ-ส่งน้อง"),
+                  `${transportLabel(booking.transport)}\n${
+                    booking.transport.address ||
+                    (booking.transport.mapUrl
+                      ? "ได้รับแผนที่จุดรับ-ส่งแล้ว"
+                      : "ยังไม่ได้ส่งจุดรับ-ส่ง กดปุ่มด้านล่างได้เลยค่ะ")
+                  }`
+                ),
+              ]
+            : []),
           ...(show("notes") ? [flexDetailRow("📝", t("notesLabel", "หมายเหตุ"), noteText)] : []),
           // เฉพาะนัดอาบน้ำ — เตือนเรื่องขนมกับตะกร้า ให้เห็นเด่นแยกจากหมายเหตุทั่วไป
           ...(!isRoom && show("groomPrep")
@@ -311,6 +330,23 @@ export function buildAppointmentConfirmFlex(booking: {
               uri: booking.confirmUrl,
             },
           },
+          ...(booking.transportUrl
+            ? [
+                {
+                  type: "button",
+                  style: "secondary",
+                  height: "sm",
+                  action: {
+                    type: "uri",
+                    label:
+                      booking.transport?.mapUrl || booking.transport?.address
+                        ? "📍 แก้จุดรับ-ส่ง"
+                        : "📍 ส่งจุดรับ-ส่ง (Google Maps)",
+                    uri: booking.transportUrl,
+                  },
+                },
+              ]
+            : []),
           ...(show("map") && booking.mapsUrl
             ? [
                 {
@@ -331,6 +367,35 @@ export function buildAppointmentConfirmFlex(booking: {
   };
 }
 
+/** กล่องข้อความ "ไม่ตอบ = ยอมรับข้อตกลง" ใช้ในการ์ดที่ให้ลูกค้ายืนยันเงื่อนไขก่อนเข้าพัก */
+function deemedConsentBox(): Record<string, unknown> {
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "lg",
+    paddingAll: "12px",
+    backgroundColor: "#F4F1EC",
+    cornerRadius: "10px",
+    contents: [
+      {
+        type: "text",
+        text: "ข้อตกลงโดยปริยาย",
+        size: "xs",
+        weight: "bold",
+        color: "#5C4033",
+      },
+      {
+        type: "text",
+        text: DEEMED_CONSENT_NOTICE,
+        size: "xxs",
+        color: "#7A6A5A",
+        margin: "xs",
+        wrap: true,
+      },
+    ],
+  };
+}
+
 /** การ์ดเงื่อนไขก่อนเข้าพัก — มีปุ่มไปหน้ากดยอมรับ + แจ้งการดูแลเพิ่มเติม */
 export function buildConsentFlex(data: {
   businessName: string;
@@ -341,7 +406,8 @@ export function buildConsentFlex(data: {
   room?: string;
   terms?: string[];
   url: string;
-}) {
+}, style?: CardStyleConfig) {
+  const tx = (k: string, fb: string) => style?.texts?.[k]?.trim() || fb;
   const dateText = data.checkin
     ? `${data.checkin}${data.checkout ? ` → ${data.checkout}` : ""}${
         data.room ? ` · ห้อง ${data.room}` : ""
@@ -356,8 +422,8 @@ export function buildConsentFlex(data: {
       type: "text",
       text: data.title,
       weight: "bold",
-      size: "lg",
-      color: "#5C4033",
+      size: style?.titleSize || "lg",
+      color: style?.accentColor || "#5C4033",
       wrap: true,
     },
     {
@@ -370,7 +436,7 @@ export function buildConsentFlex(data: {
     },
   ];
   if (dateText) {
-    body.push(flexDetailRow("🗓️", "เข้าพัก", dateText));
+    body.push(flexDetailRow("🗓️", tx("stayLabel", "เข้าพัก"), dateText));
   }
   body.push({ type: "separator", margin: "lg" });
   body.push({
@@ -384,7 +450,7 @@ export function buildConsentFlex(data: {
     contents: [
       {
         type: "text",
-        text: "⚠️ ก่อนฝากน้อง รบกวนทำ 2 ขั้นตอนนี้ก่อนนะคะ",
+        text: tx("stepsTitle", "⚠️ ก่อนฝากน้อง รบกวนทำ 2 ขั้นตอนนี้ก่อนนะคะ"),
         size: "sm",
         weight: "bold",
         color: "#5C4033",
@@ -392,18 +458,22 @@ export function buildConsentFlex(data: {
       },
       {
         type: "text",
-        text: `1. กดปุ่มด้านล่าง เพื่ออ่านข้อตกลง${
-          termsCount ? ` ${termsCount} ข้อ` : ""
-        }\n2. กดยอมรับ และเซ็นรับทราบในหน้านั้น`,
+        text: tx(
+          "steps",
+          `1. กดปุ่มด้านล่าง เพื่ออ่านข้อตกลง${
+            termsCount ? ` ${termsCount} ข้อ` : ""
+          }\n2. กดยอมรับ และเซ็นรับทราบในหน้านั้น`
+        ),
         size: "sm",
         color: "#4E3E32",
         wrap: true,
       },
     ],
   });
+  body.push(deemedConsentBox());
   body.push({
     type: "text",
-    text: "แจ้งการดูแลเพิ่มเติมของน้องในหน้าเดียวกันได้เลยค่ะ 🧡",
+    text: style?.closing?.trim() || "แจ้งการดูแลเพิ่มเติมของน้องในหน้าเดียวกันได้เลยค่ะ 🧡",
     size: "xs",
     color: "#A2907E",
     margin: "lg",
@@ -419,13 +489,13 @@ export function buildConsentFlex(data: {
       header: {
         type: "box",
         layout: "vertical",
-        backgroundColor: BRAND_GREEN,
+        backgroundColor: style?.headerColor || BRAND_GREEN,
         paddingAll: "16px",
         contents: [
           {
             type: "text",
-            text: "📋 เงื่อนไขก่อนเข้าพัก",
-            color: "#FFFFFF",
+            text: tx("header", "📋 เงื่อนไขก่อนเข้าพัก"),
+            color: style?.headerTextColor || "#FFFFFF",
             weight: "bold",
             size: "sm",
           },
@@ -445,11 +515,11 @@ export function buildConsentFlex(data: {
           {
             type: "button",
             style: "primary",
-            color: BRAND_GREEN_DARK,
+            color: style?.buttonColor || BRAND_GREEN_DARK,
             height: "sm",
             action: {
               type: "uri",
-              label: "อ่านเงื่อนไข + เซ็นยินยอม",
+              label: tx("button", "อ่านเงื่อนไข + เซ็นยินยอม").slice(0, 40),
               uri: data.url,
             },
           },
@@ -1297,6 +1367,9 @@ export function buildPrestayFlex(data: {
       ],
     });
   }
+
+  // มีปุ่มยืนยันการเข้าพัก → แจ้งว่าไม่ตอบ = ยอมรับโดยปริยาย
+  if (data.consentUrl) body.push(deemedConsentBox());
 
   if (style?.closing) {
     body.push({
@@ -2179,7 +2252,7 @@ export function buildReviewRequestFlex(data: {
             : []),
           {
             type: "text",
-            text: data.title,
+            text: st.texts?.title?.trim() || data.title,
             weight: "bold",
             size: st.titleSize || "md",
             color: st.headerTextColor || "#5C4033",
@@ -2301,7 +2374,9 @@ export function buildMemberBalanceFlex(data: {
 export function buildRoomPlanFlex(data: {
   customerName: string;
   planName: string;
-  nights: { roomLabel: string; total: number; left: number }[];
+  nights: { roomLabel: string; total: number; left: number; unit?: "night" | "use" }[];
+  /** "package" = คอร์สทั่วไปแบบแบ่งจ่าย (นับครั้ง) — ใช้คำกลางแทน "แพ็กห้อง/คืน" */
+  kind?: "room" | "package";
   price: number;
   paid: number;
   remaining: number;
@@ -2310,7 +2385,8 @@ export function buildRoomPlanFlex(data: {
   /** ยอดที่เพิ่งรับรอบนี้ (ไม่ใส่ = การ์ดแจ้งคืนคงเหลืออย่างเดียว) */
   thisPayment?: number;
   installmentNo?: number;
-}) {
+}, style?: CardStyleConfig) {
+  const tx = (k: string, fb: string) => style?.texts?.[k]?.trim() || fb;
   const row = (label: string, value: string, bold = false, color = "#4E3E32") => ({
     type: "box",
     layout: "horizontal",
@@ -2330,14 +2406,23 @@ export function buildRoomPlanFlex(data: {
   });
   const fmt = (n: number) => `${Math.round(n).toLocaleString()} บาท`;
   const totalLeft = data.nights.reduce((n, x) => n + x.left, 0);
+  const generic = data.kind === "package";
+  const unitOf = (u?: "night" | "use") => (u === "use" || (!u && generic) ? "ครั้ง" : "คืน");
+  const mainUnit = unitOf(data.nights[0]?.unit);
 
   const contents: Record<string, unknown>[] = [
     {
       type: "text",
-      text: data.thisPayment ? "🧾 รับชำระแพ็กห้องแล้ว" : "🏠 คืนคงเหลือของคุณ",
+      text: data.thisPayment
+        ? generic
+          ? tx("paidTitlePackage", "🧾 รับชำระคอร์สแล้ว")
+          : tx("paidTitleRoom", "🧾 รับชำระแพ็กห้องแล้ว")
+        : generic
+          ? tx("titlePackage", "🎫 คอร์สคงเหลือของคุณ")
+          : tx("titleRoom", "🏠 คืนคงเหลือของคุณ"),
       weight: "bold",
-      size: "lg",
-      color: "#5C4033",
+      size: style?.titleSize || "lg",
+      color: style?.headerColor || "#5C4033",
       wrap: true,
     },
     {
@@ -2379,27 +2464,27 @@ export function buildRoomPlanFlex(data: {
     backgroundColor: "#FBF4E9",
     cornerRadius: "12px",
     contents: [
-      { type: "text", text: "คืนที่ใช้ได้อีก", size: "xs", color: "#A2907E", align: "center" },
+      { type: "text", text: tx("leftLabel", `${mainUnit}ที่ใช้ได้อีก`), size: "xs", color: "#A2907E", align: "center" },
       {
         type: "text",
-        text: `${totalLeft} คืน`,
+        text: `${totalLeft} ${mainUnit}`,
         weight: "bold",
         size: "xxl",
-        color: "#C4956A",
+        color: style?.accentColor || "#C4956A",
         align: "center",
       },
-      ...data.nights.map((n) => row(n.roomLabel, `${n.left} / ${n.total} คืน`, true)),
+      ...data.nights.map((n) => row(n.roomLabel, `${n.left} / ${n.total} ${unitOf(n.unit)}`, true)),
     ],
   });
 
   contents.push({ type: "separator", margin: "lg" });
-  contents.push(row("ยอดแพ็ก", fmt(data.price)));
-  contents.push(row("จ่ายแล้ว", fmt(data.paid), false, "#6E8B5E"));
+  contents.push(row(tx("priceLabel", "ยอดแพ็ก"), fmt(data.price)));
+  contents.push(row(tx("paidLabel", "จ่ายแล้ว"), fmt(data.paid), false, "#6E8B5E"));
   if (data.remaining > 0) {
-    contents.push(row("คงเหลือ", fmt(data.remaining), true, "#C0703A"));
+    contents.push(row(tx("remainingLabel", "คงเหลือ"), fmt(data.remaining), true, "#C0703A"));
     contents.push(
       row(
-        "เหลืออีก",
+        tx("installmentsLabel", "เหลืออีก"),
         data.installmentsLeft > 1
           ? `${data.installmentsLeft} งวด (งวดละ ~${data.nextInstallment.toLocaleString()})`
           : "1 งวด",
@@ -2408,29 +2493,34 @@ export function buildRoomPlanFlex(data: {
     );
     contents.push({
       type: "text",
-      text: "เริ่มใช้คืนได้เมื่อชำระครบทุกงวดนะคะ",
+      text: tx(
+        "unpaidNote",
+        generic ? "เริ่มใช้คอร์สได้เมื่อชำระครบทุกงวดนะคะ" : "เริ่มใช้คืนได้เมื่อชำระครบทุกงวดนะคะ"
+      ),
       size: "xs",
       color: "#C0703A",
       margin: "md",
       wrap: true,
     });
   } else {
-    contents.push(row("สถานะ", "ชำระครบ ใช้ได้เลย ✅", true, "#6E8B5E"));
+    contents.push(row(tx("statusLabel", "สถานะ"), tx("statusPaid", "ชำระครบ ใช้ได้เลย ✅"), true, "#6E8B5E"));
   }
-  contents.push({
-    type: "text",
-    text: "พักห้องไหน ระบบหักคืนของห้องนั้นให้ตามจริงนะคะ 🐾",
-    size: "xs",
-    color: "#A2907E",
-    margin: "lg",
-    wrap: true,
-  });
+  if (!generic) {
+    contents.push({
+      type: "text",
+      text: style?.closing?.trim() || "พักห้องไหน ระบบหักคืนของห้องนั้นให้ตามจริงนะคะ 🐾",
+      size: "xs",
+      color: "#A2907E",
+      margin: "lg",
+      wrap: true,
+    });
+  }
 
   return {
     type: "flex",
     altText: data.thisPayment
-      ? `รับชำระแพ็กห้อง ${data.thisPayment} บาท · คงเหลือ ${data.remaining} บาท`
-      : `คืนคงเหลือ ${totalLeft} คืน`,
+      ? `รับชำระ${generic ? "คอร์ส" : "แพ็กห้อง"} ${data.thisPayment} บาท · คงเหลือ ${data.remaining} บาท`
+      : `${mainUnit}คงเหลือ ${totalLeft} ${mainUnit}`,
     contents: {
       type: "bubble",
       body: { type: "box", layout: "vertical", contents },
@@ -2678,7 +2768,7 @@ export function buildReadyForPickupFlex(data: {
   if (show("pickupTime") && data.pickupTime) {
     contents.push({
       type: "text",
-      text: `🚗 เวลาที่แจ้งไว้ว่าจะมารับ: ${data.pickupTime} น.`,
+      text: `${style?.texts?.pickupTimeLabel?.trim() || "🚗 เวลาที่แจ้งไว้ว่าจะมารับ"}: ${data.pickupTime} น.`,
       size: "xs",
       color: "#A2907E",
       margin: "md",

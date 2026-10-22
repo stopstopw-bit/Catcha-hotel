@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isDayCareStay } from "@/lib/day-care";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   createCalendarEvent,
   updateCalendarEventConfirmed,
   updateCalendarEvent,
   deleteCalendarEvent,
+  bookingCalendarPayload,
+  transportCalendarText,
 } from "@/lib/calendar";
 import {
   addBooking,
@@ -48,8 +51,9 @@ import {
   getCustomer,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
+import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
-import { listInvoices, updateInvoice, invoiceCatNames } from "@/lib/invoices-store";
+import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import {
   buildDepositReminderText,
@@ -64,19 +68,6 @@ import {
 } from "@/lib/booking-reminders";
 
 export const dynamic = "force-dynamic";
-
-function bookingCalendarPayload(b: StoredBooking) {
-  return {
-    summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
-    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}`,
-    start: b.date || b.checkin || "",
-    end: b.checkout || b.date || b.checkin || "",
-    time: b.time,
-    allDay: b.service === "room" && !b.time,
-    service: b.service === "room" ? ("room" as const) : ("groom" as const),
-    eventId: b.id,
-  };
-}
 
 /** หา LINE User ID ปลายทางของนัด (จากตัวนัด หรือจับคู่ลูกค้าในระบบ) */
 async function resolveRecipient(
@@ -148,6 +139,7 @@ export async function GET(req: NextRequest) {
       pickupTime: b.pickupTime,
       groomHealthInfo: b.groomHealthInfo,
       groomProgram: b.groomProgram,
+      transport: b.transport,
       roomUnit: b.roomUnit,
       autoOff: b.autoOff || [],
       customerId: customer?.id,
@@ -195,11 +187,14 @@ export async function POST(req: NextRequest) {
     lineUserId: customer.lineUserId,
     notes: body.notes,
     groomProgram,
+    transport: cleanTransport(body.transport),
   });
 
+  const serviceLabel =
+    body.service === "room" ? (isDayCareStay(body) ? "Day Care" : "ห้องพัก") : "อาบน้ำ";
   const cal = await createCalendarEvent({
-    summary: `${body.service === "room" ? "🏠" : "🛁"} ${body.catName} (${customer.name})`,
-    description: `${body.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${body.notes || ""}`,
+    summary: `${body.service === "room" ? "🏠" : "🛁"}${hasTransport(booking.transport) ? "🚗" : ""} ${body.catName} (${customer.name})`,
+    description: `${serviceLabel} · ${body.notes || ""}${transportCalendarText(booking.transport)}`,
     start: body.date || body.checkin,
     end: body.checkout || body.date || body.checkin,
     time: body.time,
@@ -217,8 +212,9 @@ export async function POST(req: NextRequest) {
     formatBookingTelegram("📌 จองใหม่", {
       ลูกค้า: customer.name,
       น้องแมว: body.catName,
-      บริการ: body.service === "room" ? "ห้องพัก" : "อาบน้ำ",
+      บริการ: serviceLabel,
       ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram, groomPrograms) } : {}),
+      ...(hasTransport(booking.transport) ? { รับส่ง: transportLabel(booking.transport) } : {}),
       วันที่: `${body.date || body.checkin}${body.time ? ` ${body.time}` : ""}`,
       ปฏิทิน: cal.googleUrl || icsUrl,
     })
@@ -251,7 +247,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "confirm") {
-    await updateBooking(id, { status: "confirmed", checkinTime });
+    // เวลาที่เลือกตอนกดยืนยัน = เวลามาส่งน้อง (ที่เดียวกับหน้าเลือกเวลา/หลังบ้าน/แจ้งเตือน)
+    await updateBooking(id, {
+      status: "confirmed",
+      ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+    });
     if (b.calendarEventId) {
       await updateCalendarEventConfirmed(b.calendarEventId, {
         summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
@@ -289,7 +289,10 @@ export async function PATCH(req: NextRequest) {
       if (!bk) continue;
       // ยืนยันได้เฉพาะนัดของตัวเอง แม้จะมาในกลุ่มเดียวกัน — กันแอบยัด id ของคนอื่นปนมา
       if (!admin && !(!!lineUserId && bk.lineUserId === lineUserId)) continue;
-      await updateBooking(bk.id, { status: "confirmed", checkinTime });
+      await updateBooking(bk.id, {
+        status: "confirmed",
+        ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+      });
       if (bk.calendarEventId) {
         await updateCalendarEventConfirmed(bk.calendarEventId, {
           summary: `${bk.service === "room" ? "🏠" : "🛁"} ${bk.catName} (${bk.customerName})`,
@@ -355,6 +358,7 @@ export async function PATCH(req: NextRequest) {
         room: b.room,
         notes: b.notes,
         groomProgram: b.groomProgram,
+        transport: b.transport,
       });
 
       if (preview) return NextResponse.json({ ok: true, preview: [flex] });
@@ -503,6 +507,7 @@ export async function PATCH(req: NextRequest) {
             room: b.room,
             notes: b.notes,
             groomProgram: b.groomProgram,
+            transport: b.transport,
           })
         );
       } else if (part === "consent") {
@@ -520,7 +525,7 @@ export async function PATCH(req: NextRequest) {
                 ? cfg.messages.consentTerms
                 : DEFAULT_MESSAGES.consentTerms,
               url,
-            })
+            }, cfg.cards?.consent)
           );
         }
       } else if (part === "prestay") {
@@ -690,10 +695,9 @@ export async function PATCH(req: NextRequest) {
           // ผูกมัดจำเหมือนกดปุ่มเรียกเก็บมัดจำเดี่ยว: มีบิลค้าง → ผูกบิล, ไม่มี → เครดิตล่วงหน้า
           // ตอนพรีวิว ข้ามการผูกจริง — แค่โชว์ตัวอย่างการ์ดด้วยยอดเดียวกัน ไม่แตะข้อมูลจริง
           if (!preview) {
-            const all = await listInvoices();
-            const openInv = all.find(
-              (i) => i.bookingId === b.id && i.status !== "paid"
-            );
+            // นับบิลรวมทั้งบ้านด้วย ไม่งั้นมัดจำไปตกเป็นเครดิตล่วงหน้า แล้วบิลจริงไม่มีมัดจำ
+            const found = await findOpenInvoiceForBooking(b.id);
+            const openInv = found && found.status !== "paid" ? found : undefined;
             const customer = await findCustomerForBooking(b);
             if (openInv) {
               await updateInvoice(openInv.id, { deposit: amount });
@@ -808,7 +812,7 @@ export async function PATCH(req: NextRequest) {
           ? cfg.messages.consentTerms
           : DEFAULT_MESSAGES.consentTerms,
         url,
-      });
+      }, cfg.cards?.consent);
       try {
         if (preview) return NextResponse.json({ ok: true, preview: [flex] });
         await pushLineMessage(to, [flex]);
@@ -877,7 +881,7 @@ export async function PATCH(req: NextRequest) {
     if (body.time != null) patch.time = String(body.time) || undefined;
     if (body.checkin != null) patch.checkin = String(body.checkin) || undefined;
     if (body.checkout != null) patch.checkout = String(body.checkout) || undefined;
-    if (patch.checkin && patch.checkout && patch.checkout <= patch.checkin) {
+    if (patch.checkin && patch.checkout && patch.checkout < patch.checkin) {
       return NextResponse.json({ error: "checkout_before_checkin" }, { status: 400 });
     }
     const res = await rescheduleGroup(id, patch, body.applyToGroup !== false);
@@ -902,7 +906,7 @@ export async function PATCH(req: NextRequest) {
           inv.kind === "updated"
             ? `แก้บิลเดิมเป็น ${inv.nights} คืน · ${inv.total} บาท`
             : inv.kind === "created_extra"
-              ? `ออกบิลต่อคืน ${inv.nights} คืน · ${inv.total} บาท`
+              ? `ออกบิลพักต่อ ${inv.nights} คืน · ${inv.total} บาท`
               : inv.kind === "warn"
                 ? `⚠️ ${inv.message}`
                 : "-",
@@ -941,6 +945,8 @@ export async function PATCH(req: NextRequest) {
       const programs = resolveGroomPrograms((await getSiteConfig()).groomPricePrograms);
       patch.groomProgram = pid && groomProgramName(pid, programs) ? pid : "";
     }
+    // รับ-ส่ง — ส่ง null/{} มา = ยกเลิกบริการรับ-ส่งของนัดนี้
+    if (body.transport !== undefined) patch.transport = cleanTransport(body.transport);
     // หัวข้อข้อความอัตโนมัติที่นัดนี้ไม่ต้องส่ง
     if (Array.isArray(body.autoOff)) {
       const valid = new Set(AUTO_MESSAGE_TOPICS.map((t) => t.id));

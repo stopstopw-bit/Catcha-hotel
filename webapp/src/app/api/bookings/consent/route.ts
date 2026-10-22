@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { acceptBookingConsent, getBooking } from "@/lib/bookings-store";
+import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
 /** ลูกค้ากด "ยอมรับข้อตกลง" ก่อนเข้าพัก */
@@ -10,7 +11,12 @@ export async function POST(req: NextRequest) {
   const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";
   const careNote = String(body.careNote || "").trim();
   const signature = String(body.signature || "").trim();
-  const vaccinePhoto = String(body.vaccinePhoto || "").trim();
+  // แนบสมุดวัคซีนได้หลายรูป (vaccinePhotos) — ยังรับ vaccinePhoto รูปเดียวจากหน้าเก่าที่เปิดค้างไว้
+  const vaccinePhotos: string[] = (
+    Array.isArray(body.vaccinePhotos) ? body.vaccinePhotos : [body.vaccinePhoto]
+  )
+    .map((v: unknown) => String(v || "").trim())
+    .filter(Boolean);
   const fleaTickTreated = Boolean(body.fleaTickTreated);
   if (!bookingId) {
     return NextResponse.json({ error: "bookingId required" }, { status: 400 });
@@ -21,7 +27,7 @@ export async function POST(req: NextRequest) {
     lineUserId,
     careNote,
     signature,
-    vaccinePhoto,
+    vaccinePhotos,
     fleaTickTreated
   );
   if (!res.ok && res.error === "not_found") {
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
           เข้าพัก: `${b.checkin || b.date || "-"}${b.checkout ? ` → ${b.checkout}` : ""}`,
           ลายเซ็น: signature ? "มี ✍️" : "ไม่ได้เซ็น",
           หยดยาเห็บหมัด: fleaTickTreated ? "✅ ลูกค้ายืนยันว่าหยดมาแล้ว" : "❌ ยังไม่ได้หยด/ไม่ระบุ",
-          ...(b.vaccinePhotoUrl ? { สมุดวัคซีน: "แนบรูปมาแล้ว 📸" } : {}),
+          ...(b.vaccinePhotoUrl ? { สมุดวัคซีน: `แนบรูปมาแล้ว ${splitVaccinePhotos(b.vaccinePhotoUrl).length} รูป 📸` } : {}),
           ...(careNote ? { "การดูแลเพิ่มเติม": careNote } : {}),
         })
       );

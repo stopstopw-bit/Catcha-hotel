@@ -43,6 +43,7 @@ notify pgrst, 'reload schema';`;
  */
 const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "customers", column: "deposit_credit", feature: "เครดิตมัดจำ" },
+  { table: "customers", column: "id_card_url", feature: "บัตรประชาชนผู้ปกครอง" },
   { table: "cats", column: "staff_private_note", feature: "โน้ตลับร้าน" },
   { table: "bookings", column: "consent_accepted_at", feature: "กดยอมรับเงื่อนไข" },
   { table: "bookings", column: "care_note", feature: "โน้ตการดูแล" },
@@ -58,6 +59,12 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "room_plans", column: "payments", feature: "แพ็กห้องรายเดือน (แบ่งจ่าย)" },
   { table: "customer_packages", column: "room_type", feature: "คอร์สคืนผูกประเภทห้อง" },
   { table: "invoice_docs", column: "receipt_no", feature: "ใบเสร็จ/ใบเสนอราคาในนามบริษัท" },
+  { table: "pos_products", column: "image_url", feature: "POS สินค้า/สต็อก" },
+  { table: "pos_sales", column: "method", feature: "POS บิลขายหน้าร้าน" },
+  { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
+  { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
+  { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
+  { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
 ];
 
 export type SchemaCheckRow = {
@@ -264,6 +271,11 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
     sql: "alter table finance_records add column if not exists receipt_url text;",
   },
   {
+    // รูปบัตรประชาชนผู้ปกครอง (ลงทะเบียนเข้าพัก) — ผูกกับลูกค้า แนบครั้งเดียวใช้ได้ทุกรอบ
+    name: "customers.id_card_url",
+    sql: "alter table customers add column if not exists id_card_url text;",
+  },
+  {
     // LINE User ID ทุกตัวของลูกค้าคนเดียว (คอม/มือถือคนละ Provider ได้ ID คนละตัว)
     name: "customers.line_user_ids",
     sql: "alter table customers add column if not exists line_user_ids text[];",
@@ -423,6 +435,46 @@ where staff_note like '%🎁%';`,
       create index if not exists invoice_docs_customer_idx on invoice_docs (customer_id);
       alter table invoice_docs enable row level security;
     `,
+  },
+  {
+    // คอร์สนับครั้งผูกโปรแกรมอาบน้ำ (อาบน้ำ 10 ครั้ง / สปา 5 ครั้ง) — ว่าง = คอร์สแบบเดิม
+    // ร้านตั้งคอร์สในแอปผูกโปรแกรมได้ด้วย ออร์เดอร์ก๊อปโปรแกรมไว้ ณ ตอนสั่ง
+    name: "packages.groom_program",
+    sql: `
+      alter table customer_packages add column if not exists groom_program text;
+      alter table package_offers add column if not exists groom_program text;
+      alter table package_orders add column if not exists groom_program text;
+    `,
+  },
+  {
+    // บริการรับ-ส่งของนัด {pickup, dropoff, mapUrl, address} — ว่าง = ลูกค้ามาเอง
+    name: "bookings.transport",
+    sql: "alter table bookings add column if not exists transport jsonb;",
+  },
+  {
+    // POS หน้าร้าน: สินค้า+สต็อก, ประวัติสต็อก, บิลขายเร็ว, ปิดยอดรายวัน — ตารางใหม่ทั้งหมด
+    name: "pos.setup",
+    sql: `
+      create table if not exists pos_products (id text primary key, name text not null, sku text, category text, price numeric not null default 0, cost numeric, track_stock boolean not null default true, stock integer not null default 0, low_stock integer, active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+      alter table pos_products add column if not exists image_url text;
+      create index if not exists pos_products_sku_idx on pos_products (sku);
+      create table if not exists pos_stock_moves (id text primary key, product_id text not null, qty integer not null, reason text not null, ref_id text, note text, created_at timestamptz not null default now());
+      create index if not exists pos_stock_moves_product_idx on pos_stock_moves (product_id, created_at desc);
+      create table if not exists pos_sales (id text primary key, no text not null, date date not null, items jsonb not null default '[]'::jsonb, subtotal numeric not null default 0, discount numeric not null default 0, total numeric not null default 0, method text not null, cash_received numeric, change numeric, customer_id text, customer_name text, note text, status text not null default 'paid', created_at timestamptz not null default now(), voided_at timestamptz);
+      create index if not exists pos_sales_date_idx on pos_sales (date, created_at desc);
+      create table if not exists pos_closings (id text primary key, date date not null unique, expected_cash numeric not null default 0, counted_cash numeric not null default 0, diff numeric not null default 0, opening_cash numeric not null default 0, totals jsonb, note text, created_at timestamptz not null default now());
+      alter table pos_products enable row level security;
+      alter table pos_stock_moves enable row level security;
+      alter table pos_sales enable row level security;
+      alter table pos_closings enable row level security;
+    `,
+  },
+  {
+    // 🔁 เครดิตจากบิลที่ยกเลิกนัด — เงินเข้าร้านไปแล้วตอนจ่ายบิลเดิม จึงไม่ลงรายรับ/ไม่ให้แต้มซ้ำ
+    // source_invoice_id = เลขบิลเดิม (ไว้โชว์ในประวัติเครดิต + กันแปลงบิลเดียวกันซ้ำ)
+    // เพิ่มคอลัมน์อย่างเดียว ไม่แก้ข้อมูลเดิม (แถวเก่าได้ค่าเริ่มต้น false / null)
+    name: "member_topups.cancel_credit",
+    sql: "alter table member_topups add column if not exists is_cancel_credit boolean not null default false, add column if not exists source_invoice_id text;",
   },
 ];
 

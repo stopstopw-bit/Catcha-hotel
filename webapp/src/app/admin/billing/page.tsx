@@ -1,13 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { PosPanel } from "@/components/PosPanel";
+import type { PosProduct } from "@/lib/pos-store";
 import { SERVICE_PRESETS, type ServicePreset } from "@/lib/service-presets";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
+import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 import { toast } from "@/components/Toast";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
-import { groupBookings, groupCatNames } from "@/lib/booking-group";
+import { groupCatNames, groupForBilling } from "@/lib/booking-group";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
+import { bangkokToday } from "@/lib/bangkok-date";
 import {
   GROOM_PROGRAMS,
   GROOM_SIZES,
@@ -16,10 +21,22 @@ import {
   groomSizeLabel,
   groomBreedCategoryFor,
   resolveGroomPrograms,
+  groomProgramName,
   type GroomSize,
   type GroomProgram,
 } from "@/lib/grooming-prices";
 import { priceSignature, findLastPrice } from "@/lib/special-price";
+import { roomPricing, roomNightPrice } from "@/lib/room-board";
+import { isRoomLine, roomLineLabel, splitRoomLabel } from "@/lib/stay-line";
+import { dayCareLabel, dayCarePrice, isDayCareLabel, isDayCareStay } from "@/lib/day-care";
+import {
+  isTransportLabel,
+  lastTransportPrice,
+  stripTripLabel,
+  transportTrips,
+  tripLabel,
+  type BookingTransport,
+} from "@/lib/transport";
 
 type Customer = {
   id: string;
@@ -59,6 +76,7 @@ type Invoice = {
     label: string;
     amount: number;
     kind?: string;
+    productId?: string;
     catName?: string;
     qty?: number;
     unitAmount?: number;
@@ -72,6 +90,7 @@ type Booking = {
   catName: string;
   service: "room" | "groom";
   room?: string;
+  roomUnit?: number;
   checkin?: string;
   checkout?: string;
   date?: string;
@@ -79,9 +98,10 @@ type Booking = {
   status: string;
   autoOff?: string[];
   groomProgram?: string;
+  transport?: BookingTransport;
 };
 
-type ItemKind = "grooming" | "room" | "service" | "custom" | "freebie" | "package";
+type ItemKind = "grooming" | "room" | "service" | "custom" | "freebie" | "package" | "product";
 type Item = {
   kind: ItemKind;
   program: string;
@@ -102,6 +122,34 @@ type Item = {
   /** ส่วนลดเฉพาะรายการนี้ (หักจากยอดรวมของรายการ ก่อนส่วนลดท้ายบิล) — บาท หรือ % */
   discount?: number;
   discountMode?: "baht" | "percent";
+  /** บรรทัดค่าห้องจากบิลเดิมที่เปิดมาแก้ (โหลดเป็น "พิมพ์เอง") — qty = จำนวนคืน
+   *  บันทึกกลับเป็นค่าห้อง "× N คืน" ไม่ใช่ "× N" ระบบต่อคืนจะได้นับคืนที่จ่ายไปแล้วถูก */
+  roomLine?: { note?: string };
+  /** สินค้าหน้าร้าน (kind "product") — ออก/แก้/ลบบิลแล้วตัด/คืนสต็อกให้เอง */
+  productId?: string;
+};
+
+/**
+ * ยอดที่ลงบัญชีไปแล้วของบิลที่ยังเปิดอยู่ = มัดจำที่ "กดรับแล้ว" เท่านั้น (มัดจำรอรับยังไม่ใช่เงินเข้า)
+ * ตรงกับฝั่งเซิร์ฟเวอร์ที่ตอนปิดบิลเก็บ "ยอดบิล − รายรับที่ผูกบิลนี้" — ป้ายบนปุ่มจะได้ตรงกับยอดที่ลงบัญชีจริง
+ */
+function receivedOf(inv: { deposit?: number; depositReceivedAt?: string }): number {
+  return inv.depositReceivedAt ? inv.deposit || 0 : 0;
+}
+
+/**
+ * ขั้นของบิลที่ยังไม่ปิด — แยกให้เห็นว่าบิลค้างแต่ละใบรออะไรอยู่ ไม่ดูเหมือนค้างเงินทุกใบ
+ * deposit = ตั้งมัดจำไว้แต่ยังไม่ได้รับ · partial = รับมัดจำ/รับบางส่วนแล้ว รอปิดบิล · full = ยังไม่ได้รับเงินเลย
+ */
+type PendingStage = "deposit" | "partial" | "full";
+function pendingStageOf(inv: { deposit?: number; depositReceivedAt?: string }): PendingStage {
+  if ((inv.deposit || 0) <= 0) return "full";
+  return inv.depositReceivedAt ? "partial" : "deposit";
+}
+const STAGE_META: Record<PendingStage, { label: string; short: string; tone: string; icon: IconName }> = {
+  deposit: { label: "รอมัดจำ", short: "รอมัดจำ", tone: "bg-wait/15 text-wait", icon: "clock" },
+  partial: { label: "มัดจำแล้ว รอปิดบิล", short: "รอปิดบิล", tone: "bg-latte/20 text-latte-deep", icon: "check" },
+  full: { label: "รอชำระเต็ม", short: "รอชำระ", tone: "bg-wait/15 text-wait", icon: "clock" },
 };
 
 function newGrooming(programs: GroomProgram[] = GROOM_PROGRAMS): Item {
@@ -205,7 +253,8 @@ function computeLineBase(
     const n = Math.max(1, it.nights || 1);
     const unit = it.priceOverride ?? (it.roomPrice || 0);
     return {
-      label: withCat(`${it.roomLabel || "ห้องพัก"} × ${n} คืน`),
+      // Day Care นับเป็น "วัน" ไม่ใช่ "คืน" — ระบบต่อคืน/ตรวจบิล/คอร์สคืนจะไม่นับรวม
+      label: withCat(`${it.roomLabel || "ห้องพัก"} × ${n} ${isDayCareLabel(it.roomLabel) ? "วัน" : "คืน"}`),
       amount: unit * n,
       catName: cat,
       qty: n,
@@ -222,6 +271,26 @@ function computeLineBase(
     };
   }
   const unit = it.priceOverride ?? (it.amount || 0);
+  // ค่ารับ-ส่ง: qty = จำนวนเที่ยว ราคาในช่องคือราคาต่อเที่ยว → "รับ-ส่ง ไป-กลับ × 2"
+  if (it.kind === "service" && isTransportLabel(it.label)) {
+    const base = `${it.label} ${tripLabel(qty)}`;
+    return {
+      label: withCat(qty > 1 ? `${base} × ${qty}` : base),
+      amount: unit * qty,
+      catName: cat,
+      qty,
+      unitAmount: unit,
+    };
+  }
+  if (it.roomLine) {
+    return {
+      label: withCat(roomLineLabel(it.label, qty, it.roomLine.note)),
+      amount: unit * qty,
+      catName: cat,
+      qty,
+      unitAmount: unit,
+    };
+  }
   return {
     label: withCat(qty > 1 ? `${it.label} × ${qty}` : it.label),
     amount: unit * qty,
@@ -249,6 +318,10 @@ function scheduleLabelFor(bk?: {
 }): string {
   if (!bk) return "";
   const isRoom = bk.service === "room" || !!bk.checkin;
+  if (isRoom && isDayCareStay({ ...bk, service: "room" })) {
+    const d = formatThaiDateShort(bk.checkin || "");
+    return d ? `☀️ Day Care ${d}` : "";
+  }
   if (isRoom) {
     const inD = formatThaiDateShort(bk.checkin || bk.date || "");
     const outD = bk.checkout ? formatThaiDateShort(bk.checkout) : "";
@@ -275,6 +348,7 @@ const KIND_OPTIONS: { id: ItemKind; label: string }[] = [
   { id: "grooming", label: "อาบน้ำ / กรูม" },
   { id: "room", label: "ห้องพัก" },
   { id: "service", label: "บริการเสริม" },
+  { id: "product", label: "สินค้าหน้าร้าน" },
   { id: "freebie", label: "ของแถม (ฟรี)" },
   { id: "package", label: "ขายคอร์ส/เครดิต (ไม่ได้แต้ม)" },
   { id: "custom", label: "พิมพ์เอง" },
@@ -332,15 +406,27 @@ function NumField({
   );
 }
 
-export default function BillingPage() {
+function BillsView({ tabs }: { tabs: React.ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [promos, setPromos] = useState<Promo[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [rooms, setRooms] = useState<(ServicePreset & { id: string })[]>([]);
+  const [rooms, setRooms] = useState<
+    (ServicePreset & { id: string; pricing: ReturnType<typeof roomPricing>; dayCare?: boolean })[]
+  >([]);
   const [servicePresets, setServicePresets] = useState<ServicePreset[]>(SERVICE_PRESETS);
+  /** สินค้าหน้าร้าน — เลือกใส่บิลได้ (ลูกค้ามาใช้บริการแล้วซื้อของติดมือด้วย) */
+  const [posProducts, setPosProducts] = useState<PosProduct[]>([]);
+  useEffect(() => {
+    fetch("/api/pos/products")
+      .then((r) => r.json())
+      .then((d) => setPosProducts(d.products || []))
+      .catch(() => {});
+  }, []);
   const [freebiePresets, setFreebiePresets] = useState<string[]>(FREEBIE_PRESETS);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingId, setBookingId] = useState<string | undefined>(undefined);
+  /** น้องที่มาจริงในนัดที่ดึงมาออกบิล — ใช้ตั้งชื่อน้องบนบิล (ไม่ใช่แมวตัวแรกของบ้าน) */
+  const [bookingCats, setBookingCats] = useState<string[]>([]);
   const [showBookings, setShowBookings] = useState(false);
 
   const [customerId, setCustomerId] = useState("");
@@ -365,6 +451,8 @@ export default function BillingPage() {
       /** คอร์สคืนที่ผูกประเภทห้อง (แพ็กห้องรายเดือน) — หักได้เฉพาะห้องประเภทนี้ */
       roomType?: string;
       roomLabel?: string;
+      /** คอร์สนับครั้งที่ผูกโปรแกรมอาบน้ำ — หักตามจำนวนตัวที่อาบโปรแกรมนี้ในบิล */
+      groomProgram?: string;
       /** แพ็กห้องรายเดือนที่ยังจ่ายไม่ครบ — ยังใช้ไม่ได้ */
       locked?: boolean;
       outstanding?: number;
@@ -377,6 +465,7 @@ export default function BillingPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [invoiceBusy, setInvoiceBusy] = useState("");
   const [billFilter, setBillFilter] = useState<"all" | "pending" | "paid">("pending");
+  const [pendingStage, setPendingStage] = useState<"all" | PendingStage>("all");
   const [billSearch, setBillSearch] = useState("");
   const [billSort, setBillSort] = useState<
     | "date-desc"
@@ -431,13 +520,23 @@ export default function BillingPage() {
     setCustomers(cj.customers || []);
     setPromos(pj.promos || []);
     setInvoices(ij.invoices || []);
-    setRooms(
-      (config?.rooms || []).map((r: { id: string; name: string; price: number }) => ({
+    const nightly = (config?.rooms || []).map(
+      (r: { id: string; name: string; price: number } & Parameters<typeof roomPricing>[0]) => ({
         id: r.id,
         label: `ห้อง ${r.name}`,
         amount: r.price,
-      }))
+        pricing: roomPricing(r),
+      })
     );
+    // Day Care ของทุกห้อง — ครึ่งราคาห้อง (ค่าแมวตัวที่เกินก็ครึ่งหนึ่งด้วย) ต่อท้ายรายการห้องพัก
+    const daily = nightly.map((r: (typeof nightly)[number]) => ({
+      id: r.id,
+      label: dayCareLabel(r.label),
+      amount: dayCarePrice(r.amount),
+      pricing: { ...r.pricing, extraPrice: dayCarePrice(r.pricing.extraPrice) },
+      dayCare: true,
+    }));
+    setRooms([...nightly, ...daily]);
     setGroomPrograms(resolveGroomPrograms(config?.groomPricePrograms));
     if (config?.payment) setPay(config.payment);
     if (config?.business?.name) setShopName(config.business.name);
@@ -456,6 +555,26 @@ export default function BillingPage() {
     load();
   }, [load]);
 
+  // มาจากปุ่ม "คิดเงิน" (หน้าแรก/แถบล่าง, ?view=pending) → เปิดที่บิลรอชำระทั้งหมด พร้อมกดรับชำระ
+  const showPendingBills = useCallback(() => {
+    setBillFilter("pending");
+    setPendingStage("all");
+    requestAnimationFrame(() =>
+      document.getElementById("bills")?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+  }, []);
+  const jumpedToBills = useRef(false);
+  useEffect(() => {
+    if (jumpedToBills.current || invoices.length === 0) return;
+    if (new URLSearchParams(window.location.search).get("view") !== "pending") return;
+    jumpedToBills.current = true;
+    showPendingBills();
+  }, [invoices, showPendingBills]);
+  useEffect(() => {
+    window.addEventListener("catcha:show-pending-bills", showPendingBills);
+    return () => window.removeEventListener("catcha:show-pending-bills", showPendingBills);
+  }, [showPendingBills]);
+
   // ดึงนัดจาก URL อัตโนมัติ (มาจากปุ่ม "ออกบิล" ในตารางนัด) — ทำครั้งเดียว
   const autoPicked = useRef(false);
   useEffect(() => {
@@ -469,7 +588,7 @@ export default function BillingPage() {
     if (bk.service === "room" && rooms.length === 0) return;
     autoPicked.current = true;
     // กดปุ่ม "ออกบิล" จากตารางนัดส่งมาแค่ id เดียว — ดึงทั้งบ้านมาด้วย
-    const group = groupBookings(bookings).find((g) => g.some((x) => x.id === bId));
+    const group = groupForBilling(bookings).find((g) => g.some((x) => x.id === bId));
     pickBooking(group || [bk]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings, rooms]);
@@ -509,7 +628,7 @@ export default function BillingPage() {
   // บิลของบ้านรวมผูกกับ "นัดตัวแรก" ตัวเดียว ถ้าตัดทั้งกลุ่มเมื่อเจอบิลที่จ่ายแล้ว
   // บ้านที่ออกบิลไปแค่บางตัว (พนักงานลบบางแถวออก) จะหายทั้งกลุ่ม อีกหลายตัวออกบิลไม่ได้เลย
   // จึงดูจาก "ชื่อน้องที่ถูกออกบิลไปแล้ว" แทน แล้วเหลือเฉพาะตัวที่ยังไม่ได้ออกบิล
-  const bookingGroups = groupBookings(bookings)
+  const bookingGroups = groupForBilling(bookings)
     .map((group) => {
       const groupIds = new Set(group.map((b) => b.id));
       // ทั้งบิลที่จ่ายแล้วและบิลที่แค่ร่างไว้ (pending) ถือว่า "ออกบิลแล้ว" —
@@ -527,9 +646,24 @@ export default function BillingPage() {
           return perItem.length ? perItem : [i.catName];
         })
       );
-      return group.filter((b) => !billedCats.has(b.catName));
+      // นัดที่บิลผูกไว้ตรงๆ ก็ถือว่าออกบิลแล้ว ไม่ว่าชื่อน้องบนบิลจะเป็นใคร
+      // (บิลเก่าตัวเดียวเคยลงชื่อเป็นแมวตัวแรกของบ้าน แล้วนัดเดิมโผล่ให้ออกบิลซ้ำ)
+      const billedIds = new Set(billedForGroup.map((i) => i.bookingId));
+      return group.filter((b) => !billedCats.has(b.catName) && !billedIds.has(b.id));
     })
-    .filter((group) => group.length > 0);
+    .filter((group) => group.length > 0)
+    // เรียงตามวันนัด ไม่ใช่วันที่กดจอง: วันนี้/ที่ผ่านมาแล้ว (ใกล้วันนี้ก่อน) ขึ้นบนสุด
+    // เพราะเป็นนัดที่ต้องคิดเงินตอนนี้ ตามด้วยนัดล่วงหน้า (ใกล้สุดก่อน)
+    .sort((a, b) => {
+      const today = bangkokToday();
+      const key = (g: Booking[]) => `${g[0].checkin || g[0].date || ""} ${g[0].time || ""}`;
+      const ka = key(a);
+      const kb = key(b);
+      const aDue = ka.slice(0, 10) <= today;
+      const bDue = kb.slice(0, 10) <= today;
+      if (aDue !== bDue) return aDue ? -1 : 1;
+      return aDue ? kb.localeCompare(ka) : ka.localeCompare(kb);
+    });
   const lines = items.map((it) => computeLine(it, groomPrograms));
   const subtotal = lines.reduce((s, l) => s + l.amount, 0);
   const selectedPromo = promos.find((p) => p.id === promoId);
@@ -570,6 +704,8 @@ export default function BillingPage() {
     pk?: { roomType?: string; roomLabel?: string }
   ) => {
     if (!it || it.kind !== "room") return false;
+    // คอร์สคืนไม่หัก Day Care (ไม่ได้ค้างคืน)
+    if (isDayCareLabel(it.roomLabel)) return false;
     if (!pk?.roomType) return true;
     const rid = rooms.find((r) => r.label === it.roomLabel)?.id;
     return rid === pk.roomType || (!!pk.roomLabel && it.roomLabel === pk.roomLabel);
@@ -577,7 +713,7 @@ export default function BillingPage() {
   const roomLines = lines
     .map((l, i) => ({ ...l, kind: items[i]?.kind, match: lineMatchesRoom(items[i], pickedPackage) }))
     .filter((l) => l.kind === "room" && l.match);
-  const billHasRoom = items.some((it) => it.kind === "room");
+  const billHasRoom = items.some((it) => it.kind === "room" && !isDayCareLabel(it.roomLabel));
   const nightsOnBill = roomLines.reduce((n, l) => n + Math.max(1, l.qty || 1), 0);
   const nightsToUse =
     pickedPackage?.unit === "night" ? Math.min(packageLeft, nightsOnBill) : 0;
@@ -594,6 +730,36 @@ export default function BillingPage() {
     return covered;
   })();
 
+  /**
+   * คอร์สนับครั้งผูกโปรแกรม: หักตามจำนวนตัว (qty) ที่อาบโปรแกรมนั้นในบิล
+   * บ้านมา 2 ตัวอาบโปรแกรมเดียวกัน = หัก 2 ครั้ง · คลุมเฉพาะค่าโปรแกรมนั้น
+   * โปรแกรมอื่น/ห้องพัก/ของเสริมในบิลเดียวกันยังคิดตามปกติ
+   */
+  const groomLinesOf = (pk?: { groomProgram?: string }) =>
+    pk?.groomProgram
+      ? lines.filter(
+          (_, i) => items[i]?.kind === "grooming" && items[i]?.program === pk.groomProgram
+        )
+      : [];
+  const programLines = groomLinesOf(pickedPackage);
+  const programUsesOnBill = programLines.reduce((n, l) => n + Math.max(1, l.qty || 1), 0);
+  const programUsesToUse = pickedPackage?.groomProgram
+    ? Math.min(packageLeft, programUsesOnBill)
+    : 0;
+  const programCover = (() => {
+    let left = programUsesToUse;
+    let covered = 0;
+    for (const l of programLines) {
+      if (left <= 0) break;
+      const take = Math.min(left, Math.max(1, l.qty || 1));
+      covered += take * (l.unitAmount || 0);
+      left -= take;
+    }
+    return covered;
+  })();
+  /** หน่วยที่จะหักจากคอร์สในบิลนี้ (คืน หรือ ครั้งของโปรแกรม) — ไม่ระบุ = 1 แบบเดิม */
+  const packageUnitsToUse = nightsToUse || programUsesToUse;
+
   // ลูกค้ามีแพ็กห้องรายเดือนตรงกับห้องในบิล → เลือกคอร์สให้เลย (แบบ Member ที่หักอัตโนมัติ)
   // ถ้ามีหลายห้องในบิล เลือกคอร์สที่คลุมคืนได้มากสุด · พนักงานกดยกเลิกได้ ไม่เลือกทับอีก
   const autoRoomPackageId = (() => {
@@ -601,11 +767,19 @@ export default function BillingPage() {
     let best = "";
     let bestNights = 0;
     for (const pk of customerPackages) {
-      if (pk.unit !== "night" || !pk.roomType || pk.locked) continue;
+      if (pk.locked) continue;
+      const isRoomPack = pk.unit === "night" && !!pk.roomType;
+      // คอร์สอาบน้ำที่ผูกโปรแกรม เลือกให้อัตโนมัติด้วย (หักตามตัวที่อาบโปรแกรมนั้น)
+      const isProgramPack = pk.unit !== "night" && !!pk.groomProgram;
+      if (!isRoomPack && !isProgramPack) continue;
       const left = pk.totalUses - pk.usedUses;
-      const onBill = items
-        .filter((it) => lineMatchesRoom(it, pk))
-        .reduce((n, it) => n + Math.max(1, it.nights || 1), 0);
+      const onBill = isRoomPack
+        ? items
+            .filter((it) => lineMatchesRoom(it, pk))
+            .reduce((n, it) => n + Math.max(1, it.nights || 1), 0)
+        : items
+            .filter((it) => it.kind === "grooming" && it.program === pk.groomProgram)
+            .reduce((n, it) => n + Math.max(1, Math.round(it.qty || 1)), 0);
       const n = Math.min(left, onBill);
       if (n > bestNights) {
         best = pk.id;
@@ -623,7 +797,9 @@ export default function BillingPage() {
     ? 0
     : pickedPackage?.unit === "night"
       ? Math.min(nightsCover, Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount))
-      : Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount);
+      : pickedPackage?.groomProgram
+        ? Math.min(programCover, Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount))
+        : Math.max(0, subtotal - promoDiscount - manualDiscount - couponAmount);
   const total = Math.max(
     0,
     subtotal - promoDiscount - manualDiscount - couponAmount - packageCovers
@@ -762,6 +938,17 @@ export default function BillingPage() {
         );
       }
     }
+    // ค่ารับ-ส่งที่ใส่ไว้ก่อนเลือกลูกค้า → เปลี่ยนเป็นราคาต่อเที่ยวที่ลูกค้าคนนี้จ่ายครั้งล่าสุด
+    const lastTrip = lastTransportPrice(invoices, c.id);
+    if (lastTrip) {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.kind === "service" && isTransportLabel(it.label)
+            ? { ...it, amount: lastTrip.unitAmount }
+            : it
+        )
+      );
+    }
     try {
       const res = await fetch(`/api/promos?autoFor=${c.id}&subtotal=${subtotal}`);
       const { promo } = await res.json();
@@ -780,6 +967,7 @@ export default function BillingPage() {
     setPromoId("");
     setAutoPromoLabel("");
     setBookingId(undefined);
+    setBookingCats([]);
     setShowList(true);
   };
 
@@ -798,6 +986,7 @@ export default function BillingPage() {
   const pickBooking = async (group: Booking[]) => {
     const bk = group[0];
     setBookingId(bk.id);
+    setBookingCats(Array.from(new Set(group.map((g) => g.catName).filter(Boolean))));
     setShowBookings(false);
     const cust = customers.find((c) => c.id === bk.customerId);
     if (cust) await pickCustomer(cust);
@@ -812,7 +1001,7 @@ export default function BillingPage() {
     if (existing) {
       if (existing.status === "paid") {
         toast(
-          "นัดนี้ออกบิลและชำระแล้ว — ถ้าลูกค้าอยู่ต่อ ให้แก้ \"วันออก\" ที่นัด ระบบจะออกบิลต่อคืนเฉพาะคืนที่เพิ่มให้เอง",
+          "นัดนี้ออกบิลและชำระแล้ว — ถ้าลูกค้าอยู่ต่อ ให้แก้ \"วันออก\" ที่นัด ระบบจะออกบิลพักต่อเฉพาะคืนที่เพิ่มให้เอง",
           "error"
         );
         return;
@@ -825,20 +1014,40 @@ export default function BillingPage() {
     // ตั้งชื่อน้องให้แต่ละบรรทัดเมื่อมาหลายตัว จะได้รู้ว่าตัวไหนใช้บริการอะไร
     const many = group.length > 1;
     if (bk.service === "room") {
+      // คิดค่าห้องเป็นรายห้อง ไม่ใช่รายตัว: น้องที่อยู่ห้องเดียวกันรวมเป็นบรรทัดเดียว
+      // ห้องที่ล็อกเลขไว้ = ห้องตามเลขนั้น · ไม่ได้ล็อก = จัดเต็มห้องละ cap ตัวตามที่ระบบจัดห้องทำ
+      const units = new Map<string, Booking[]>();
+      for (const g of group) {
+        // วันเข้า/ออกต่างกัน (บ้านเดียวกันแต่ต่อคืนไม่เท่ากัน) = คนละบรรทัด คืนของใครของมัน
+        const k = `${g.checkin || ""}|${g.checkout || ""}|${g.room || ""}#${g.roomUnit ?? "auto"}`;
+        units.set(k, [...(units.get(k) || []), g]);
+      }
+      const lines: Booking[][] = [];
+      for (const [k, cats] of units) {
+        const matched = rooms.find((r) => cats[0].room && r.id === cats[0].room);
+        const cap = k.endsWith("#auto") ? matched?.pricing.cap || 1 : cats.length;
+        for (let i = 0; i < cats.length; i += cap) lines.push(cats.slice(i, i + cap));
+      }
       setItems(
-        group.map((g) => {
+        lines.map((cats) => {
+          const g = cats[0];
+          // เข้า-ออกวันเดียวกัน = Day Care → ใช้ราคา Day Care ของห้องนั้น
+          const day = isDayCareStay(g);
+          const pool = rooms.filter((r) => !!r.dayCare === day);
           // นัดเก็บ room เป็น id → จับคู่กับ id ก่อน แล้วค่อย fallback เป็นชื่อ
           const matched =
-            rooms.find((r) => g.room && r.id === g.room) ||
-            rooms.find((r) => g.room && r.label.includes(g.room));
+            pool.find((r) => g.room && r.id === g.room) ||
+            pool.find((r) => g.room && r.label.includes(g.room));
+          const price = matched?.amount ?? pool[0]?.amount ?? 0;
+          const n = cats.length;
           return {
             ...newGrooming(groomPrograms),
             kind: "room" as const,
-            roomLabel:
-              matched?.label || rooms[0]?.label || (g.room ? `ห้อง ${g.room}` : "ห้องพัก"),
-            roomPrice: matched?.amount ?? rooms[0]?.amount ?? 0,
+            // ต้องตรงกับตัวเลือกห้องในบิล (ไม่ต่อท้ายอะไร) — ตัวไหนอยู่ห้องนี้ดูจากชิปชื่อน้อง
+            roomLabel: matched?.label || pool[0]?.label || (g.room ? `ห้อง ${g.room}` : "ห้องพัก"),
+            roomPrice: matched ? roomNightPrice(price, matched.pricing, n) : price,
             nights: nightsBetween(g.checkin, g.checkout),
-            catName: many ? g.catName : undefined,
+            catName: many ? cats.map((c) => c.catName).join(", ") : undefined,
           };
         })
       );
@@ -856,6 +1065,23 @@ export default function BillingPage() {
         })
       );
     }
+    // นัดที่ใช้บริการรับ-ส่ง → ใส่ค่ารับ-ส่งให้เลย (รับ-ส่งทีเดียวทั้งบ้าน จึงเป็นบรรทัดเดียว)
+    const trips = Math.max(0, ...group.map((g) => transportTrips(g.transport)));
+    if (trips > 0) {
+      const preset =
+        servicePresets.find((p) => isTransportLabel(p.label)) || { label: "รับ-ส่ง", amount: 0 };
+      const last = lastTransportPrice(invoices, bk.customerId);
+      setItems((prev) => [
+        ...prev,
+        {
+          ...newGrooming(groomPrograms),
+          kind: "service" as const,
+          label: preset.label,
+          amount: last?.unitAmount ?? preset.amount,
+          qty: trips,
+        },
+      ]);
+    }
     if (many) {
       toast(`ดึงนัดบ้านนี้มาแล้ว ${group.length} ตัว — ออกบิลใบเดียว 🧾`, "success");
     }
@@ -872,7 +1098,7 @@ export default function BillingPage() {
     const it = items[idx];
     if (!it) return;
     const std = standardUnitPrice(it);
-    if (it.kind === "service" || it.kind === "custom" || it.kind === "package") {
+    if (it.kind === "service" || it.kind === "custom" || it.kind === "package" || it.kind === "product") {
       // สามอย่างนี้ราคาอยู่ในช่อง amount อยู่แล้ว แก้ตรงนั้นตรงไปตรงมากว่า
       updateItem(idx, { amount: n, priceOverride: undefined });
       return;
@@ -882,6 +1108,15 @@ export default function BillingPage() {
 
   const updateItem = (idx: number, patch: Partial<Item>) =>
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+
+  /** ราคาเริ่มต้นของบริการเสริม — ค่ารับ-ส่งใช้ราคาต่อเที่ยวที่ลูกค้าคนนี้จ่ายครั้งล่าสุด (ถ้ามี) */
+  const servicePriceFor = (p?: ServicePreset) => {
+    if (!p) return 0;
+    if (isTransportLabel(p.label)) {
+      return lastTransportPrice(invoices, customerId)?.unitAmount ?? p.amount;
+    }
+    return p.amount;
+  };
 
   const changeKind = (idx: number, kind: ItemKind) => {
     let patch: Partial<Item> = { kind };
@@ -896,13 +1131,18 @@ export default function BillingPage() {
         nights: 1,
       };
     } else if (kind === "service") {
-      patch = { kind, label: servicePresets[0]?.label || "", amount: servicePresets[0]?.amount || 0 };
+      const p = servicePresets[0];
+      patch = { kind, label: p?.label || "", amount: servicePriceFor(p) };
+    } else if (kind === "product") {
+      const p = posProducts[0];
+      patch = { kind, productId: p?.id, label: p?.name || "", amount: p?.price || 0 };
     } else if (kind === "freebie") {
       patch = { kind, label: freebiePresets[0] || "", amount: 0 };
     } else {
       patch = { kind, label: "", amount: 0 };
     }
-    updateItem(idx, patch);
+    // เปลี่ยนประเภทแล้ว ไม่ใช่บรรทัดค่าห้องจากบิลเดิมอีกต่อไป
+    updateItem(idx, { ...patch, roomLine: undefined });
   };
 
   const changeProgram = (idx: number, program: string) => {
@@ -920,6 +1160,7 @@ export default function BillingPage() {
     setBillDeposit("");
     setBillDepPct(null);
     setBookingId(undefined);
+    setBookingCats([]);
     setEditingId(null);
   };
 
@@ -933,10 +1174,23 @@ export default function BillingPage() {
       new Set(items.flatMap((it) => parseCatNames(it.catName)))
     );
     const cat =
-      billedCatNames.join(CAT_SEP) || selected.cats[0]?.name || "น้องแมว";
+      billedCatNames.join(CAT_SEP) ||
+      bookingCats.join(CAT_SEP) ||
+      selected.cats[0]?.name ||
+      "น้องแมว";
     // เก็บของแถม (ฟรี) ด้วย — label มี แต่ยอด 0
+    // โปรแกรมอาบน้ำติดไปกับรายการ — ให้เซิร์ฟเวอร์เช็คคอร์สที่ผูกโปรแกรมได้
     const payloadItems = items
-      .map((it, i) => ({ ...lines[i], kind: it.kind }))
+      .map((it, i) => ({
+        ...lines[i],
+        kind: it.roomLine
+          ? ("room" as const)
+          : it.kind === "room" && isDayCareLabel(it.roomLabel)
+            ? ("service" as const)
+            : it.kind,
+        ...(it.kind === "grooming" ? { program: it.program } : {}),
+        ...(it.kind === "product" && it.productId ? { productId: it.productId } : {}),
+      }))
       .filter((l) => l.label.trim());
 
     if (editingId) {
@@ -960,7 +1214,14 @@ export default function BillingPage() {
         resetForm();
         load();
       } else {
-        toast(data.error === "already_paid" ? "บิลปิดแล้ว แก้ไขไม่ได้" : "แก้ไขไม่สำเร็จ", "error");
+        toast(
+          data.error === "already_paid"
+            ? "บิลปิดแล้ว แก้ไขไม่ได้"
+            : data.error === "out_of_stock"
+              ? `สต็อกไม่พอ: ${data.message || ""}`
+              : "แก้ไขไม่สำเร็จ",
+          "error"
+        );
       }
       return;
     }
@@ -983,7 +1244,7 @@ export default function BillingPage() {
         bookingId: bookingId || undefined,
         couponId: couponId || undefined,
         packageId: packageId || undefined,
-        packageUnits: nightsToUse || undefined,
+        packageUnits: packageUnitsToUse || undefined,
       }),
     });
     const data = await res.json();
@@ -1013,6 +1274,40 @@ export default function BillingPage() {
     setItems(
       (inv.items || []).map((it) => {
         const qty = Math.max(1, Math.round(it.qty || 1));
+        if (it.amount > 0 && isRoomLine(it)) {
+          const { base, note } = splitRoomLabel(it.label.replace(/^🐱 .+? · /, ""));
+          return {
+            ...newGrooming(groomPrograms),
+            kind: "custom" as const,
+            label: base,
+            roomLine: { note: note || undefined },
+            catName: it.catName,
+            qty,
+            amount: it.unitAmount ?? Math.round(it.amount / qty),
+          };
+        }
+        if (it.amount > 0 && isTransportLabel(it.label)) {
+          // ค่ารับ-ส่ง → กลับมาเป็นบริการรับ-ส่ง เลือกเที่ยวเดียว/ไป-กลับได้เหมือนตอนออกบิล
+          return {
+            ...newGrooming(groomPrograms),
+            kind: "service" as const,
+            label: stripTripLabel(it.label.replace(/^🐱 .+? · /, "").replace(/ × \d+$/, "")),
+            catName: it.catName,
+            qty,
+            amount: it.unitAmount ?? Math.round(it.amount / qty),
+          };
+        }
+        if (it.kind === "product" && it.productId) {
+          return {
+            ...newGrooming(groomPrograms),
+            kind: "product" as const,
+            productId: it.productId,
+            label: it.label.replace(/^🐱 .+? · /, "").replace(/ × \d+$/, ""),
+            catName: it.catName,
+            qty,
+            amount: it.unitAmount ?? Math.round(it.amount / qty),
+          };
+        }
         return {
           ...newGrooming(groomPrograms),
           kind: it.amount > 0 ? ("custom" as const) : ("freebie" as const),
@@ -1082,7 +1377,14 @@ export default function BillingPage() {
         if (editingId === id) resetForm();
         load();
       } else {
-        toast(data.error === "already_received" ? "รับมัดจำบิลนี้ไปแล้ว" : "ไม่สำเร็จ", "error");
+        toast(
+          data.error === "already_received"
+            ? "รับมัดจำบิลนี้ไปแล้ว"
+            : typeof data.error === "string" && /[\u0E00-\u0E7F]/.test(data.error)
+              ? data.error
+              : "ไม่สำเร็จ",
+          "error"
+        );
       }
     } finally {
       setInvoiceBusy("");
@@ -1097,12 +1399,12 @@ export default function BillingPage() {
     const inv = confirmCredit;
     const cust = customers.find((c) => c.id === inv.customerId);
     const balance = cust?.memberCredit ?? 0;
-    const due = Math.max(0, inv.total - (inv.deposit || 0));
+    const due = Math.max(0, inv.total - receivedOf(inv));
     const after = balance - due;
     const short = after < 0;
     return (
       <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center"
+        className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center"
         onClick={() => setConfirmCredit(null)}
       >
         <div
@@ -1201,9 +1503,9 @@ export default function BillingPage() {
    */
   const receivePartial = async (inv: Invoice) => {
     if (invoiceBusy) return;
-    const remaining = Math.max(0, inv.total - (inv.deposit || 0));
+    const remaining = Math.max(0, inv.total - receivedOf(inv));
     const raw = prompt(
-      `รับเงินบางส่วน — ${inv.customerName}\nยอดบิล ${inv.total.toLocaleString()} · ค้างอยู่ ${remaining.toLocaleString()} บาท\n\nรับรอบนี้กี่บาท?`,
+      `รับมัดจำ / บางส่วน — ${inv.customerName}\nยอดบิล ${inv.total.toLocaleString()} · ค้างอยู่ ${remaining.toLocaleString()} บาท\n\nรับรอบนี้กี่บาท?`,
       ""
     );
     if (raw == null) return;
@@ -1254,10 +1556,23 @@ export default function BillingPage() {
     if (!payFor) return null;
     const inv = payFor;
     const hasDep = (inv.deposit ?? 0) > 0;
-    const isMember = !!customers.find((c) => c.id === inv.customerId)?.isMember;
-    const due = Math.max(0, inv.total - (inv.deposit || 0));
+    const cust = customers.find((c) => c.id === inv.customerId);
+    const isMember = !!cust?.isMember;
+    // เรียกเก็บมัดจำไว้ก่อนมีบิล (หรือจากการ์ดของน้องอีกตัวในบ้าน) → ไปค้างเป็นเครดิต ดึงเข้าบิลได้เลย ไม่ต้องกรอกยอด
+    const pendingCredit = hasDep ? 0 : Math.min(inv.total, cust?.depositCredit ?? 0);
+    // มัดจำที่ยังไม่ได้กดรับ ไม่หักออก — ปิดบิลตอนนี้ระบบลงรับเต็มยอดบิล
+    const got = receivedOf(inv);
+    const due = Math.max(0, inv.total - got);
     const close = () => setPayFor(null);
     const rows: { key: string; icon: string; title: string; sub?: string; run: () => void; when: boolean }[] = [
+      {
+        key: "apply_deposit_credit",
+        icon: "money",
+        title: "รับมัดจำแล้ว (ที่เรียกเก็บไว้)",
+        sub: `${pendingCredit.toLocaleString()} ฿ · ผูกเข้าบิลนี้ ลงบัญชีให้`,
+        when: pendingCredit > 0,
+        run: () => invoiceAction(inv.id, "apply_deposit_credit", "รับมัดจำแล้ว 💰"),
+      },
       {
         key: "receive_deposit",
         icon: "money",
@@ -1274,7 +1589,7 @@ export default function BillingPage() {
       {
         key: "transfer",
         icon: "wallet",
-        title: hasDep ? "รับเงินที่เหลือ · โอน (ปิดบิล)" : "รับเงินแล้ว · โอน",
+        title: got > 0 ? "รับเงินที่เหลือ · โอน (ปิดบิล)" : "รับเต็มจำนวน · โอน (ปิดบิล)",
         sub: `${due.toLocaleString()} ฿ · ปิดบิล ลงบัญชี + แต้ม`,
         when: true,
         run: () => markPaid(inv.id, "transfer"),
@@ -1282,7 +1597,7 @@ export default function BillingPage() {
       {
         key: "cash",
         icon: "money",
-        title: "เงินสด (ปิดบิล)",
+        title: got > 0 ? "รับเงินที่เหลือ · เงินสด (ปิดบิล)" : "รับเต็มจำนวน · เงินสด (ปิดบิล)",
         sub: `${due.toLocaleString()} ฿`,
         when: true,
         run: () => markPaid(inv.id, "cash"),
@@ -1298,19 +1613,20 @@ export default function BillingPage() {
       {
         key: "partial",
         icon: "chart",
-        title: "รับเงินบางส่วน",
-        sub: "ลูกค้าพักยาว / จ่ายเป็นงวด",
+        // บิลที่ยังไม่ได้ตั้งมัดจำ ใช้แถวนี้ "รับแค่มัดจำ" ได้เลย (ใส่ยอดเอง บิลยังเปิดอยู่)
+        title: hasDep ? "รับเงินบางส่วน" : "รับแค่มัดจำ / บางส่วน",
+        sub: "ใส่ยอดเอง · บิลยังเปิด ค้างที่เหลือไว้เก็บทีหลัง",
         when: true,
         run: () => receivePartial(inv),
       },
     ];
     return (
       <div
-        className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-3"
+        className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-3"
         onClick={close}
       >
         <div
-          className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-card px-4 pb-6 pt-3 shadow-catcha sm:rounded-catcha"
+          className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-card px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-catcha-line sm:hidden" />
@@ -1327,6 +1643,22 @@ export default function BillingPage() {
               <p className="text-[10px] text-brown-soft">ยอดค้าง</p>
             </div>
           </div>
+          {got > 0 && (
+            <div className="mb-3 space-y-1 rounded-catcha-sm bg-paper/60 px-3 py-2 text-xs">
+              <div className="flex justify-between text-brown-soft">
+                <span>ยอดบิล</span>
+                <span>{inv.total.toLocaleString()} ฿</span>
+              </div>
+              <div className="flex justify-between font-bold text-ok">
+                <span>มัดจำ (รับแล้ว)</span>
+                <span>−{got.toLocaleString()} ฿</span>
+              </div>
+              <div className="flex justify-between border-t border-catcha-line pt-1 font-extrabold text-catcha-chocolate">
+                <span>รับรอบนี้ให้ครบ</span>
+                <span>{due.toLocaleString()} ฿</span>
+              </div>
+            </div>
+          )}
           <ul className="divide-y divide-catcha-line overflow-hidden rounded-catcha-sm border border-catcha-line">
             {rows
               .filter((r) => r.when)
@@ -1380,15 +1712,27 @@ export default function BillingPage() {
             {editingId ? "แก้ไขบิล" : "คิดเงิน · ออกบิล"}
           </h1>
         </div>
-        {/* เรียกดูใบเสร็จ / ใบกำกับภาษี / ใบเสนอราคา ที่เคยออกไปแล้ว */}
-        <a
-          href="/admin/billing/docs"
-          className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
-        >
-          <Icon name="doc" size={15} />
-          เอกสารที่ออกแล้ว
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* ตรวจบิลเทียบนัดทั้งร้าน — หาบิลซ้ำ/คิดคืนเกิน */}
+          <a
+            href="/admin/billing/check"
+            aria-label="ตรวจบิลซ้ำ"
+            title="ตรวจบิลซ้ำ"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-catcha-line bg-card text-catcha-chocolate shadow-catcha-sm"
+          >
+            <Icon name="search" size={16} />
+          </a>
+          {/* เรียกดูใบเสร็จ / ใบกำกับภาษี / ใบเสนอราคา ที่เคยออกไปแล้ว */}
+          <a
+            href="/admin/billing/docs"
+            className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
+          >
+            <Icon name="doc" size={15} />
+            เอกสารที่ออกแล้ว
+          </a>
+        </div>
       </div>
+      {tabs}
 
       <div className="mb-6 space-y-5 rounded-catcha bg-card p-4 shadow-catcha-sm">
         {/* ── ดึงจากนัด ── */}
@@ -1446,7 +1790,7 @@ export default function BillingPage() {
                           </span>
                           <span className="block truncate text-[11px] text-brown-soft">
                             {bk.service === "room"
-                              ? `${bk.checkin || "?"} → ${bk.checkout || "?"}${bk.room ? ` · ${bk.room}` : ""}`
+                              ? `${isDayCareStay(bk) ? `Day Care ${bk.checkin}` : `${bk.checkin || "?"} → ${bk.checkout || "?"}`}${bk.room ? ` · ${bk.room}` : ""}`
                               : bk.date || ""}
                             {group.length > 1 ? " · บิลใบเดียว" : ""}
                           </span>
@@ -1568,9 +1912,12 @@ export default function BillingPage() {
               const isSpecial =
                 item.priceOverride !== undefined && item.priceOverride !== stdUnit;
               const sig = priceSignature(line.label);
+              /** ค่ารับ-ส่ง — เลือกเที่ยวเดียว/ไป-กลับแทนช่องจำนวน ราคาเป็นต่อเที่ยว */
+              const isTrip = item.kind === "service" && isTransportLabel(item.label);
+              const lastTrip = isTrip ? lastTransportPrice(invoices, customerId) : null;
               // เตือนเฉพาะตอนที่ยังคิดราคาปกติอยู่ และราคาเก่าต่างจากราคาปกติจริงๆ
               const past =
-                item.kind === "freebie" || item.priceOverride !== undefined
+                item.kind === "freebie" || item.priceOverride !== undefined || isTrip
                   ? null
                   : findLastPrice(invoices, customerId, sig);
               const recall =
@@ -1709,18 +2056,33 @@ export default function BillingPage() {
                         value={item.roomLabel}
                         onChange={(e) => {
                           const r = rooms.find((x) => x.label === e.target.value);
+                          // ค่าห้องเป็นรายห้อง — นับน้องที่อยู่บรรทัดนี้ เพื่อบวกค่าแมวตัวที่เกิน
+                          const n = item.catName ? item.catName.split(",").filter((x) => x.trim()).length : 1;
                           updateItem(i, {
                             roomLabel: e.target.value,
-                            roomPrice: r?.amount || 0,
+                            roomPrice: r ? roomNightPrice(r.amount, r.pricing, n) : 0,
                           });
                         }}
                         className={`${sub} min-w-0 flex-1`}
                       >
-                        {rooms.map((r) => (
-                          <option key={r.label} value={r.label}>
-                            {r.label} ({r.amount}฿/คืน)
-                          </option>
-                        ))}
+                        <optgroup label="ค้างคืน">
+                          {rooms
+                            .filter((r) => !r.dayCare)
+                            .map((r) => (
+                              <option key={r.label} value={r.label}>
+                                {r.label} ({r.amount}฿/คืน)
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Day Care (ครึ่งราคา ไม่ค้างคืน)">
+                          {rooms
+                            .filter((r) => r.dayCare)
+                            .map((r) => (
+                              <option key={r.label} value={r.label}>
+                                {r.label} ({r.amount}฿/วัน)
+                              </option>
+                            ))}
+                        </optgroup>
                       </select>
                       <div className="flex shrink-0 items-center gap-1">
                         <NumField
@@ -1729,7 +2091,9 @@ export default function BillingPage() {
                           onCommit={(n) => updateItem(i, { nights: n })}
                           className="w-16 rounded-lg border border-catcha-line bg-paper px-2 py-2 text-center text-sm"
                         />
-                        <span className="text-xs font-bold text-brown-soft">คืน</span>
+                        <span className="text-xs font-bold text-brown-soft">
+                          {isDayCareLabel(item.roomLabel) ? "วัน" : "คืน"}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -1741,7 +2105,7 @@ export default function BillingPage() {
                         const p = servicePresets.find((x) => x.label === e.target.value);
                         updateItem(i, {
                           label: e.target.value,
-                          amount: p?.amount ?? item.amount,
+                          amount: p ? servicePriceFor(p) : item.amount,
                         });
                       }}
                       className={sub}
@@ -1753,6 +2117,32 @@ export default function BillingPage() {
                       ))}
                     </select>
                   )}
+
+                  {item.kind === "product" &&
+                    (posProducts.length === 0 ? (
+                      <p className="rounded-lg bg-paper px-3 py-2 text-[11px] text-brown-soft">
+                        ยังไม่มีสินค้า เพิ่มได้ที่แท็บ ขายหน้าร้าน › สินค้า
+                      </p>
+                    ) : (
+                      <select
+                        value={item.productId || ""}
+                        onChange={(e) => {
+                          const p = posProducts.find((x) => x.id === e.target.value);
+                          if (p) updateItem(i, { productId: p.id, label: p.name, amount: p.price, priceOverride: undefined });
+                        }}
+                        className={sub}
+                      >
+                        {!posProducts.some((p) => p.id === item.productId) && (
+                          <option value={item.productId || ""}>{item.label || "เลือกสินค้า"}</option>
+                        )}
+                        {posProducts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {p.price.toLocaleString()} ฿
+                            {p.trackStock ? ` (เหลือ ${p.stock})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    ))}
 
                   {(item.kind === "custom" || item.kind === "package") && (
                     <input
@@ -1792,9 +2182,30 @@ export default function BillingPage() {
 
                   {/* จำนวนชิ้น — ซื้อหลายอันไม่ต้องเพิ่มทีละบรรทัด
                       ห้องพักไม่มีช่องนี้ เพราะคิดเป็น "คืน" อยู่แล้ว */}
-                  {item.kind !== "room" && item.kind !== "freebie" && (
+                  {isTrip && (
+                    <div className="space-y-1">
+                      <Segmented
+                        value={(item.qty || 1) >= 2 ? "2" : "1"}
+                        onChange={(v) => updateItem(i, { qty: Number(v) })}
+                        options={[
+                          { id: "1", label: "เที่ยวเดียว" },
+                          { id: "2", label: "ไป-กลับ ×2" },
+                        ]}
+                      />
+                      <p className="text-[11px] text-brown-faint">
+                        {line.unitAmount.toLocaleString()} ฿/เที่ยว × {line.qty} = {line.amount.toLocaleString()} ฿
+                        {lastTrip
+                          ? ` · ครั้งก่อนจ่าย ${lastTrip.unitAmount.toLocaleString()} ฿/เที่ยว${
+                              lastTrip.when ? ` (${lastTrip.when.slice(0, 10)})` : ""
+                            }`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  {item.kind !== "room" && item.kind !== "freebie" && !isTrip && (
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-brown-soft">จำนวน</span>
+                      <span className="text-[11px] font-bold text-brown-soft">{item.roomLine ? "จำนวนคืน" : "จำนวน"}</span>
                       <button
                         type="button"
                         onClick={() =>
@@ -2027,7 +2438,7 @@ export default function BillingPage() {
             <div>
               <span className="mb-1.5 flex items-start gap-1.5 text-xs font-bold text-brown-soft">
                 <Icon name="ticket" size={14} />
-                คอร์สของลูกค้า (นับครั้ง = บิลนี้ฟรี · นับคืน = หักตามคืนที่พัก)
+                คอร์สของลูกค้า (ใช้ร่วมกันได้ทั้งบ้าน)
               </span>
               <div className="flex flex-wrap gap-2">
                 {customerPackages.map((pk) => (
@@ -2050,7 +2461,11 @@ export default function BillingPage() {
                   >
                     {packageId === pk.id && <Icon name="check" size={13} strokeWidth={2.4} />}
                     {pk.roomType && <Icon name="bed" size={14} />}
-                    {pk.roomType ? pk.roomLabel || pk.name : pk.name} (เหลือ{" "}
+                    {pk.roomType ? pk.roomLabel || pk.name : pk.name}
+                    {pk.groomProgram &&
+                      !pk.name.includes(groomProgramName(pk.groomProgram, groomPrograms) || "\u0000") &&
+                      ` · ${groomProgramName(pk.groomProgram, groomPrograms) || "โปรแกรมที่ลบไปแล้ว"}`}{" "}
+                    (เหลือ{" "}
                     {pk.totalUses - pk.usedUses}/{pk.totalUses} {pk.unit === "night" ? "คืน" : "ครั้ง"})
                     {pk.locked && ` · ค้างจ่าย ${(pk.outstanding || 0).toLocaleString()}`}
                   </button>
@@ -2074,6 +2489,23 @@ export default function BillingPage() {
             {nightsToUse > 0 && nightsOnBill > nightsToUse && (
               <span className="block font-normal text-brown-soft">
                 บิลนี้พัก {nightsOnBill} คืน แต่คอร์สเหลือ {nightsToUse} คืน — ส่วนที่เกินคิดเงินตามปกติ
+              </span>
+            )}
+          </p>
+        )}
+
+        {pickedPackage?.groomProgram && (
+          <p className="rounded-catcha-sm bg-sage/15 px-3 py-2 text-[11px] font-bold text-ok">
+            {programUsesToUse > 0
+              ? `หักคอร์ส ${programUsesToUse} ครั้ง (คลุมค่า${
+                  groomProgramName(pickedPackage.groomProgram, groomPrograms) || "โปรแกรมนี้"
+                } ${programCover.toLocaleString()} บาท)`
+              : `คอร์สนี้ใช้ได้กับ${
+                  groomProgramName(pickedPackage.groomProgram, groomPrograms) || "โปรแกรมอื่น"
+                }เท่านั้น — บิลนี้ยังไม่มีรายการโปรแกรมนี้`}
+            {programUsesToUse > 0 && programUsesOnBill > programUsesToUse && (
+              <span className="block font-normal text-brown-soft">
+                บิลนี้อาบ {programUsesOnBill} ครั้ง แต่คอร์สเหลือ {programUsesToUse} ครั้ง — ส่วนที่เกินคิดเงินตามปกติ
               </span>
             )}
           </p>
@@ -2222,10 +2654,12 @@ export default function BillingPage() {
         )}
       </div>
 
+      <div id="bills" className="scroll-mt-20" />
       <SectionLabel
         action={(() => {
           const pending = invoices.filter((i) => i.status === "pending");
-          const due = pending.reduce((s, i) => s + (i.total - (i.deposit || 0)), 0);
+          // มัดจำที่ยังไม่ได้รับ ยังนับเป็นยอดค้าง
+          const due = pending.reduce((s, i) => s + (i.total - receivedOf(i)), 0);
           return due > 0 ? (
             <span className="rounded-full bg-wait/15 px-2.5 py-1 text-[11px] font-extrabold text-wait">
               ค้างรวม {due.toLocaleString()} ฿ · {pending.length} บิล
@@ -2242,7 +2676,7 @@ export default function BillingPage() {
         options={(
           [
             ["pending", "รอชำระ"],
-            ["paid", "จ่ายแล้ว"],
+            ["paid", "ปิดบิลแล้ว"],
             ["all", "ทั้งหมด"],
           ] as const
         ).map(([f, label]) => ({
@@ -2253,6 +2687,29 @@ export default function BillingPage() {
             undefined,
         }))}
       />
+      {billFilter === "pending" && (
+        <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+          {(["all", "deposit", "partial", "full"] as const).map((st) => {
+            const n = invoices.filter(
+              (i) => i.status === "pending" && (st === "all" || pendingStageOf(i) === st)
+            ).length;
+            const on = pendingStage === st;
+            return (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setPendingStage(st)}
+                className={`flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${
+                  on ? "bg-catcha-chocolate text-card" : "bg-paper text-brown"
+                }`}
+              >
+                {st === "all" ? "ทั้งหมด" : STAGE_META[st].label}
+                <span className={`text-[10px] ${on ? "text-card/70" : "text-brown-faint"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <SearchField
         value={billSearch}
         onChange={setBillSearch}
@@ -2273,7 +2730,8 @@ export default function BillingPage() {
           const bk = linkedFor(inv);
           return bk?.checkin || bk?.date || (inv.createdAt || "").slice(0, 10) || "";
         };
-        const dueOf = (inv: Invoice) => inv.total - (inv.deposit || 0);
+        // มัดจำที่ยังไม่ได้รับ ยังนับเป็นยอดค้าง
+        const dueOf = (inv: Invoice) => inv.total - receivedOf(inv);
         const q = billSearch.trim().toLowerCase();
         // เดือนอ้างอิง: เรียงตามวันออกบิล → เดือนที่ออกบิล, นอกนั้น → เดือนของวันนัด
         const monthOf = (inv: Invoice) =>
@@ -2287,6 +2745,10 @@ export default function BillingPage() {
         let list = invoices
           .filter((inv) => !billMonth || monthOf(inv) === billMonth)
           .filter((inv) => billFilter === "all" || inv.status === billFilter)
+          .filter(
+            (inv) =>
+              billFilter !== "pending" || pendingStage === "all" || pendingStageOf(inv) === pendingStage
+          )
           .filter(
             (inv) =>
               !q ||
@@ -2369,14 +2831,19 @@ export default function BillingPage() {
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-base font-extrabold text-catcha-chocolate">{inv.total.toLocaleString()} ฿</p>
-                <span
-                  className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                    paid ? "bg-ok/15 text-ok" : "bg-wait/15 text-wait"
-                  }`}
-                >
-                  <Icon name={paid ? "check" : "clock"} size={11} strokeWidth={2.4} />
-                  {paid ? "ชำระแล้ว" : "รอชำระ"}
-                </span>
+                {(() => {
+                  const meta = paid ? null : STAGE_META[pendingStageOf(inv)];
+                  return (
+                    <span
+                      className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                        meta ? meta.tone : "bg-ok/15 text-ok"
+                      }`}
+                    >
+                      <Icon name={meta?.icon || "check"} size={11} strokeWidth={2.4} />
+                      {meta ? meta.short : "ปิดบิลแล้ว"}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -2396,10 +2863,10 @@ export default function BillingPage() {
                 ) : null}
                 {hasDep && (
                   <div className="flex justify-between border-t border-catcha-line pt-1 font-bold">
-                    <span className={inv.depositReceivedAt ? "text-ok" : "text-brown"}>
-                      มัดจำ {inv.depositReceivedAt ? "(รับแล้ว)" : "(รอรับ)"}
+                    <span className={inv.depositReceivedAt || paid ? "text-ok" : "text-brown"}>
+                      มัดจำ {inv.depositReceivedAt || paid ? "(รับแล้ว)" : "(รอรับ)"}
                     </span>
-                    <span className={inv.depositReceivedAt ? "text-ok" : "text-brown"}>
+                    <span className={inv.depositReceivedAt || paid ? "text-ok" : "text-brown"}>
                       {inv.deposit!.toLocaleString()} ฿
                     </span>
                   </div>
@@ -2410,14 +2877,29 @@ export default function BillingPage() {
                     <span>{(inv.total - inv.deposit!).toLocaleString()} ฿</span>
                   </div>
                 )}
+                {/* ปิดบิลแล้ว — โชว์ยอดที่เหลือที่รับตอนปิดบิลด้วย ไม่งั้นดูเหมือนรับแค่มัดจำ */}
+                {hasDep && paid && (
+                  <>
+                    <div className="flex justify-between font-bold text-ok">
+                      <span>ยอดคงเหลือ (รับแล้ว)</span>
+                      <span>{Math.max(0, inv.total - inv.deposit!).toLocaleString()} ฿</span>
+                    </div>
+                    <div className="flex justify-between border-t border-catcha-line pt-1 font-extrabold text-ok">
+                      <span>รับครบแล้ว</span>
+                      <span>{inv.total.toLocaleString()} ฿</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {(!inv.items || inv.items.length === 0) && hasDep && (
               <p className="mt-2 text-[11px] font-bold text-ok">
-                มัดจำ{inv.depositReceivedAt ? " (รับแล้ว) " : " (รอรับ) "}
+                มัดจำ{inv.depositReceivedAt || paid ? " (รับแล้ว) " : " (รอรับ) "}
                 {inv.deposit!.toLocaleString()}
-                {inv.status === "pending" && (
+                {inv.status === "pending" ? (
                   <span className="text-wait"> · คงเหลือ {(inv.total - inv.deposit!).toLocaleString()} บาท</span>
+                ) : (
+                  <span> · รับครบ {inv.total.toLocaleString()} บาท</span>
                 )}
               </p>
             )}
@@ -2476,6 +2958,17 @@ export default function BillingPage() {
               )}
               <MoreMenu items={menu} />
             </div>
+            {(paid || receivedOf(inv) > 0) && inv.customerId && (
+              <div className="mt-2">
+                <CancelToCreditButton
+                  invoiceId={inv.id}
+                  total={paid ? inv.total : receivedOf(inv)}
+                  paid={paid}
+                  size="md"
+                  onDone={load}
+                />
+              </div>
+            )}
 
             {/* แผ่นส่งการ์ด LINE ของบิลนี้ — เปิดจากปุ่ม/เมนูด้านบน (ชุดปุ่มรวม เหมือนในปฏิทิน) */}
             <CustomerSendButtons
@@ -2627,5 +3120,48 @@ export default function BillingPage() {
         );
       })()}
     </div>
+  );
+}
+
+/** คิดเงิน — บิลบริการกับขายหน้าร้านอยู่หน้าเดียวกัน สลับด้วยแท็บ (?view=pos) */
+function BillingTabs() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab = params.get("view") === "pos" ? "pos" : "bills";
+  const tabs = (
+    <Segmented
+      value={tab}
+      onChange={(v) => router.replace(v === "pos" ? `${pathname}?view=pos` : pathname, { scroll: false })}
+      className="mb-4"
+      options={[
+        { id: "bills", label: "บิลบริการ", icon: "receipt" },
+        { id: "pos", label: "ขายหน้าร้าน", icon: "cart" },
+      ]}
+    />
+  );
+  if (tab === "pos") {
+    return (
+      <PosPanel
+        header={
+          <>
+            <div className="mb-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Billing</p>
+              <h1 className="text-lg font-extrabold text-catcha-chocolate">คิดเงิน · ขายหน้าร้าน</h1>
+            </div>
+            {tabs}
+          </>
+        }
+      />
+    );
+  }
+  return <BillsView tabs={tabs} />;
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense fallback={null}>
+      <BillingTabs />
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { bahtText } from "@/lib/baht-text";
+import { formalItemLabel, stripEmoji } from "@/lib/invoice-item-label";
 import { exportDocPdf } from "@/lib/doc-pdf";
 import { Icon } from "@/components/Icon";
 import { toast } from "@/components/Toast";
@@ -98,33 +99,6 @@ export function buyerOf(data: Data): Buyer {
   );
 }
 
-/** เอกสารทางการ: ตัดอีโมจิออกจากข้อความทุกช่อง (ชื่อบริการบางรายการตั้งไว้มีอีโมจิ) */
-export function clean(s?: string) {
-  return (s || "")
-    .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}\u{20E3}]/gu, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-}
-
-/**
- * ชื่อรายการบนเอกสาร: บิลในระบบเติมชื่อน้อง ตัวคูณ และป้ายส่วนลดไว้ในชื่อ
- * บนเอกสารทางการมีคอลัมน์จำนวน/ส่วนลดแยกแล้ว และไม่โชว์ชื่อน้อง จึงถอดออก
- */
-function itemLabel(raw: string) {
-  return clean(
-    raw
-      .replace(/^🐱 .+? · /u, "")
-      .replace(/ \(ลด [^)]*\)$/, "")
-      .replace(/ × \d+( คืน)?$/, "")
-  );
-}
-
-/** ส่วนลดเฉพาะรายการ = ราคาเต็ม (ต่อหน่วย x จำนวน) - ยอดสุทธิของรายการ */
-function itemDiscount(it: Item) {
-  if (it.unitAmount == null) return 0;
-  return Math.max(0, Math.round((it.unitAmount * (it.qty || 1) - it.amount) * 100) / 100);
-}
-
 export function InvoiceDocument({
   data,
   kind,
@@ -148,246 +122,260 @@ export function InvoiceDocument({
   const vatAmount = vat ? Math.round(((inv.total * seller.vatRate) / (100 + seller.vatRate)) * 100) / 100 : 0;
   const buyer = buyerOf(data);
 
-  // ตัวเลือกวิธีชำระตามแบบฟอร์มใบเสร็จทั่วไป — เครดิตสมาชิกโชว์เฉพาะตอนจ่ายด้วยเครดิต
-  const method = inv.paymentMethod || "transfer";
-  const methods: [string, string][] = [
-    ["cash", "เงินสด"],
-    ["cheque", "เช็ค"],
-    ["transfer", "โอนเงิน"],
-    ["card", "บัตรเครดิต"],
-    ...(method === "member_credit" ? ([["member_credit", "เครดิตสมาชิก"]] as [string, string][]) : []),
-  ];
-  const signLeft = kind === "receipt" ? "ผู้จ่ายเงิน" : kind === "quote" ? "ผู้อนุมัติ" : "ผู้รับเอกสาร";
-  const signRight = kind === "receipt" ? "ผู้รับเงิน" : kind === "quote" ? "ผู้เสนอราคา" : "ผู้ออกเอกสาร";
-  const hasItemDiscount = inv.items.some((it) => itemDiscount(it) > 0);
-  const label = "text-latte-deep";
-
   return (
     <>
-      <style>{`@media print { @page { size: A4; margin: 10mm; } html, body, main, .bg-catcha-gradient { background: #fff !important; } .bg-catcha-gradient, main { padding: 0 !important; margin: 0 !important; min-height: 0 !important; } .doc-page { break-after: page; min-height: 265mm; } .doc-page:last-child { break-after: auto; } } .doc-a4 .doc-page { width: 794px; min-height: 1123px; max-width: none; padding: 48px; border-radius: 0; box-shadow: none; } .doc-a4 .doc-head, .doc-a4 .doc-totals { grid-template-columns: 1fr 280px; } .doc-a4 .doc-title { font-size: 22px; } .doc-a4 .doc-table { min-width: 0; } .doc-a4 .doc-title { white-space: nowrap; } .doc-a4 .doc-pay { grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr; }`}</style>
-      <div className={a4 ? "doc-a4" : "space-y-4 print:space-y-0"}>
-        {copies.map((copy, i) => (
-          <article
-            key={copy}
-            data-doc-page
-            className="doc-page relative mx-auto flex max-w-[800px] flex-col overflow-hidden rounded-catcha bg-white p-5 text-[12px] leading-relaxed text-[#333] shadow-catcha-sm sm:min-h-[1100px] sm:p-10 print:max-w-none print:rounded-none print:p-0 print:shadow-none"
-          >
-            {/* มุมเลขหน้า */}
-            <div className="absolute right-0 top-0 h-14 w-14 bg-latte-deep [clip-path:polygon(0_0,100%_0,100%_100%)] [print-color-adjust:exact]">
-              <span className="absolute right-2.5 top-1.5 text-sm font-bold text-white">{i + 1}</span>
-            </div>
+      <style>{`@media print { @page { size: A4; margin: 0; } html, body, main, .bg-catcha-gradient { background: #fff !important; } .a4-fit { height: auto !important; } .a4-fit > div { transform: none !important; } .doc-page { break-after: page; box-shadow: none !important; } .doc-page:last-child { break-after: auto; } }`}</style>
+      <div className="space-y-4 print:space-y-0">
+        {copies.map((copy, i) => {
+          const page = (
+            <article
+              data-doc-page
+              className="doc-page relative flex min-h-[1123px] w-[794px] flex-col overflow-hidden bg-white px-[48px] pb-[40px] pt-[36px] text-[11px] leading-[1.6] text-[#333] shadow-catcha-sm print:[print-color-adjust:exact]"
+            >
+              {/* มุมเลขหน้า */}
+              <div className="absolute right-0 top-0 h-[52px] w-[52px] bg-latte-deep [clip-path:polygon(0_0,100%_0,100%_100%)]">
+                <span className="absolute right-[9px] top-[4px] text-[13px] font-bold text-white">{i + 1}</span>
+              </div>
 
-            {/* หัวกระดาษ: โลโก้ซ้าย ชื่อเอกสารขวา */}
-            <div className="flex items-start justify-between gap-4">
-              <div>
+              {/* หัวเอกสาร: โลโก้ซ้าย · ชื่อเอกสารขวา */}
+              <header className="flex items-start justify-between">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={seller.logo || "/logo.jpg"} alt="" className="h-16 max-w-[180px] object-contain object-left" />
-              </div>
-              <div className="pr-16 text-right">
-                <p className="doc-title text-base font-bold leading-tight text-latte-deep sm:whitespace-nowrap sm:text-[22px]">{title.th}</p>
-                <p className="mt-0.5 text-[11px] text-latte-deep">{copy}</p>
-              </div>
-            </div>
+                <img src={seller.logo || "/logo.jpg"} alt="" className="h-[56px] max-w-[160px] object-contain object-left" />
+                <div className="pr-[44px] pt-[2px] text-right">
+                  <p className="text-[19px] font-bold leading-tight text-latte-deep">{title.th}</p>
+                  <p className="mt-[2px] text-[10px] text-latte-deep">{copy}</p>
+                </div>
+              </header>
 
-            <div className="doc-head mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_280px]">
-              <div>
-                <p>
-                  {clean(seller.name)}
-                  {seller.branch && ` (${seller.branch})`}
-                </p>
-                {seller.address && <p className="whitespace-pre-line">{clean(seller.address)}</p>}
-                {seller.taxId && <p>เลขประจำตัวผู้เสียภาษี {seller.taxId}</p>}
-                {seller.phone && <p>โทร. {seller.phone}</p>}
+              {/* ผู้ขาย + ลูกค้า (ซ้าย) · กล่องเลขที่ (ขวา) */}
+              <section className="mt-[18px] grid grid-cols-[1fr_234px] gap-x-[40px]">
+                <div>
+                  <p>
+                    {seller.name}
+                    {seller.branch && ` (${seller.branch})`}
+                  </p>
+                  {seller.address && <p className="whitespace-pre-line">{seller.address}</p>}
+                  {seller.taxId && <p>เลขประจำตัวผู้เสียภาษี {seller.taxId}</p>}
+                  {seller.phone && <p>โทร. {seller.phone}</p>}
 
-                <p className={`mt-3 ${label}`}>ลูกค้า</p>
-                <p>
-                  {clean(buyer.name)}
-                  {buyer.branch && ` (${buyer.branch})`}
-                </p>
-                {buyer.address && <p className="whitespace-pre-line">{clean(buyer.address)}</p>}
-                {buyer.taxId && <p>เลขประจำตัวผู้เสียภาษี {buyer.taxId}</p>}
-              </div>
-              <div>
-                <dl className="grid grid-cols-[90px_1fr] gap-y-0.5 border-y border-[#d9d9d9] py-2">
-                  <dt className={label}>เลขที่</dt>
-                  <dd>{docNo || "-"}</dd>
-                  <dt className={label}>วันที่</dt>
-                  <dd>{dmy(docDate || new Date().toISOString())}</dd>
-                  {kind === "quote" && (
-                    <>
-                      <dt className={label}>ยืนราคาถึง</dt>
-                      <dd>{dmy(addDays(docDate || new Date().toISOString(), 30))}</dd>
-                    </>
-                  )}
-                  {kind === "invoice" && (
-                    <>
-                      <dt className={label}>ครบกำหนด</dt>
-                      <dd>{dmy(addDays(docDate || new Date().toISOString(), 7))}</dd>
-                    </>
-                  )}
-                  <dt className={label}>อ้างอิง</dt>
-                  <dd className="break-all">{inv.id.slice(-8).toUpperCase()}</dd>
-                </dl>
-                {buyer.phone && (
-                  <dl className="grid grid-cols-[90px_1fr] border-b border-[#d9d9d9] py-2">
-                    <dt className={label}>เบอร์โทร</dt>
-                    <dd>{buyer.phone}</dd>
+                  <p className="mt-[14px] text-latte-deep">ลูกค้า</p>
+                  <p>
+                    {buyer.name}
+                    {buyer.branch && ` (${buyer.branch})`}
+                  </p>
+                  {buyer.address && <p className="whitespace-pre-line">{buyer.address}</p>}
+                  {buyer.taxId && <p>เลขประจำตัวผู้เสียภาษี {buyer.taxId}</p>}
+                </div>
+                <div>
+                  <dl className="grid grid-cols-[64px_1fr] border-y border-[#ddd] py-[6px]">
+                    <dt className="text-latte-deep">เลขที่</dt>
+                    <dd>{docNo || "—"}</dd>
+                    <dt className="text-latte-deep">วันที่</dt>
+                    <dd>{dmy(docDate || new Date().toISOString())}</dd>
+                    {kind === "quote" && (
+                      <>
+                        <dt className="text-latte-deep">ยืนราคาถึง</dt>
+                        <dd>{dmy(addDays(docDate || new Date().toISOString(), 30))}</dd>
+                      </>
+                    )}
+                    {kind === "invoice" && (
+                      <>
+                        <dt className="text-latte-deep">ครบกำหนด</dt>
+                        <dd>{dmy(addDays(docDate || new Date().toISOString(), 7))}</dd>
+                      </>
+                    )}
+                    <dt className="text-latte-deep">อ้างอิง</dt>
+                    <dd>{inv.id.slice(-8).toUpperCase()}</dd>
                   </dl>
-                )}
-              </div>
-            </div>
+                  {buyer.phone && (
+                    <dl className="mt-[10px] grid grid-cols-[64px_1fr] border-y border-[#ddd] py-[6px]">
+                      <dt className="text-latte-deep">เบอร์โทร</dt>
+                      <dd>{buyer.phone}</dd>
+                    </dl>
+                  )}
+                </div>
+              </section>
 
-            {/* รายการ — จอมือถือเลื่อนข้างได้ ไม่บีบชื่อรายการ */}
-            <div className="mt-5 overflow-x-auto print:overflow-visible">
-              <table className="doc-table w-full min-w-[560px] border-collapse print:min-w-0">
+              {/* รายการ */}
+              <table className="mt-[16px] w-full table-fixed border-collapse">
                 <thead>
-                  <tr className="border-y border-[#bbb] text-[11px]">
-                    <th className="w-8 py-1.5 text-left font-normal">#</th>
-                    <th className="py-1.5 text-left font-normal">รายละเอียด</th>
-                    <th className="w-14 py-1.5 text-right font-normal">จำนวน</th>
-                    <th className="w-24 py-1.5 text-right font-normal">ราคาต่อหน่วย</th>
-                    {hasItemDiscount && <th className="w-20 py-1.5 text-right font-normal">ส่วนลด</th>}
-                    <th className="w-24 py-1.5 text-right font-normal">มูลค่า</th>
+                  <tr className="border-y border-[#ccc] text-[10px]">
+                    <th className="w-[24px] py-[4px] text-left font-normal">#</th>
+                    <th className="py-[4px] text-left font-normal">รายละเอียด</th>
+                    <th className="w-[60px] py-[4px] text-right font-normal">จำนวน</th>
+                    <th className="w-[84px] py-[4px] text-right font-normal">ราคาต่อหน่วย</th>
+                    <th className="w-[72px] py-[4px] text-right font-normal">ส่วนลด</th>
+                    <th className="w-[84px] py-[4px] text-right font-normal">มูลค่า</th>
                   </tr>
                 </thead>
                 <tbody>
                   {inv.items.map((it, idx) => {
                     const qty = it.qty || 1;
-                    const disc = itemDiscount(it);
-                    const unit = it.unitAmount ?? (it.amount + disc) / qty;
+                    const unit = it.unitAmount ?? it.amount / qty;
+                    // ส่วนต่างระหว่างราคาเต็ม (ราคาต่อหน่วย × จำนวน) กับมูลค่าจริง = ส่วนลดรายการ
+                    const lineDiscount = Math.round((unit * qty - it.amount) * 100) / 100;
                     return (
                       <tr key={idx} className="border-b border-[#eee] align-top">
-                        <td className="py-1.5">{idx + 1}</td>
-                        <td className="py-1.5">{itemLabel(it.label)}</td>
-                        <td className="whitespace-nowrap py-1.5 text-right">
-                          {qty}
-                          {/ × \d+ คืน( \(ลด [^)]*\))?$/.test(it.label) ? " คืน" : ""}
-                        </td>
-                        <td className="py-1.5 text-right">{money(unit)}</td>
-                        {hasItemDiscount && <td className="py-1.5 text-right">{disc > 0 ? money(disc) : ""}</td>}
-                        <td className="py-1.5 text-right">{money(it.amount)}</td>
+                        <td className="py-[6px]">{idx + 1}</td>
+                        <td className="break-words py-[6px] pr-[8px]">{formalItemLabel(it.label)}</td>
+                        <td className="py-[6px] text-right">{qty}</td>
+                        <td className="py-[6px] text-right">{money(unit)}</td>
+                        <td className="py-[6px] text-right">{lineDiscount > 0 ? money(lineDiscount) : ""}</td>
+                        <td className="py-[6px] text-right">{money(it.amount)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
 
-            {/* ยอดรวม */}
-            <div className="doc-totals mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_280px]">
-              <p className="self-end text-[11px]">({bahtText(inv.total)})</p>
-              <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 text-right">
-                <dt className={label}>รวมเงิน</dt>
-                <dd>{money(inv.subtotal)} บาท</dd>
-                {inv.discount > 0 && (
-                  <>
-                    <dt className={label}>ส่วนลด{inv.promoLabel ? ` (${clean(inv.promoLabel)})` : ""}</dt>
-                    <dd>-{money(inv.discount)} บาท</dd>
-                  </>
-                )}
-                {vat && (
-                  <>
-                    <dt className={label}>มูลค่าก่อนภาษี</dt>
-                    <dd>{money(inv.total - vatAmount)} บาท</dd>
-                    <dt className={label}>ภาษีมูลค่าเพิ่ม {seller.vatRate}%</dt>
-                    <dd>{money(vatAmount)} บาท</dd>
-                  </>
-                )}
-                <dt className={label}>จำนวนเงินรวมทั้งสิ้น</dt>
-                <dd className="font-bold">{money(inv.total)} บาท</dd>
-                {kind === "invoice" && inv.deposit > 0 && (
-                  <>
-                    <dt className={label}>ชำระมัดจำแล้ว</dt>
-                    <dd>-{money(inv.deposit)} บาท</dd>
-                    <dt className={label}>ยอดคงค้าง</dt>
-                    <dd className="font-bold">{money(Math.max(0, inv.total - inv.deposit))} บาท</dd>
-                  </>
-                )}
-              </dl>
-            </div>
-
-            {doc.note && (
-              <div className="mt-5">
-                <p className={label}>หมายเหตุ</p>
-                <p className="whitespace-pre-line">{clean(doc.note)}</p>
+              {/* ยอดรวม: ตัวอักษรจำนวนเงินซ้าย · ตัวเลขขวา */}
+              <div className="mt-[10px] grid grid-cols-[1fr_auto] items-end gap-x-[24px]">
+                <p>({bahtText(inv.total)})</p>
+                <dl className="grid grid-cols-[auto_110px] gap-x-[16px] text-right">
+                  <dt className="text-latte-deep">รวมเงิน</dt>
+                  <dd>{money(inv.subtotal)} บาท</dd>
+                  {inv.discount > 0 && (
+                    <>
+                      <dt className="text-latte-deep">ส่วนลด{inv.promoLabel ? ` (${stripEmoji(inv.promoLabel)})` : ""}</dt>
+                      <dd>-{money(inv.discount)} บาท</dd>
+                    </>
+                  )}
+                  {vat && (
+                    <>
+                      <dt className="text-latte-deep">มูลค่าก่อนภาษี</dt>
+                      <dd>{money(inv.total - vatAmount)} บาท</dd>
+                      <dt className="text-latte-deep">ภาษีมูลค่าเพิ่ม {seller.vatRate}%</dt>
+                      <dd>{money(vatAmount)} บาท</dd>
+                    </>
+                  )}
+                  <dt className="text-latte-deep">จำนวนเงินรวมทั้งสิ้น</dt>
+                  <dd className="font-bold">{money(inv.total)} บาท</dd>
+                  {kind === "invoice" && inv.deposit > 0 && (
+                    <>
+                      <dt className="text-latte-deep">ชำระมัดจำแล้ว</dt>
+                      <dd>-{money(inv.deposit)} บาท</dd>
+                      <dt className="text-latte-deep">ยอดคงค้าง</dt>
+                      <dd className="font-bold">{money(Math.max(0, inv.total - inv.deposit))} บาท</dd>
+                    </>
+                  )}
+                </dl>
               </div>
-            )}
 
-            {/* ดันส่วนชำระเงิน + ลายเซ็นลงท้ายกระดาษ */}
-            <div className="min-h-8 flex-1" />
-
-            <footer className="mt-8 text-[11px]">
-              {kind === "receipt" ? (
-                <div className="border-t border-[#bbb] pt-2">
-                  <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span>การชำระเงินจะสมบูรณ์เมื่อบริษัทได้รับเงินเรียบร้อยแล้ว</span>
-                    {methods.map(([m, l]) => (
-                      <span key={m} className="inline-flex items-center gap-1">
-                        <CheckBox on={method === m} />
-                        {l}
-                      </span>
-                    ))}
-                  </p>
-                  <div className="doc-pay mt-2 grid grid-cols-[auto_1fr_auto_1fr] items-end gap-x-2 gap-y-2 sm:grid-cols-[auto_1fr_auto_1fr_auto_1fr_auto_1fr]">
-                    <span>ธนาคาร</span>
-                    <span className="border-b border-[#999] px-1 text-center">{method === "transfer" ? data.payment.bankName : ""}&nbsp;</span>
-                    <span>เลขที่</span>
-                    <span className="border-b border-[#999] px-1 text-center">{method === "transfer" ? data.payment.accountNumber : ""}&nbsp;</span>
-                    <span>วันที่</span>
-                    <span className="border-b border-[#999] px-1 text-center">{dmy(inv.paidAt)}</span>
-                    <span>จำนวนเงิน</span>
-                    <span className="border-b border-[#999] px-1 text-center">{money(inv.total)}</span>
-                  </div>
+              {doc.note && (
+                <div className="mt-[18px]">
+                  <p className="text-latte-deep">หมายเหตุ</p>
+                  <p className="whitespace-pre-line">{stripEmoji(doc.note)}</p>
                 </div>
-              ) : (
-                data.payment.accountNumber && (
-                  <div className="border-t border-[#bbb] pt-2">
-                    <p className={label}>ช่องทางชำระเงิน</p>
-                    <p>
-                      โอนเข้าบัญชี {data.payment.bankName} เลขที่ {data.payment.accountNumber}
-                      {data.payment.accountName && ` ชื่อบัญชี ${data.payment.accountName}`}
-                    </p>
-                  </div>
-                )
               )}
 
-              {/* ลายเซ็น */}
-              <div className="mt-8 grid grid-cols-2 gap-8">
-                <div>
-                  <p>ในนาม {clean(buyer.name)}</p>
-                  {buyer.branch && <p>({buyer.branch})</p>}
-                  <div className="mt-12 grid grid-cols-2 gap-3 text-center">
-                    <div className="border-t border-[#999] pt-1">{signLeft}</div>
-                    <div className="border-t border-[#999] pt-1">วันที่</div>
+              {kind !== "receipt" && data.payment.accountNumber && (
+                <div className="mt-[18px]">
+                  <p className="text-latte-deep">ช่องทางชำระเงิน</p>
+                  <p>
+                    โอนเข้าบัญชี {data.payment.bankName} เลขที่ {data.payment.accountNumber}
+                    {data.payment.accountName && ` ชื่อบัญชี ${data.payment.accountName}`}
+                  </p>
+                </div>
+              )}
+
+              {/* ท้ายกระดาษ: การชำระเงิน + ลายเซ็น ชิดล่างเสมอ */}
+              <div className="mt-auto">
+                {kind === "receipt" && (
+                  <div className="border-t border-[#ccc] pt-[10px]">
+                    <p className="flex items-center gap-x-[14px]">
+                      <span>การชำระเงินจะสมบูรณ์เมื่อบริษัทได้รับเงินเรียบร้อยแล้ว</span>
+                      {(
+                        [
+                          ["cash", "เงินสด"],
+                          ["cheque", "เช็ค"],
+                          ["transfer", "โอนเงิน"],
+                          ["card", "บัตรเครดิต"],
+                          ...(inv.paymentMethod === "member_credit" ? [["member_credit", "เครดิตสมาชิก"] as const] : []),
+                        ] as const
+                      ).map(([m, l]) => (
+                        <span key={m} className="inline-flex items-center gap-[5px]">
+                          <span className="inline-flex h-[13px] w-[13px] items-center justify-center border border-[#555] text-[10px] leading-none">
+                            {(inv.paymentMethod || "transfer") === m ? "✓" : ""}
+                          </span>
+                          {l}
+                        </span>
+                      ))}
+                    </p>
+                    <div className="mt-[8px] grid grid-cols-[auto_1fr_auto_1fr_auto_1fr_auto_1fr] items-end gap-x-[8px]">
+                      <span>ธนาคาร</span>
+                      <span className="border-b border-[#999] text-center">
+                        {inv.paymentMethod === "transfer" || !inv.paymentMethod ? data.payment.bankName : ""}
+                      </span>
+                      <span>เลขที่</span>
+                      <span className="border-b border-[#999] text-center">
+                        {inv.paymentMethod === "transfer" || !inv.paymentMethod ? data.payment.accountNumber : ""}
+                      </span>
+                      <span>วันที่</span>
+                      <span className="border-b border-[#999] text-center">{dmy(inv.paidAt)}</span>
+                      <span>จำนวนเงิน</span>
+                      <span className="border-b border-[#999] text-center">{money(inv.total)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ลายเซ็น */}
+                <div className="mt-[34px] grid grid-cols-2 gap-x-[30px]">
+                  <div>
+                    <p>ในนาม {buyer.name}</p>
+                    {buyer.branch && <p>({buyer.branch})</p>}
+                  </div>
+                  <div className="text-right">
+                    <p>ในนาม {seller.name}</p>
+                    {seller.branch && <p>({seller.branch})</p>}
                   </div>
                 </div>
-                <div>
-                  <p className="text-right">ในนาม {clean(seller.name)}</p>
-                  {seller.branch && <p className="text-right">({seller.branch})</p>}
-                  <div className="mt-12 grid grid-cols-2 gap-3 text-center">
-                    <div className="border-t border-[#999] pt-1">{signRight}</div>
-                    <div className="border-t border-[#999] pt-1">วันที่</div>
+                <div className="mt-[44px] grid grid-cols-4 gap-x-[16px] text-center [&>div:nth-child(2)]:mr-[14px] [&>div:nth-child(3)]:ml-[14px]">
+                  <div className="border-t border-[#999] pt-[4px]">
+                    {kind === "receipt" ? "ผู้จ่ายเงิน" : kind === "quote" ? "ผู้อนุมัติ" : "ผู้รับเอกสาร"}
                   </div>
+                  <div className="border-t border-[#999] pt-[4px]">วันที่</div>
+                  <div className="border-t border-[#999] pt-[4px]">
+                    {kind === "receipt" ? "ผู้รับเงิน" : kind === "quote" ? "ผู้เสนอราคา" : "ผู้ออกเอกสาร"}
+                  </div>
+                  <div className="border-t border-[#999] pt-[4px]">วันที่</div>
                 </div>
               </div>
-            </footer>
-          </article>
-        ))}
+            </article>
+          );
+          // สร้าง PDF: วาดขนาด A4 จริง · บนจอ: ย่อทั้งหน้าลงให้พอดีจอ หน้าตาเหมือนกระดาษเป๊ะ
+          return a4 ? <div key={copy}>{page}</div> : <A4Fit key={copy}>{page}</A4Fit>;
+        })}
       </div>
     </>
   );
 }
 
-/** ช่องติ๊กแบบฟอร์ม — วาดเครื่องหมายถูกเป็นเส้น ไม่ใช้ตัวอักษร/อีโมจิ */
-function CheckBox({ on }: { on: boolean }) {
+/** ย่อหน้ากระดาษ A4 (794px) ลงให้พอดีความกว้างจอ โดยไม่เปลี่ยน layout ข้างใน */
+function A4Fit({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [height, setHeight] = useState(1123);
+  useEffect(() => {
+    const el = ref.current;
+    const page = inner.current;
+    if (!el || !page) return;
+    const fit = () => {
+      setScale(Math.min(1, el.clientWidth / 794));
+      setHeight(page.offsetHeight);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    ro.observe(page);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#555]">
-      {on && (
-        <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden>
-          <path d="M2 6.5 5 9l5-6" fill="none" stroke="#333" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </span>
+    <div ref={ref} className="a4-fit mx-auto w-full max-w-[794px]" style={{ height: height * scale }}>
+      <div ref={inner} style={{ width: 794, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+        {children}
+      </div>
+    </div>
   );
 }
 
