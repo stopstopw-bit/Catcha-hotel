@@ -39,28 +39,32 @@ function peekAudience(idToken: string): string {
   }
 }
 
+export type LiffVerifyResult =
+  | { ok: true; identity: VerifiedLiffIdentity }
+  | { ok: false; reason: string };
+
 /**
  * ตรวจ LIFF ID token กับ LINE ตรงๆ ก่อนเชื่อว่าเป็นลูกค้าคนนั้นจริง
  *
  * lineUserId ที่ client ส่งมาเป็นแค่ข้อความธรรมดา ใครใส่ของใครก็ได้ ส่วน ID token
  * เป็น JWT ที่ LINE เซ็นให้ตอนล็อกอิน LIFF สำเร็จ ปลอมไม่ได้ — เราจึงเอา token
  * ไปถาม LINE ว่าเป็นของใคร แล้วค่อยเชื่อผลที่ LINE ตอบกลับมา
+ *
+ * ตรวจไม่ผ่านคืน reason สั้นๆ ไว้โชว์เป็นรหัสบนจอลูกค้า + log ไว้ดูใน Vercel
  */
-export async function verifyLiffIdToken(
-  idToken: string
-): Promise<VerifiedLiffIdentity | null> {
-  if (!idToken || typeof idToken !== "string") return null;
+export async function verifyLiffIdTokenDetailed(idToken: string): Promise<LiffVerifyResult> {
+  if (!idToken || typeof idToken !== "string") return { ok: false, reason: "no_token" };
 
   const channels = await allowedChannels();
   if (channels.length === 0) {
     console.warn("[liff-auth] ยังไม่ได้ตั้ง LIFF ID — ตรวจ token ไม่ได้");
-    return null;
+    return { ok: false, reason: "no_liff_config" };
   }
   // aud ต้องเป็น channel ของเราเท่านั้น — กันเอา token จาก LIFF app อื่นมาสวมรอย
   const aud = peekAudience(idToken);
   if (!channels.includes(aud)) {
     console.warn(`[liff-auth] token มาจาก channel ${aud || "?"} ไม่ตรงกับที่ตั้งไว้ (${channels.join(", ")})`);
-    return null;
+    return { ok: false, reason: `channel_${aud || "unknown"}` };
   }
 
   try {
@@ -70,15 +74,24 @@ export async function verifyLiffIdToken(
       body: new URLSearchParams({ id_token: idToken, client_id: aud }),
     });
     if (!res.ok) {
-      console.warn(`[liff-auth] LINE ตรวจ token ไม่ผ่าน ${res.status}: ${await res.text().catch(() => "")}`);
-      return null;
+      const text = await res.text().catch(() => "");
+      console.warn(`[liff-auth] LINE ตรวจ token ไม่ผ่าน ${res.status}: ${text}`);
+      const desc = /"error_description"\s*:\s*"([^"]+)"/.exec(text)?.[1] || "";
+      return { ok: false, reason: `line_${res.status}${desc ? `_${desc.replace(/\W+/g, "_").slice(0, 40)}` : ""}` };
     }
     const data = (await res.json()) as { sub?: string; name?: string; aud?: string };
-    if (!data.sub) return null;
-    if (data.aud && data.aud !== aud) return null;
-    return { lineUserId: data.sub, displayName: data.name || "" };
+    if (!data.sub) return { ok: false, reason: "no_sub" };
+    if (data.aud && data.aud !== aud) return { ok: false, reason: "aud_mismatch" };
+    return { ok: true, identity: { lineUserId: data.sub, displayName: data.name || "" } };
   } catch (e) {
     console.warn("[liff-auth] เรียก LINE ไม่สำเร็จ", e);
-    return null;
+    return { ok: false, reason: "line_unreachable" };
   }
+}
+
+export async function verifyLiffIdToken(
+  idToken: string
+): Promise<VerifiedLiffIdentity | null> {
+  const r = await verifyLiffIdTokenDetailed(idToken);
+  return r.ok ? r.identity : null;
 }

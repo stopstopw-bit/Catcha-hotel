@@ -5,7 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import type { CustomerProfile } from "@/lib/business";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import type { CustomerTier } from "@/lib/customer-tier";
-import { customerFetch, setCustomerSessionRefresher } from "@/lib/customer-fetch";
+import {
+  customerFetch,
+  setCustomerSessionIssue,
+  setCustomerSessionRefresher,
+} from "@/lib/customer-fetch";
 
 type LineCustomer = {
   id: string;
@@ -194,7 +198,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
             const exchange = async (): Promise<boolean> => {
               try {
                 const idToken = liff.default.getIDToken();
-                if (!idToken) return false;
+                // ไม่มี token เลย = LIFF app ไม่ได้ติ๊ก scope "openid" ใน LINE Developers
+                if (!idToken) {
+                  setCustomerSessionIssue("no_token");
+                  return false;
+                }
                 const r = await fetch("/api/customers/session", {
                   method: "POST",
                   cache: "no-store",
@@ -202,8 +210,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
                   body: JSON.stringify({ idToken }),
                 });
                 const d = await r.json().catch(() => ({}));
+                if (!d?.ok) setCustomerSessionIssue(String(d?.reason || `http_${r.status}`));
+                else setCustomerSessionIssue("");
                 return Boolean(d?.ok);
               } catch {
+                setCustomerSessionIssue("network");
                 return false;
               }
             };

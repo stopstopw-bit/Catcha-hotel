@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLiffIdToken } from "@/lib/liff-auth";
+import { verifyLiffIdTokenDetailed } from "@/lib/liff-auth";
 import {
   signCustomerSession,
   customerSessionCookieOptions,
@@ -23,10 +23,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "no_token" });
   }
 
-  const identity = await verifyLiffIdToken(idToken);
-  if (!identity) {
-    return NextResponse.json({ ok: false, reason: "invalid_token" });
+  const verified = await verifyLiffIdTokenDetailed(idToken);
+  if (!verified.ok) {
+    return NextResponse.json({ ok: false, reason: verified.reason });
   }
+  const identity = verified.identity;
 
   const res = NextResponse.json({
     ok: true,
