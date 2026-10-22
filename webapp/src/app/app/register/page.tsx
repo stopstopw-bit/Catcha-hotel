@@ -22,6 +22,8 @@ type CatInput = {
   ageUnit: "year" | "month";
   /** น้ำหนัก (กก.) — เก็บเป็นข้อความระหว่างพิมพ์ */
   weightKg: string;
+  /** ลูกค้าติ๊ก "ไม่ทราบน้ำหนัก" — ไม่ต้องกรอกช่องน้ำหนัก */
+  weightUnknown: boolean;
   birthday: string;
   medical: string;
   note: string;
@@ -41,6 +43,7 @@ function emptyCat(): CatInput {
     ageValue: "",
     ageUnit: "year",
     weightKg: "",
+    weightUnknown: false,
     birthday: "",
     medical: "",
     note: "",
@@ -94,9 +97,28 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!profile?.lineUserId) return;
 
-    const named = cats.filter((c) => c.name.trim());
-    if (named.some((c) => !c.gender)) {
-      setError("เลือกเพศน้องแมวทุกตัวด้วยนะคะ 🐱");
+    // บังคับกรอกให้ครบทุกช่อง (ยกเว้นรูป/วันเกิดน้อง/โรคประจำตัว) — ไม่อยากได้ตัวไหนให้กดลบออก
+    const catProblem = (c: CatInput, n: string): string => {
+      if (!c.name.trim()) return `กรอกชื่อน้องแมว${n}ด้วยนะคะ`;
+      if (!c.gender) return `เลือกเพศน้องแมว${n}ด้วยนะคะ 🐱`;
+      if (!c.breed || (c.breed === OTHER_BREED && !c.breedOther.trim()))
+        return `เลือกสายพันธุ์น้องแมว${n}ด้วยนะคะ`;
+      if (!c.furLength) return `เลือกลักษณะขนน้องแมว${n}ด้วยนะคะ`;
+      if (!c.color.trim()) return `กรอกสี/ลักษณะเด่นน้องแมว${n}ด้วยนะคะ`;
+      if (!c.ageValue) return `กรอกอายุน้องแมว${n}ด้วยนะคะ`;
+      if (!c.weightUnknown && !(Number(c.weightKg) > 0))
+        return `กรอกน้ำหนักน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`;
+      return "";
+    };
+    for (let i = 0; i < cats.length; i++) {
+      const problem = catProblem(cats[i], cats.length > 1 ? ` ตัวที่ ${i + 1}` : "");
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+    if (!/^\d{5}$/.test(postalCode)) {
+      setError("กรอกรหัสไปรษณีย์ 5 หลักด้วยนะคะ");
       return;
     }
     if (!referral) {
@@ -131,7 +153,7 @@ export default function RegisterPage() {
                 undefined,
               ageValue: c.ageValue ? Number(c.ageValue) : undefined,
               ageUnit: c.ageUnit,
-              weightKg: c.weightKg ? Number(c.weightKg) : undefined,
+              weightKg: !c.weightUnknown && c.weightKg ? Number(c.weightKg) : undefined,
               birthday: c.birthday || undefined,
               medical: c.medical || undefined,
               furLength: c.furLength || undefined,
@@ -247,10 +269,11 @@ export default function RegisterPage() {
 
         <label className="block">
           <span className="mb-1 block text-xs font-bold text-brown">
-            รหัสไปรษณีย์{" "}
-            <span className="font-normal text-brown-faint">(ไม่บังคับ)</span>
+            รหัสไปรษณีย์
           </span>
           <input
+            required
+            pattern="[0-9]{5}"
             value={postalCode}
             onChange={(e) =>
               setPostalCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))
@@ -279,7 +302,7 @@ export default function RegisterPage() {
                   </p>
                 )}
                 <input
-                  required={idx === 0}
+                  required
                   value={cat.name}
                   onChange={(e) => updateCat(idx, { name: e.target.value })}
                   placeholder="ชื่อน้องแมว"
@@ -314,7 +337,7 @@ export default function RegisterPage() {
                 </div>
 
                 <select
-                  required={idx === 0}
+                  required
                   value={cat.breed}
                   onChange={(e) => updateCat(idx, { breed: e.target.value })}
                   className={`${subFieldClass} ${
@@ -368,13 +391,15 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <input
+                  required
                   value={cat.color}
                   onChange={(e) => updateCat(idx, { color: e.target.value })}
-                  placeholder="สี/ลักษณะเด่น เช่น สีขาวสลับดำ มีจุดที่หู (ไม่บังคับ)"
+                  placeholder="สี/ลักษณะเด่น เช่น สีขาวสลับดำ มีจุดที่หู"
                   className={subFieldClass}
                 />
                 <div className="flex gap-2">
                   <input
+                    required
                     type="number"
                     min="0"
                     inputMode="numeric"
@@ -396,19 +421,34 @@ export default function RegisterPage() {
                     <option value="month">เดือน</option>
                   </select>
                 </div>
-                <label className="block text-[11px] font-bold text-brown-soft">
-                  น้ำหนัก <span className="font-normal text-brown-faint">(กก. · ไม่บังคับ)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    inputMode="decimal"
-                    value={cat.weightKg}
-                    onChange={(e) => updateCat(idx, { weightKg: e.target.value })}
-                    placeholder="เช่น 4.5"
-                    className={`${subFieldClass} mt-0.5`}
-                  />
-                </label>
+                <div className="text-[11px] font-bold text-brown-soft">
+                  น้ำหนัก <span className="font-normal text-brown-faint">(กก.)</span>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <input
+                      required={!cat.weightUnknown}
+                      disabled={cat.weightUnknown}
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={cat.weightUnknown ? "" : cat.weightKg}
+                      onChange={(e) => updateCat(idx, { weightKg: e.target.value })}
+                      placeholder={cat.weightUnknown ? "ไม่ทราบน้ำหนัก" : "เช่น 4.5"}
+                      className={`${subFieldClass} min-w-0 flex-1 disabled:opacity-50`}
+                    />
+                    <label className="flex min-h-[44px] shrink-0 cursor-pointer items-center gap-1.5 text-xs font-bold text-brown">
+                      <input
+                        type="checkbox"
+                        checked={cat.weightUnknown}
+                        onChange={(e) =>
+                          updateCat(idx, { weightUnknown: e.target.checked, weightKg: "" })
+                        }
+                        className="h-5 w-5 accent-latte-deep"
+                      />
+                      ไม่ทราบ
+                    </label>
+                  </div>
+                </div>
                 <div className="text-[11px] font-bold text-brown-soft">
                   วันเกิดน้องแมว{" "}
                   <span className="font-normal text-brown-faint">

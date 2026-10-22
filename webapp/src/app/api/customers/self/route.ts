@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       addressMapUrl: c.addressMapUrl || "",
       postalCode: c.postalCode || "",
       idCardUrl: c.idCardUrl || "",
+      consentAcceptedAt: c.consentAcceptedAt || "",
       marketingConsent: c.marketingConsent !== false,
       cats: c.cats.map((x) => ({
         id: x.id,
@@ -46,6 +47,10 @@ export async function GET(req: NextRequest) {
         medical: x.medical || "",
         note: x.staffNote || "",
         needsConfirm: Boolean(x.needsOwnerConfirm),
+        // หน้าแนบสมุดวัคซีน/ฟอร์มประวัติใช้บอกลูกค้าว่าส่งอะไรไปแล้วบ้าง (ไม่ส่งตัวรูปออกไป)
+        vaccineCount: x.vaccinePhotos ? x.vaccinePhotos.split("\n").filter(Boolean).length : 0,
+        hasPetInfo: Boolean(x.groomHealthInfo),
+        hasStayInfo: Boolean(x.stayInfo),
       })),
     },
   });
