@@ -8,7 +8,14 @@ export type BroadcastActionId =
   | "rooms"
   | "bookings"
   | "line_chat"
-  | "maps";
+  | "maps"
+  | "coupons"
+  /** ปุ่มกดรับคูปองของแคมเปญนั้น ๆ — coupon:<offerId> */
+  | `coupon:${string}`;
+
+export const COUPON_ACTION_PREFIX = "coupon:";
+export const couponActionId = (offerId: string): BroadcastActionId => `coupon:${offerId}`;
+export const isCouponAction = (id: string): id is `coupon:${string}` => id.startsWith(COUPON_ACTION_PREFIX);
 
 export type BroadcastAction = {
   id: BroadcastActionId;
@@ -23,7 +30,25 @@ export const BROADCAST_ACTIONS: BroadcastAction[] = [
   { id: "bookings", label: "📅 ดูนัดของฉัน", description: "เปิดรายการนัด" },
   { id: "line_chat", label: "💬 สนใจ / ทักแชท", description: "เปิดแชท LINE OA" },
   { id: "maps", label: "📍 ดูแผนที่", description: "เปิด Google Maps" },
+  { id: "coupons", label: "🎟️ คูปองของฉัน", description: "เปิดกระเป๋าคูปองในแอป" },
 ];
+
+export const COUPON_BUTTON_LABEL = "🎟️ กดรับคูปอง";
+
+/** ชื่อปุ่มที่ลูกค้าเห็น (ใช้ทั้งตอนส่งจริงและพรีวิว) */
+export function broadcastActionLabel(id: string): string {
+  if (isCouponAction(id)) return COUPON_BUTTON_LABEL;
+  return BROADCAST_ACTIONS.find((a) => a.id === id)?.label || id;
+}
+
+/** อ่านรายการปุ่มที่เก็บเป็นข้อความคั่นด้วย , — กรองของแปลก ๆ ทิ้ง ไม่เกิน 3 ปุ่ม */
+export function parseBroadcastActions(raw: unknown): BroadcastActionId[] {
+  const list = Array.isArray(raw) ? raw : String(raw || "").split(",");
+  const ok = list
+    .map((x) => String(x).trim())
+    .filter((x) => isCouponAction(x) ? x.length > COUPON_ACTION_PREFIX.length : BROADCAST_ACTIONS.some((a) => a.id === x));
+  return [...new Set(ok)].slice(0, 3) as BroadcastActionId[];
+}
 
 export type BroadcastTemplate = {
   label: string;
@@ -75,6 +100,13 @@ export function resolveBroadcastActionUri(
   const appBase = getAppUrlFromEnv();
   const lid = liffId?.trim();
 
+  if (isCouponAction(actionId)) {
+    const offerId = actionId.slice(COUPON_ACTION_PREFIX.length);
+    return lid
+      ? buildLiffUrl(lid, { path: "claim-coupon", offer: offerId })
+      : `${appBase}/app/claim-coupon?offer=${encodeURIComponent(offerId)}`;
+  }
+
   switch (actionId) {
     case "promos":
       return lid
@@ -92,6 +124,10 @@ export function resolveBroadcastActionUri(
       return lid
         ? buildLiffUrl(lid, { path: "bookings" })
         : `${appBase}/app/bookings`;
+    case "coupons":
+      return lid
+        ? buildLiffUrl(lid, { path: "coupons" })
+        : `${appBase}/app/coupons`;
     case "line_chat":
       return `https://line.me/R/ti/p/${BUSINESS.lineOa}`;
     case "maps":
@@ -105,11 +141,8 @@ export function buildBroadcastButtons(
   actionIds: BroadcastActionId[],
   liffId?: string
 ) {
-  return actionIds.slice(0, 3).map((id) => {
-    const preset = BROADCAST_ACTIONS.find((a) => a.id === id);
-    return {
-      label: preset?.label || id,
-      uri: resolveBroadcastActionUri(id, liffId),
-    };
-  });
+  return actionIds.slice(0, 3).map((id) => ({
+    label: broadcastActionLabel(id),
+    uri: resolveBroadcastActionUri(id, liffId),
+  }));
 }

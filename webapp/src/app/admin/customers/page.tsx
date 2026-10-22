@@ -3,6 +3,7 @@
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import type { CatRecord, CustomerRecord, MemberCreditUsageRecord, MemberTopupRecord, PackageUsageRecord } from "@/lib/customers-store";
 import type { CustomerTier } from "@/lib/customer-tier";
@@ -12,6 +13,8 @@ import { CatMediaGallery } from "@/components/CatMediaGallery";
 import { TIER_LABELS, tierBadgeClass } from "@/lib/customer-tier";
 import { RegistrationQrSection } from "@/components/LineSetupSection";
 import { AddCustomerModal } from "@/components/AddCustomerModal";
+import { EditCustomerSheet } from "@/components/EditCustomerSheet";
+import { CatServiceHistory } from "@/components/CatServiceHistory";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { CustomerLinkSection } from "@/components/CustomerLinkSection";
@@ -165,6 +168,48 @@ function CheckRow({
         className="mt-0.5 h-5 w-5 shrink-0 accent-latte-deep"
       />
     </label>
+  );
+}
+
+/**
+ * การ์ดฟอร์มแบบพับได้ (ปิดไว้ก่อน) — ฟอร์มที่ไม่ได้ใช้ทุกวันจะไม่รกหน้า
+ * แตะหัวการ์ดเพื่อเปิด/ปิด
+ */
+function CollapsibleCard({
+  icon,
+  title,
+  sub,
+  children,
+}: {
+  icon: string;
+  title: string;
+  sub?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="mb-3 rounded-catcha bg-card shadow-catcha-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex min-h-[64px] w-full items-center gap-3 p-4 text-left"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/25 text-catcha-chocolate">
+          <Icon name={icon} size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-extrabold text-catcha-chocolate">{title}</span>
+          {sub ? <span className="block truncate text-[11px] text-brown-soft">{sub}</span> : null}
+        </span>
+        <Icon
+          name="chevron"
+          size={18}
+          className={`shrink-0 text-brown-soft transition-transform ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+      {open && <div className="border-t border-catcha-line p-4 pt-3">{children}</div>}
+    </section>
   );
 }
 
@@ -449,16 +494,15 @@ function MemberTopupSection({
   };
 
   return (
-    <section className="mb-4 rounded-catcha bg-card p-4 shadow-catcha-sm">
-      <CardHeader
-        icon="wallet"
-        title="เติมเครดิต Member"
-        sub={
-          <>
-            คงเหลือ <span className="font-bold text-latte-deep">{memberCredit.toLocaleString()} บาท</span>
-          </>
-        }
-      />
+    <CollapsibleCard
+      icon="wallet"
+      title="เติมเครดิต Member"
+      sub={
+        <>
+          คงเหลือ <span className="font-bold text-latte-deep">{memberCredit.toLocaleString()} บาท</span>
+        </>
+      }
+    >
 
       <SectionLabel>Quick promo · โปรด่วน</SectionLabel>
       <div className="mb-3 flex flex-wrap gap-2">
@@ -601,7 +645,7 @@ function MemberTopupSection({
       {msg && (
         <p className="mt-2 rounded-catcha-sm bg-paper px-3 py-2 text-center text-[11px] font-bold text-brown">{msg}</p>
       )}
-    </section>
+    </CollapsibleCard>
   );
 }
 
@@ -1265,6 +1309,7 @@ function CustomerSummaryCard({
   inactive,
   canFollowUp,
   onSaved,
+  toolsSlot,
 }: {
   customer: CustomerRecord;
   points: number;
@@ -1274,14 +1319,9 @@ function CustomerSummaryCard({
   inactive?: boolean;
   canFollowUp?: boolean;
   onSaved: () => void;
+  /** ที่วางฟอร์มเพิ่มแต้ม/ขายคอร์สท้ายหน้า (ย้ายลงล่างให้หัวโปรไฟล์ไม่รก) */
+  toolsSlot?: HTMLElement | null;
 }) {
-  const [name, setName] = useState(customer.name);
-  const [phone, setPhone] = useState(customer.phone || "");
-  const [email, setEmail] = useState(customer.email || "");
-  const [birthday, setBirthday] = useState(customer.birthday || "");
-  const [address, setAddress] = useState(customer.address || "");
-  const [addressMapUrl, setAddressMapUrl] = useState(customer.addressMapUrl || "");
-  const [postalCode, setPostalCode] = useState(customer.postalCode || "");
   const [tier, setTier] = useState<CustomerTier>(customer.tier || "new");
   const [msg, setMsg] = useState("");
   const [followUpBusy, setFollowUpBusy] = useState(false);
@@ -1316,7 +1356,7 @@ function CustomerSummaryCard({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.preview) setPointsPreview(data.preview);
-      else setMsg("❌ ดูตัวอย่างไม่สำเร็จ");
+      else toast("ดูตัวอย่างไม่สำเร็จ", "error");
     } finally {
       setAddBusy(false);
     }
@@ -1335,16 +1375,15 @@ function CustomerSummaryCard({
       });
       setPointsPreview(null);
       if (res.ok) {
-        setMsg(
-          `✅ ${n > 0 ? "เพิ่ม" : "ปรับ"} ${n} แต้มแล้ว (${reason})` +
+        toast(
+          `${n > 0 ? "เพิ่ม" : "ปรับ"} ${n} แต้มแล้ว (${reason})` +
             (n > 0 && !addNotify ? " · ไม่ได้แจ้งลูกค้า" : "")
         );
         setAddAmt("");
         setAddReason("");
         onSaved();
-        setTimeout(() => setMsg(""), 2500);
       } else {
-        setMsg("❌ เพิ่มแต้มไม่สำเร็จ");
+        toast("เพิ่มแต้มไม่สำเร็จ", "error");
       }
     } finally {
       setAddBusy(false);
@@ -1441,8 +1480,8 @@ function CustomerSummaryCard({
         loadPackages();
       }
       if (res.ok) {
-        setMsg(
-          `✅ ${pkgLegacy ? "ยกคอร์ส" : "ขายคอร์ส"} "${pkgName.trim()}" แล้ว` +
+        toast(
+          `${pkgLegacy ? "ยกคอร์ส" : "ขายคอร์ส"} "${pkgName.trim()}" แล้ว` +
             (pkgLegacy ? " · ไม่นับรายรับเดือนนี้" : "") +
             (pkgData.plan
               ? pkgData.plan.remaining > 0
@@ -1464,7 +1503,6 @@ function CustomerSummaryCard({
         setPkgInstallments(1);
         setPkgFirstPay("");
         loadPackages();
-        setTimeout(() => setMsg(""), 2500);
       }
     } finally {
       setPkgBusy(false);
@@ -1485,7 +1523,7 @@ function CustomerSummaryCard({
       if (res.ok && Array.isArray(data.preview)) {
         setPkgPreview(data.preview);
       } else {
-        setMsg("❌ ดูตัวอย่างการ์ดไม่สำเร็จ");
+        toast("ดูตัวอย่างการ์ดไม่สำเร็จ", "error");
       }
     } finally {
       setPkgBusy(false);
@@ -1555,46 +1593,8 @@ function CustomerSummaryCard({
   const heroCat = customer.cats.find((cat) => cat.photoDataUrl) || customer.cats[0];
 
   useEffect(() => {
-    setName(customer.name);
-    setPhone(customer.phone || "");
-    setAddress(customer.address || "");
-    setAddressMapUrl(customer.addressMapUrl || "");
-    setPostalCode(customer.postalCode || "");
     setTier(customer.tier || "new");
-  }, [
-    customer.id,
-    customer.name,
-    customer.phone,
-    customer.address,
-    customer.addressMapUrl,
-    customer.postalCode,
-    customer.tier,
-  ]);
-
-  const save = async (patch: {
-    name?: string;
-    phone?: string;
-    email?: string;
-    birthday?: string;
-    address?: string;
-    addressMapUrl?: string;
-    postalCode?: string;
-  }) => {
-    const res = await fetch("/api/customers", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: customer.id,
-        action: "update_customer",
-        patch,
-      }),
-    });
-    if (res.ok) {
-      setMsg("✅ บันทึกแล้ว");
-      onSaved();
-      setTimeout(() => setMsg(""), 2000);
-    }
-  };
+  }, [customer.id, customer.tier]);
 
   const removeCustomer = async () => {
     if (
@@ -1613,6 +1613,7 @@ function CustomerSummaryCard({
   };
 
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const unlinkLine = async () => {
     if (
@@ -1747,6 +1748,14 @@ function CustomerSummaryCard({
             )}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          aria-label="แก้ไขข้อมูลลูกค้า"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-card/80 text-catcha-chocolate ring-1 ring-catcha-line"
+        >
+          <Icon name="edit" size={18} />
+        </button>
         <MoreMenu
           items={[
             ...(customer.lineUserId
@@ -1853,236 +1862,6 @@ function CustomerSummaryCard({
         </div>
       </div>
 
-      <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
-        <p className="mb-2 flex items-center gap-2 text-xs font-extrabold text-catcha-chocolate">
-          <Icon name="gift" size={16} className="text-latte-deep" />
-          เพิ่มแต้มพิเศษ (แต้มฟรี)
-        </p>
-        {customer.lineUserId ? (
-          <>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                value={addAmt}
-                onChange={(e) => setAddAmt(e.target.value)}
-                placeholder="กี่แต้ม"
-                className={`!w-24 shrink-0 font-bold ${inputCls}`}
-              />
-              <input
-                value={addReason}
-                onChange={(e) => setAddReason(e.target.value)}
-                placeholder="เหตุผล เช่น รีวิวร้าน"
-                className={`min-w-0 flex-1 ${inputCls}`}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={addBusy || !addAmt}
-              onClick={addNotify ? previewBonusPoints : addBonusPoints}
-              className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-catcha-sm bg-latte-deep px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-40"
-            >
-              {!addBusy && <Icon name={addNotify ? "eye" : "plus"} size={16} />}
-              {addBusy ? "…" : addNotify ? "ดูการ์ด" : "เพิ่มแต้ม"}
-            </button>
-            {pointsPreview && (
-              <PreviewSendModal
-                messages={pointsPreview}
-                sending={addBusy}
-                onConfirm={addBonusPoints}
-                onCancel={() => setPointsPreview(null)}
-              />
-            )}
-            <label className="mt-1 flex min-h-[40px] items-center gap-2 text-[11px] font-bold text-brown-soft">
-              <input
-                type="checkbox"
-                checked={addNotify}
-                onChange={(e) => setAddNotify(e.target.checked)}
-                className="h-5 w-5 accent-latte-deep"
-              />
-              แจ้งลูกค้าทาง LINE ด้วย (เสียโควตา 1 ข้อความ)
-            </label>
-            <p className="text-[10px] text-brown-faint">
-              บันทึกในประวัติแต้มของลูกค้า (มีเหตุผลกำกับ) + แจ้งเตือนร้านเสมอ ·
-              ปกติจะ<b>ไม่</b>ส่งข้อความหาลูกค้า ถ้าอยากแจ้งค่อยติ๊กช่องด้านบน
-            </p>
-          </>
-        ) : (
-          <p className="flex gap-2 text-[11px] font-bold text-brown-soft">
-            <Icon name="alert" size={16} className="text-wait" />
-            <span className="min-w-0 flex-1">ลูกค้ารายนี้ยังไม่ได้ผูก LINE — ต้องให้ลูกค้าเปิดแอปจาก LINE ก่อน
-            ถึงจะเพิ่มแต้มสะสมได้ค่ะ (แต้มผูกกับบัญชี LINE)</span>
-          </p>
-        )}
-      </div>
-
-      {/* ── คอร์ส/แพ็กเกจ ── */}
-      <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
-        <p className="mb-2 flex items-center gap-2 text-xs font-extrabold text-catcha-chocolate">
-          <Icon name="ticket" size={16} className="text-ok" />
-          คอร์ส / แพ็กเกจ
-        </p>
-        {packages.filter((p) => p.status !== "cancelled").length > 0 && (
-          <ul className="mb-2 divide-y divide-catcha-line rounded-catcha-sm border border-catcha-line bg-card">
-            {packages
-              .filter((p) => p.status !== "cancelled")
-              .map((p) => {
-                const left = p.totalUses - p.usedUses;
-                return (
-                  <li key={p.id} className="flex min-h-[48px] items-center gap-2 py-1 pl-3 pr-1.5 text-xs">
-                    <span className="min-w-0 flex-1 truncate font-bold text-brown">
-                      {p.name}
-                      {p.groomProgram && (
-                        <span className="block truncate text-[10px] font-normal text-brown-faint">
-                          ใช้กับ {groomProgramName(p.groomProgram, groomPrograms) || "โปรแกรมที่ลบไปแล้ว"}
-                        </span>
-                      )}
-                      {p.planId && pkgPlans[p.planId] && (
-                        <span className={`block truncate text-[10px] font-bold ${p.locked ? "text-wait" : "text-ok"}`}>
-                          {p.locked
-                            ? `🔒 จ่ายแล้ว ${pkgPlans[p.planId].payments.length}/${pkgPlans[p.planId].installments} งวด`
-                            : `แบ่งจ่าย ${pkgPlans[p.planId].payments.length} งวด · จ่ายครบแล้ว`}
-                        </span>
-                      )}
-                    </span>
-                    {p.locked && p.planId ? (
-                      <button
-                        type="button"
-                        onClick={() => payInstallment(p.planId!, p.name)}
-                        className="flex min-h-[36px] shrink-0 items-center gap-1 rounded-full bg-catcha-chocolate px-3 text-[11px] font-extrabold text-card"
-                      >
-                        <Icon name="money" size={14} />
-                        รับงวด · ค้าง {Math.round(p.outstanding || 0).toLocaleString()}
-                      </button>
-                    ) : (
-                      <span className={`shrink-0 font-extrabold ${left > 0 ? "text-ok" : "text-brown-faint"}`}>
-                        เหลือ {left}/{p.totalUses}
-                      </span>
-                    )}
-                    <MoreMenu
-                      items={[
-                        { label: "ยกเลิกคอร์สนี้", icon: "x", danger: true, onClick: () => cancelPackage(p.id) },
-                      ]}
-                    />
-                  </li>
-                );
-              })}
-          </ul>
-        )}
-        <input
-          value={pkgName}
-          onChange={(e) => setPkgName(e.target.value)}
-          placeholder="ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"
-          className={inputCls}
-        />
-        <div className="mt-2">
-          <GroomProgramPicker value={pkgProgram} onChange={setPkgProgram} programs={groomPrograms} />
-        </div>
-        <div className="mt-2 flex gap-2">
-          <input
-            type="number"
-            value={pkgUses}
-            onChange={(e) => setPkgUses(e.target.value)}
-            placeholder="กี่ครั้ง"
-            className={`!w-24 shrink-0 ${inputCls}`}
-          />
-          <input
-            type="number"
-            value={pkgPrice}
-            onChange={(e) => setPkgPrice(e.target.value)}
-            placeholder="ราคา (บาท)"
-            className={`min-w-0 flex-1 ${inputCls}`}
-          />
-        </div>
-
-        {!pkgLegacy && (
-          <div className="mt-2 space-y-2">
-            <select
-              value={pkgInstallments}
-              onChange={(e) => setPkgInstallments(Number(e.target.value))}
-              className={inputCls}
-              aria-label="การจ่ายเงิน"
-            >
-              <option value={1}>จ่ายเต็มครั้งเดียว</option>
-              {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
-                <option key={n} value={n}>
-                  แบ่งจ่าย {n} งวด{Number(pkgPrice) > 0 ? ` (งวดละ ~${Math.ceil(Number(pkgPrice) / n).toLocaleString()})` : ""}
-                </option>
-              ))}
-            </select>
-            {pkgInstallments > 1 && (
-              <>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={pkgFirstPay}
-                    onChange={(e) => setPkgFirstPay(e.target.value)}
-                    placeholder="รับงวดแรกวันนี้ (บาท) — ว่าง = ยังไม่รับ"
-                    className={`min-w-0 flex-1 ${inputCls}`}
-                  />
-                  <select
-                    value={pkgMethod}
-                    onChange={(e) => setPkgMethod(e.target.value as "transfer" | "cash")}
-                    className={`!w-24 shrink-0 ${inputCls}`}
-                    aria-label="รับเงินทาง"
-                  >
-                    <option value="transfer">โอน</option>
-                    <option value="cash">เงินสด</option>
-                  </select>
-                </div>
-                <p className="flex items-center gap-1 text-[10px] font-bold text-wait">
-                  <Icon name="alert" size={12} />
-                  คอร์สจะยังใช้ไม่ได้จนกว่าจะจ่ายครบทุกงวด · รับงวดถัดไปได้ที่ปุ่ม &quot;รับงวด&quot; ในรายการคอร์ส
-                </p>
-              </>
-            )}
-          </div>
-        )}
-
-        {pkgPreview && (
-          <PreviewSendModal
-            messages={pkgPreview}
-            sending={pkgBusy}
-            onConfirm={sellPackage}
-            onCancel={() => setPkgPreview(null)}
-          />
-        )}
-
-        <div className="mt-2 space-y-2">
-          <CheckRow
-            checked={pkgLegacy}
-            onChange={setPkgLegacy}
-            icon="clock"
-            title="ยกมาจากระบบเก่า"
-            sub={
-              <>
-                ลูกค้าได้ครั้งครบตามปกติ แต่จะ<b>ไม่นับเป็นรายรับ</b>ของร้านเดือนนี้
-              </>
-            }
-          />
-          <CheckRow
-            checked={pkgNotify}
-            onChange={setPkgNotify}
-            icon="message"
-            title="แจ้งลูกค้าทาง LINE ด้วย"
-            sub="ส่งการ์ดบอกจำนวนครั้งคงเหลือ (เสียโควตา 1 ข้อความ) · ไม่ติ๊ก = บันทึกเงียบๆ"
-          />
-        </div>
-
-        <button
-          type="button"
-          disabled={pkgBusy || !pkgName.trim() || !pkgUses}
-          onClick={pkgNotify ? previewPackage : sellPackage}
-          className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-catcha-sm bg-sage px-3 py-2.5 text-sm font-extrabold text-card disabled:opacity-40"
-        >
-          <Icon name={pkgNotify ? "eye" : "plus"} size={16} />
-          {pkgNotify ? "ดูการ์ด" : pkgLegacy ? "ยกคอร์สมา" : "ขายคอร์ส"}
-        </button>
-
-        <p className="mt-1.5 text-[10px] text-brown-faint">
-          เวลาลูกค้ามาใช้ กดหักที่หน้าคิดเงิน · ลูกค้าดูครั้งคงเหลือเองได้ในแอป
-        </p>
-      </div>
-
       {(inactive || customer.lineUserId) && (
         <div className="mb-3 flex items-center gap-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sage/20 text-ok">
@@ -2131,122 +1910,251 @@ function CustomerSummaryCard({
         />
       </div>
 
-      <details className="group rounded-catcha-sm border border-catcha-line bg-card/85 [&_summary::-webkit-details-marker]:hidden">
-        <summary className="flex min-h-[48px] cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-extrabold text-catcha-chocolate">
-          <Icon name="edit" size={16} className="text-latte-deep" />
-          <span className="flex-1">แก้ไขข้อมูลลูกค้า</span>
-          <Icon name="chevron" size={16} className="text-brown-faint transition group-open:rotate-90" />
-        </summary>
-        <div className="space-y-3 border-t border-catcha-line p-3">
-
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">ชื่อที่ใช้ในร้าน (ตั้งเองได้)</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => {
-              const trimmed = name.trim();
-              if (trimmed && trimmed !== customer.name) save({ name: trimmed });
-            }}
-            placeholder="เช่น คุณแม่น้องมะลิ"
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm font-bold text-brown outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-        </label>
-
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">เบอร์โทร</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            onBlur={() => {
-              if (phone.trim() !== (customer.phone || "")) save({ phone: phone.trim() || undefined });
-            }}
-            placeholder="08x-xxx-xxxx"
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-        </label>
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">อีเมล</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => {
-              if (email.trim() !== (customer.email || "")) save({ email: email.trim() || undefined });
-            }}
-            placeholder="เช่น customer@email.com"
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-        </label>
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">วันเกิดลูกค้า</span>
-          <input
-            type="date"
-            value={birthday}
-            onChange={(e) => setBirthday(e.target.value)}
-            onBlur={() => {
-              if (birthday !== (customer.birthday || "")) save({ birthday: birthday || undefined });
-            }}
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-        </label>
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">ที่อยู่บ้าน (บริการรับ-ส่ง)</span>
-          <textarea
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            onBlur={() => {
-              if (address.trim() !== (customer.address || "")) save({ address: address.trim() || undefined });
-            }}
-            placeholder="เช่น บ้านเลขที่ ซอย ถนน แขวง/ตำบล เขต/อำเภอ"
-            rows={2}
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-        </label>
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">ลิงก์ Google Maps</span>
-          <input
-            value={addressMapUrl}
-            onChange={(e) => setAddressMapUrl(e.target.value)}
-            onBlur={() => {
-              if (addressMapUrl.trim() !== (customer.addressMapUrl || ""))
-                save({ addressMapUrl: addressMapUrl.trim() || undefined });
-            }}
-            placeholder="วางลิงก์ Google Maps ที่ลูกค้าแชร์มา"
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-          {addressMapUrl && (
-            <a
-              href={addressMapUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 inline-flex min-h-[32px] items-center gap-1 text-[11px] font-bold text-latte-deep"
+      {toolsSlot &&
+        createPortal(
+          <>
+            <CollapsibleCard
+              icon="gift"
+              title="เพิ่มแต้มพิเศษ (แต้มฟรี)"
+              sub={<>มีอยู่ <span className="font-bold text-latte-deep">{points} แต้ม</span></>}
             >
-              <Icon name="link" size={13} />
-              เปิดดูแผนที่
-            </a>
-          )}
-        </label>
-        <label className="block text-xs font-bold text-brown-soft">
-          <span className="mb-1 block">รหัสไปรษณีย์</span>
-          <input
-            value={postalCode}
-            onChange={(e) => setPostalCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))}
-            onBlur={() => {
-              if (postalCode.trim() !== (customer.postalCode || ""))
-                save({ postalCode: postalCode.trim() || undefined });
-            }}
-            inputMode="numeric"
-            placeholder="เช่น 10260"
-            className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm outline-none transition focus:border-latte-deep focus:bg-card"
-          />
-        </label>
-        <p className="flex items-center gap-1.5 text-[10px] text-brown-faint">
-          <Icon name="check" size={12} />
-          พิมพ์แล้วแตะออกจากช่อง ระบบบันทึกให้อัตโนมัติ
-        </p>
-        </div>
-      </details>
+            {customer.lineUserId ? (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={addAmt}
+                    onChange={(e) => setAddAmt(e.target.value)}
+                    placeholder="กี่แต้ม"
+                    className={`!w-24 shrink-0 font-bold ${inputCls}`}
+                  />
+                  <input
+                    value={addReason}
+                    onChange={(e) => setAddReason(e.target.value)}
+                    placeholder="เหตุผล เช่น รีวิวร้าน"
+                    className={`min-w-0 flex-1 ${inputCls}`}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={addBusy || !addAmt}
+                  onClick={addNotify ? previewBonusPoints : addBonusPoints}
+                  className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-catcha-sm bg-latte-deep px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-40"
+                >
+                  {!addBusy && <Icon name={addNotify ? "eye" : "plus"} size={16} />}
+                  {addBusy ? "…" : addNotify ? "ดูการ์ด" : "เพิ่มแต้ม"}
+                </button>
+                {pointsPreview && (
+                  <PreviewSendModal
+                    messages={pointsPreview}
+                    sending={addBusy}
+                    onConfirm={addBonusPoints}
+                    onCancel={() => setPointsPreview(null)}
+                  />
+                )}
+                <label className="mt-1 flex min-h-[40px] items-center gap-2 text-[11px] font-bold text-brown-soft">
+                  <input
+                    type="checkbox"
+                    checked={addNotify}
+                    onChange={(e) => setAddNotify(e.target.checked)}
+                    className="h-5 w-5 accent-latte-deep"
+                  />
+                  แจ้งลูกค้าทาง LINE ด้วย (เสียโควตา 1 ข้อความ)
+                </label>
+                <p className="text-[10px] text-brown-faint">
+                  บันทึกในประวัติแต้มของลูกค้า (มีเหตุผลกำกับ) + แจ้งเตือนร้านเสมอ ·
+                  ปกติจะ<b>ไม่</b>ส่งข้อความหาลูกค้า ถ้าอยากแจ้งค่อยติ๊กช่องด้านบน
+                </p>
+              </>
+            ) : (
+              <p className="flex gap-2 text-[11px] font-bold text-brown-soft">
+                <Icon name="alert" size={16} className="text-wait" />
+                <span className="min-w-0 flex-1">ลูกค้ารายนี้ยังไม่ได้ผูก LINE — ต้องให้ลูกค้าเปิดแอปจาก LINE ก่อน
+                ถึงจะเพิ่มแต้มสะสมได้ค่ะ (แต้มผูกกับบัญชี LINE)</span>
+              </p>
+            )}
+            </CollapsibleCard>
+            <CollapsibleCard
+              icon="ticket"
+              title="คอร์ส / แพ็กเกจ"
+              sub={
+                <>
+                  เหลือ <span className="font-bold text-ok">{packageUsesLeft} ครั้ง</span>
+                  {packages.some((p) => p.locked && p.status !== "cancelled") && (
+                    <span className="font-bold text-wait"> · มีงวดค้าง</span>
+                  )}
+                  {" "}· แตะเพื่อขายคอร์ส
+                </>
+              }
+            >
+            {packages.filter((p) => p.status !== "cancelled").length > 0 && (
+              <ul className="mb-2 divide-y divide-catcha-line rounded-catcha-sm border border-catcha-line bg-card">
+                {packages
+                  .filter((p) => p.status !== "cancelled")
+                  .map((p) => {
+                    const left = p.totalUses - p.usedUses;
+                    return (
+                      <li key={p.id} className="flex min-h-[48px] items-center gap-2 py-1 pl-3 pr-1.5 text-xs">
+                        <span className="min-w-0 flex-1 truncate font-bold text-brown">
+                          {p.name}
+                          {p.groomProgram && (
+                            <span className="block truncate text-[10px] font-normal text-brown-faint">
+                              ใช้กับ {groomProgramName(p.groomProgram, groomPrograms) || "โปรแกรมที่ลบไปแล้ว"}
+                            </span>
+                          )}
+                          {p.planId && pkgPlans[p.planId] && (
+                            <span className={`block truncate text-[10px] font-bold ${p.locked ? "text-wait" : "text-ok"}`}>
+                              {p.locked
+                                ? `🔒 จ่ายแล้ว ${pkgPlans[p.planId].payments.length}/${pkgPlans[p.planId].installments} งวด`
+                                : `แบ่งจ่าย ${pkgPlans[p.planId].payments.length} งวด · จ่ายครบแล้ว`}
+                            </span>
+                          )}
+                        </span>
+                        {p.locked && p.planId ? (
+                          <button
+                            type="button"
+                            onClick={() => payInstallment(p.planId!, p.name)}
+                            className="flex min-h-[36px] shrink-0 items-center gap-1 rounded-full bg-catcha-chocolate px-3 text-[11px] font-extrabold text-card"
+                          >
+                            <Icon name="money" size={14} />
+                            รับงวด · ค้าง {Math.round(p.outstanding || 0).toLocaleString()}
+                          </button>
+                        ) : (
+                          <span className={`shrink-0 font-extrabold ${left > 0 ? "text-ok" : "text-brown-faint"}`}>
+                            เหลือ {left}/{p.totalUses}
+                          </span>
+                        )}
+                        <MoreMenu
+                          items={[
+                            { label: "ยกเลิกคอร์สนี้", icon: "x", danger: true, onClick: () => cancelPackage(p.id) },
+                          ]}
+                        />
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+            <input
+              value={pkgName}
+              onChange={(e) => setPkgName(e.target.value)}
+              placeholder="ชื่อคอร์ส เช่น อาบน้ำ 10 ครั้ง"
+              className={inputCls}
+            />
+            <div className="mt-2">
+              <GroomProgramPicker value={pkgProgram} onChange={setPkgProgram} programs={groomPrograms} />
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="number"
+                value={pkgUses}
+                onChange={(e) => setPkgUses(e.target.value)}
+                placeholder="กี่ครั้ง"
+                className={`!w-24 shrink-0 ${inputCls}`}
+              />
+              <input
+                type="number"
+                value={pkgPrice}
+                onChange={(e) => setPkgPrice(e.target.value)}
+                placeholder="ราคา (บาท)"
+                className={`min-w-0 flex-1 ${inputCls}`}
+              />
+            </div>
+
+            {!pkgLegacy && (
+              <div className="mt-2 space-y-2">
+                <select
+                  value={pkgInstallments}
+                  onChange={(e) => setPkgInstallments(Number(e.target.value))}
+                  className={inputCls}
+                  aria-label="การจ่ายเงิน"
+                >
+                  <option value={1}>จ่ายเต็มครั้งเดียว</option>
+                  {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
+                    <option key={n} value={n}>
+                      แบ่งจ่าย {n} งวด{Number(pkgPrice) > 0 ? ` (งวดละ ~${Math.ceil(Number(pkgPrice) / n).toLocaleString()})` : ""}
+                    </option>
+                  ))}
+                </select>
+                {pkgInstallments > 1 && (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={pkgFirstPay}
+                        onChange={(e) => setPkgFirstPay(e.target.value)}
+                        placeholder="รับงวดแรกวันนี้ (บาท) — ว่าง = ยังไม่รับ"
+                        className={`min-w-0 flex-1 ${inputCls}`}
+                      />
+                      <select
+                        value={pkgMethod}
+                        onChange={(e) => setPkgMethod(e.target.value as "transfer" | "cash")}
+                        className={`!w-24 shrink-0 ${inputCls}`}
+                        aria-label="รับเงินทาง"
+                      >
+                        <option value="transfer">โอน</option>
+                        <option value="cash">เงินสด</option>
+                      </select>
+                    </div>
+                    <p className="flex items-center gap-1 text-[10px] font-bold text-wait">
+                      <Icon name="alert" size={12} />
+                      คอร์สจะยังใช้ไม่ได้จนกว่าจะจ่ายครบทุกงวด · รับงวดถัดไปได้ที่ปุ่ม &quot;รับงวด&quot; ในรายการคอร์ส
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {pkgPreview && (
+              <PreviewSendModal
+                messages={pkgPreview}
+                sending={pkgBusy}
+                onConfirm={sellPackage}
+                onCancel={() => setPkgPreview(null)}
+              />
+            )}
+
+            <div className="mt-2 space-y-2">
+              <CheckRow
+                checked={pkgLegacy}
+                onChange={setPkgLegacy}
+                icon="clock"
+                title="ยกมาจากระบบเก่า"
+                sub={
+                  <>
+                    ลูกค้าได้ครั้งครบตามปกติ แต่จะ<b>ไม่นับเป็นรายรับ</b>ของร้านเดือนนี้
+                  </>
+                }
+              />
+              <CheckRow
+                checked={pkgNotify}
+                onChange={setPkgNotify}
+                icon="message"
+                title="แจ้งลูกค้าทาง LINE ด้วย"
+                sub="ส่งการ์ดบอกจำนวนครั้งคงเหลือ (เสียโควตา 1 ข้อความ) · ไม่ติ๊ก = บันทึกเงียบๆ"
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={pkgBusy || !pkgName.trim() || !pkgUses}
+              onClick={pkgNotify ? previewPackage : sellPackage}
+              className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-catcha-sm bg-sage px-3 py-2.5 text-sm font-extrabold text-card disabled:opacity-40"
+            >
+              <Icon name={pkgNotify ? "eye" : "plus"} size={16} />
+              {pkgNotify ? "ดูการ์ด" : pkgLegacy ? "ยกคอร์สมา" : "ขายคอร์ส"}
+            </button>
+
+            <p className="mt-1.5 text-[10px] text-brown-faint">
+              เวลาลูกค้ามาใช้ กดหักที่หน้าคิดเงิน · ลูกค้าดูครั้งคงเหลือเองได้ในแอป
+            </p>
+            </CollapsibleCard>
+          </>,
+          toolsSlot
+        )}
+
+      {editOpen && (
+        <EditCustomerSheet customer={customer} onClose={() => setEditOpen(false)} onSaved={onSaved} />
+      )}
 
       {!customer.lineUserId && (
         <AdoptLineControl customer={customer} onMerged={onSaved} />
@@ -2881,6 +2789,8 @@ export default function CustomersPage() {
   const [selected, setSelected] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  /** ช่องท้ายหน้าที่ฟอร์มเพิ่มแต้ม/ขายคอร์สไปวาง */
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [tierFilter, setTierFilter] = useState<CustomerTier | "all">("all");
   const [lineFilter, setLineFilter] = useState<"all" | "linked" | "unlinked">("all");
   const [sortKey, setSortKey] = useState<SortKey>("recent");
@@ -3099,6 +3009,7 @@ export default function CustomersPage() {
           inactive={selected.inactive}
           canFollowUp={selected.canFollowUp}
           onSaved={() => open(c.id)}
+          toolsSlot={toolsSlot}
         />
 
         <CustomerLinkSection
@@ -3294,6 +3205,14 @@ export default function CustomersPage() {
           <AddCatForm customerId={c.id} onAdded={() => open(c.id)} />
         </section>
 
+        <CatServiceHistory
+          cats={c.cats}
+          bookings={[
+            ...(selected.history.upcomingBookings || []),
+            ...(selected.history.pastBookings || []),
+          ]}
+        />
+
         <RoomPlanSection
           customerId={c.id}
           hasLine={!!c.lineUserId}
@@ -3304,12 +3223,6 @@ export default function CustomersPage() {
           customerId={c.id}
           usage={selected.history.packageUsage || []}
           onChanged={() => open(c.id)}
-        />
-
-        <MemberTopupSection
-          customerId={c.id}
-          memberCredit={c.memberCredit}
-          onDone={() => open(c.id)}
         />
 
         <MemberCreditHistorySection
@@ -3390,6 +3303,17 @@ export default function CustomersPage() {
             {!selected.history.points.length && <li className="px-3 py-3 text-brown-faint">ยังไม่มีประวัติแต้ม</li>}
           </ul>
         </section>
+
+        {/* ฟอร์มที่ไม่ได้ใช้ทุกครั้ง — อยู่ท้ายหน้า พับไว้ก่อน แตะหัวการ์ดเพื่อเปิด */}
+        <div className="mt-6">
+          <SectionLabel>Add &amp; sell · เพิ่มแต้ม / ขายคอร์ส / เติมเครดิต</SectionLabel>
+          <div ref={setToolsSlot} />
+          <MemberTopupSection
+            customerId={c.id}
+            memberCredit={c.memberCredit}
+            onDone={() => open(c.id)}
+          />
+        </div>
       </div>
     );
   }

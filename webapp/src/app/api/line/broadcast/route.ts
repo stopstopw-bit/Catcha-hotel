@@ -11,10 +11,7 @@ import {
   parseSegments,
   DEFAULT_REGULAR_MIN_VISITS,
 } from "@/lib/customer-segments";
-import {
-  buildBroadcastButtons,
-  type BroadcastActionId,
-} from "@/lib/line-broadcast";
+import { buildBroadcastButtons, parseBroadcastActions } from "@/lib/line-broadcast";
 import { buildPromoFlex, multicastLineMessage } from "@/lib/line";
 import { getLineCredentials, getAppUrlFromEnv } from "@/lib/line-config";
 import { TIER_LABELS } from "@/lib/customer-tier";
@@ -128,9 +125,7 @@ export async function POST(req: NextRequest) {
   const discountLabel = body.discountLabel
     ? String(body.discountLabel)
     : undefined;
-  const actions = Array.isArray(body.actions)
-    ? (body.actions as BroadcastActionId[])
-    : [];
+  const actions = parseBroadcastActions(body.actions);
 
   if (!title || !message) {
     return NextResponse.json(
