@@ -26,6 +26,7 @@ import {
   getGroomInfoUrl,
   getConsentUrl,
   bookingScheduleText,
+  checkinPickerSender,
 } from "@/lib/booking-reminders";
 import { listCustomers, getCatGroomInfo, getCatStaffNotes } from "@/lib/customers-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
@@ -342,15 +343,18 @@ export async function GET(req: NextRequest) {
         );
       }
       // แนบการ์ดเลือกเวลาเช็คอินไปเลย — ไม่ต้องรอส่งแยกอีกวัน
-      const checkinUrl = await getBookingTimeUrl(b.id, "checkin");
-      prestayBundle.push(
-        buildTimePickerFlex({
-          title: "🕒 เลือกเวลาเข้าพัก",
-          body: buildCheckinBodyText(b, cfg),
-          url: checkinUrl || undefined,
-          label: "🕒 เลือกเวลาส่งน้อง",
-        }, cfg.cards?.timePicker)
-      );
+      // (ข้ามถ้าเลือกเวลาแล้ว หรือ cron เตือนเช็คอินเป็นคนส่งแทน — บ้านหนึ่งได้การ์ดนี้ใบเดียว)
+      if (checkinPickerSender(group, cfg) === "prestay") {
+        const checkinUrl = await getBookingTimeUrl(b.id, "checkin");
+        prestayBundle.push(
+          buildTimePickerFlex({
+            title: "🕒 เลือกเวลาเข้าพัก",
+            body: buildCheckinBodyText(b, cfg),
+            url: checkinUrl || undefined,
+            label: "🕒 เลือกเวลาส่งน้อง",
+          }, cfg.cards?.timePicker)
+        );
+      }
       try {
         await pushLineMessage(to, prestayBundle);
         prestayReminders++;
