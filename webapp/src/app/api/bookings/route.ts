@@ -426,6 +426,13 @@ function groomInfoCardFor(
       return NextResponse.json({ error: NO_LINE_ERROR }, { status: 400 });
     }
     const kind = pickInfoKind(body.kind, b);
+    // เคยกรอกฟอร์มนี้แล้ว → ไม่ขอซ้ำเด็ดขาด (ข้อมูลผูกกับตัวน้อง ข้ามนัดก็ยังจำได้)
+    if (await infoAlreadyFilled(to, String(b.catName), kind)) {
+      return NextResponse.json(
+        { error: `${b.catName} เคยกรอกข้อมูลนี้แล้ว ไม่ขอซ้ำค่ะ` },
+        { status: 400 }
+      );
+    }
     const cfg = await getSiteConfig();
     const url = await getGroomInfoUrl(b.id, kind);
     const card = groomInfoCardFor(b, cfg, kind);
@@ -453,12 +460,23 @@ function groomInfoCardFor(
     if (!to) {
       return NextResponse.json({ error: NO_LINE_ERROR }, { status: 400 });
     }
-    const bookings = (
+    const found = (
       await Promise.all(ids.map((x: string) => getBooking(x)))
     ).filter((x): x is StoredBooking => !!x);
     const kind = pickInfoKind(body.kind, b);
-    if (bookings.length === 0) {
+    if (found.length === 0) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    // ตัวที่เคยกรอกฟอร์มนี้แล้ว → ตัดออก ไม่ขอซ้ำเด็ดขาด
+    const bookings: StoredBooking[] = [];
+    for (const x of found) {
+      if (!(await infoAlreadyFilled(to, String(x.catName), kind))) bookings.push(x);
+    }
+    if (bookings.length === 0) {
+      return NextResponse.json(
+        { error: "ทุกตัวเคยกรอกข้อมูลนี้แล้ว ไม่ขอซ้ำค่ะ" },
+        { status: 400 }
+      );
     }
     const cfg = await getSiteConfig();
     const url = await getGroomInfoUrl(bookings.map((x) => x.id), kind);
@@ -757,7 +775,6 @@ function groomInfoCardFor(
           )
         ).filter((x): x is StoredBooking => !!x);
         // เคยกรอกประวัติไว้แล้ว → ไม่ถามซ้ำ (ประวัติผูกกับตัวแมว ข้ามนัดก็ยังจำได้)
-        // ถ้าอยากถามใหม่จริง ๆ ให้ใช้ปุ่มส่งเดี่ยว "ขอประวัติ" แทน
         const needInfo: StoredBooking[] = [];
         for (const g of groupBookings) {
           const existing = to ? await infoAlreadyFilled(to, String(g.catName), kind) : undefined;
