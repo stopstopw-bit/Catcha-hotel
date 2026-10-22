@@ -34,6 +34,8 @@ type CatForm = {
   medical: string;
   note: string;
   needsConfirm: boolean;
+  /** น้องที่ยังไม่ได้บันทึก — ใช้ผูกรูปที่เลือกไว้ก่อน */
+  tempKey?: string;
 };
 
 export default function ProfilePage() {
@@ -59,6 +61,8 @@ export default function ProfilePage() {
   // รูปน้องแยกโหลด/อัปทีละตัว (ไม่ผูกกับปุ่มบันทึก) — อัปแล้วขึ้นทันที
   const [photos, setPhotos] = useState<Record<string, string | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // รูปของน้องที่ยังไม่ได้บันทึก — โชว์ไว้ก่อน แล้วอัปให้อัตโนมัติตอนกดบันทึก
+  const [pendingPhotos, setPendingPhotos] = useState<Record<string, string>>({});
   const [photoError, setPhotoError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -117,18 +121,32 @@ export default function ProfilePage() {
     if (profile?.lineUserId) loadPhotos(profile.lineUserId);
   }, [profile?.lineUserId, reloadKey]);
 
+  const postPhoto = async (lineUserId: string, catId: string, photoDataUrl: string) => {
+    const res = await fetch("/api/customers/cat-photo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lineUserId, catId, photoDataUrl }),
+    });
+    if (!res.ok) throw new Error("อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+  };
+
+  const pickPendingPhoto = async (key: string, file: File) => {
+    setPhotoError("");
+    try {
+      const url = await toJpegDataUrl(file);
+      setPendingPhotos((m) => ({ ...m, [key]: url }));
+    } catch {
+      setPhotoError("เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่นนะคะ");
+    }
+  };
+
   const uploadPhoto = async (catId: string, file: File) => {
     if (!profile?.lineUserId) return;
     setPhotoError("");
     setUploadingId(catId);
     try {
       const photoDataUrl = await toJpegDataUrl(file);
-      const res = await fetch("/api/customers/cat-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lineUserId: profile.lineUserId, catId, photoDataUrl }),
-      });
-      if (!res.ok) throw new Error("อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+      await postPhoto(profile.lineUserId, catId, photoDataUrl);
       await loadPhotos(profile.lineUserId);
     } catch (e) {
       setPhotoError(e instanceof Error ? e.message : "อัปโหลดรูปไม่สำเร็จ");
@@ -155,11 +173,15 @@ export default function ProfilePage() {
         medical: "",
         note: "",
         needsConfirm: false,
+        tempKey: `new-${Date.now()}`,
       },
     ]);
 
-  const removeNewCat = (idx: number) =>
+  const removeNewCat = (idx: number) => {
+    const key = cats[idx]?.tempKey;
+    if (key) setPendingPhotos((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== key)));
     setCats((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const save = async () => {
     if (!profile?.lineUserId || !name.trim()) return;
@@ -195,6 +217,17 @@ export default function ProfilePage() {
         }),
       });
       if (res.ok) {
+        // อัปรูปที่เลือกไว้ให้น้องที่เพิ่งได้ id จริง
+        const d = await res.json().catch(() => ({}));
+        const failed: string[] = [];
+        for (const { index, id } of (d.created || []) as { index: number; id: string }[]) {
+          const key = cats[index]?.tempKey;
+          const url = key ? pendingPhotos[key] : undefined;
+          if (!url) continue;
+          await postPhoto(profile.lineUserId, id, url).catch(() => failed.push(cats[index].name));
+        }
+        setPendingPhotos({});
+        if (failed.length) setPhotoError(`บันทึกข้อมูลแล้ว แต่อัปรูป ${failed.join(", ")} ไม่สำเร็จ ลองเพิ่มรูปใหม่อีกครั้งนะคะ`);
         setSaved(true);
         // โหลดใหม่ให้น้องที่เพิ่งเพิ่มได้ id จริง — ไม่งั้นกดบันทึกซ้ำจะสร้างซ้ำ
         setReloadKey((k) => k + 1);
@@ -302,12 +335,14 @@ export default function ProfilePage() {
                     onPick={(f) => uploadPhoto(cat.id, f)}
                     uploading={uploadingId === cat.id}
                   />
-                ) : (
-                  <p className="flex items-center gap-2 rounded-catcha-sm bg-paper px-3 py-2.5 text-[11px] font-bold text-brown-soft">
-                    <Icon name="image" size={16} />
-                    กดบันทึกก่อน แล้วจะเพิ่มรูปน้องตัวนี้ได้
-                  </p>
-                )}
+                ) : cat.tempKey ? (
+                  <CatPhoto
+                    src={pendingPhotos[cat.tempKey]}
+                    name={cat.name || "น้องแมว"}
+                    size={0}
+                    onPick={(f) => pickPendingPhoto(cat.tempKey!, f)}
+                  />
+                ) : null}
                 {cat.needsConfirm && (
                   <p className="flex gap-2 rounded-catcha-sm bg-honey/20 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
                     <Icon name="alert" size={15} className="mt-px" />

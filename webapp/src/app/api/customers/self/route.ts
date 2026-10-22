@@ -85,8 +85,10 @@ export async function POST(req: NextRequest) {
     patch.marketingConsent = body.marketingConsent;
   await updateCustomer(c.id, patch);
 
+  // id ของน้องที่เพิ่งสร้าง เรียงตามลำดับใน body.cats — หน้าโปรไฟล์ใช้อัปรูปที่เลือกไว้ก่อนบันทึก
+  const created: { index: number; id: string }[] = [];
   if (Array.isArray(body.cats)) {
-    for (const cat of body.cats) {
+    for (const [index, cat] of body.cats.entries()) {
       if (typeof cat?.name !== "string" || !cat.name.trim()) continue;
       const fields = {
         name: cat.name.trim(),
@@ -103,8 +105,11 @@ export async function POST(req: NextRequest) {
         staffNote: cat.note ? String(cat.note).trim() : undefined,
       };
       // ไม่มี id = น้องที่ลูกค้าเพิ่มเองในหน้านี้ → สร้างใหม่ (ไม่ต้องทักแชทให้ร้านเพิ่มให้)
-      if (!cat.id) await addCat(c.id, fields, { source: "customer" });
-      else await updateCat(c.id, String(cat.id), fields, { source: "customer" });
+      if (!cat.id) {
+        const after = await addCat(c.id, fields, { source: "customer" });
+        const id = after?.cats[after.cats.length - 1]?.id;
+        if (id) created.push({ index, id });
+      } else await updateCat(c.id, String(cat.id), fields, { source: "customer" });
     }
   }
 
@@ -115,5 +120,5 @@ export async function POST(req: NextRequest) {
     })
   );
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, created });
 }
