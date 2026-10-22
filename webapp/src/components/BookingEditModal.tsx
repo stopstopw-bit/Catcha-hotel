@@ -290,7 +290,7 @@ export function BookingEditModal({
       toast(`แก้บิลเดิมเป็น ${inv.nights} คืน · ${inv.total.toLocaleString()} บาท`, "success");
     } else if (inv?.kind === "created_extra") {
       toast(
-        `บิลเดิมปิดไปแล้ว — ออกบิลต่อคืน ${inv.nights} คืน · ${inv.total.toLocaleString()} บาท ไว้ในหน้าบิล`,
+        `บิลเดิมปิดไปแล้ว — ออกบิลพักต่อ ${inv.nights} คืน · ${inv.total.toLocaleString()} บาท ไว้ในหน้าบิล`,
         "info"
       );
     } else if (inv?.kind === "warn") {

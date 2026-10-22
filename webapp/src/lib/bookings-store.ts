@@ -1,8 +1,9 @@
 import type { Booking, BookingStatus } from "./business";
-import { getSupabase } from "./supabase/server";
+import { getSupabase, selectAllRows } from "./supabase/server";
 import { uploadDataUrlToStorage } from "./supabase/storage";
 import { seedEnabled } from "./demo-seed";
 import type { BookingTransport } from "./transport";
+import { MAX_VACCINE_PHOTOS, joinVaccinePhotos } from "./vaccine-photos";
 
 export type StoredBooking = Booking & {
   lineUserId?: string;
@@ -110,7 +111,10 @@ function rowToStored(r: BookingRow): StoredBooking {
     consentSignature: r.consent_signature || undefined,
     vaccinePhotoUrl: r.vaccine_photo_url || undefined,
     fleaTickTreated: r.flea_tick_treated || undefined,
-    arrivalTime: r.arrival_time || undefined,
+    // เวลามาส่งน้องมีที่เก็บเดียวคือ arrival_time — นัดเก่าที่ลูกค้าเลือกผ่านการ์ด "คิวของฉัน"
+    // ก่อนรวมสองหน้าเข้าด้วยกันเก็บไว้แค่ checkin_time จึงใช้ค่านั้นแทนถ้า arrival_time ว่าง
+    arrivalTime:
+      r.arrival_time || (r.service === "room" ? r.checkin_time : null) || undefined,
     pickupTime: r.pickup_time || undefined,
     groomHealthInfo: r.groom_health_info || undefined,
     groomProgram: r.groom_program || undefined,
@@ -143,10 +147,13 @@ function storedToRow(b: Partial<StoredBooking>) {
 export async function listBookings(lineUserId?: string) {
   const sb = getSupabase();
   if (sb) {
-    let q = sb.from("bookings").select("*").order("created_at", { ascending: false });
-    if (lineUserId) q = q.eq("line_user_id", lineUserId);
-    const { data } = await q;
-    return (data as BookingRow[] | null)?.map(rowToStored) || [];
+    const data = await selectAllRows<BookingRow>((from, to) => {
+      let q = sb.from("bookings").select("*").order("created_at", { ascending: false })
+        .order("id");
+      if (lineUserId) q = q.eq("line_user_id", lineUserId);
+      return q.range(from, to);
+    });
+    return data.map(rowToStored);
   }
   if (!lineUserId) return [...mem];
   return mem.filter((b) => b.lineUserId === lineUserId);
@@ -188,11 +195,13 @@ export async function setBookingTime(
   if (b.lineUserId && b.lineUserId !== lineUserId) {
     return { ok: false as const, error: "forbidden" };
   }
-  const col = type === "checkin" ? "arrival_time" : "pickup_time";
+  // checkin_time เขียนคู่ไปด้วย ให้ปฏิทิน/การ์ดลูกค้าเห็นเวลาเดียวกันเสมอ
+  const cols =
+    type === "checkin" ? { arrival_time: time, checkin_time: time } : { pickup_time: time };
   const sb = getSupabase();
   if (sb) {
     try {
-      const { error } = await sb.from("bookings").update({ [col]: time }).eq("id", id);
+      const { error } = await sb.from("bookings").update(cols).eq("id", id);
       if (error) return { ok: false as const, error: "need_sql", booking: b };
     } catch {
       return { ok: false as const, error: "need_sql", booking: b };
@@ -200,7 +209,10 @@ export async function setBookingTime(
   } else {
     const idx = mem.findIndex((x) => x.id === id);
     if (idx >= 0) {
-      if (type === "checkin") mem[idx].arrivalTime = time;
+      if (type === "checkin") {
+        mem[idx].arrivalTime = time;
+        mem[idx].checkinTime = time;
+      }
       else mem[idx].pickupTime = time;
     }
   }
@@ -250,7 +262,7 @@ export async function acceptBookingConsent(
   lineUserId: string,
   careNote?: string,
   signature?: string,
-  vaccinePhoto?: string,
+  vaccinePhotos?: string[],
   fleaTickTreated?: boolean
 ) {
   const b = await getBooking(id);
@@ -266,10 +278,18 @@ export async function acceptBookingConsent(
   if (sig.startsWith("data:")) {
     sig = await uploadDataUrlToStorage(`consent-signatures/${id}-${Date.now()}`, sig);
   }
-  let vaccineUrl = (vaccinePhoto || "").trim();
-  if (vaccineUrl.startsWith("data:")) {
-    vaccineUrl = await uploadDataUrlToStorage(`consent-vaccine/${id}-${Date.now()}`, vaccineUrl);
+  // แนบได้หลายรูป → อัปโหลดทีละรูป แล้วเก็บรวมในคอลัมน์เดิม (คั่นบรรทัด)
+  const vaccineUrls: string[] = [];
+  for (const [i, raw] of (vaccinePhotos || []).slice(0, MAX_VACCINE_PHOTOS).entries()) {
+    const v = raw.trim();
+    if (!v) continue;
+    vaccineUrls.push(
+      v.startsWith("data:")
+        ? await uploadDataUrlToStorage(`consent-vaccine/${id}-${Date.now()}-${i}`, v)
+        : v
+    );
   }
+  const vaccineUrl = joinVaccinePhotos(vaccineUrls);
   const treated = Boolean(fleaTickTreated);
   const sb = getSupabase();
   if (sb) {
@@ -427,6 +447,12 @@ export async function updateBooking(
   if (!existing) return null;
 
   const merged = { ...existing, ...patch };
+  // ห้องพัก: checkin_time เป็นแค่สำเนาของเวลามาส่งน้อง (arrival_time) — แก้อันหนึ่งต้องตามกันเสมอ
+  // ไม่งั้นล้างเวลาแล้ว ค่าเก่าใน checkin_time จะเด้งกลับมา (rowToStored ใช้เป็นค่าสำรอง)
+  if (merged.service === "room") {
+    if ("arrivalTime" in patch) merged.checkinTime = merged.arrivalTime;
+    else if (patch.checkinTime) merged.arrivalTime = patch.checkinTime;
+  }
 
   if (sb) {
     await sb
@@ -480,6 +506,20 @@ export async function updateBooking(
           .eq("id", id);
       } catch {
         /* ยังไม่มีคอลัมน์ room_unit */
+      }
+    }
+    // เวลาส่ง/รับน้อง — คอลัมน์เพิ่มมาทีหลัง เขียนแยก (เดิมไม่ได้เขียนเลย เวลาที่ร้านกรอกแทนลูกค้าเลยหาย)
+    if ("arrivalTime" in patch || "pickupTime" in patch) {
+      try {
+        await sb
+          .from("bookings")
+          .update({
+            arrival_time: merged.arrivalTime || null,
+            pickup_time: merged.pickupTime || null,
+          })
+          .eq("id", id);
+      } catch {
+        /* ยังไม่มีคอลัมน์ arrival_time / pickup_time */
       }
     }
     // รับ-ส่ง — undefined ใน patch = ไม่ได้ส่งมา, ส่งมาเป็นค่าว่างให้ล้างทิ้ง (ใช้ "transport" in patch)

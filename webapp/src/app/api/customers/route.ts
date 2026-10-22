@@ -16,6 +16,7 @@ import {
   listTrashedCustomers,
   topupMemberCredit,
   cancelMemberTopup,
+  findCancelCreditTopup,
   deleteServiceRecord,
   upsertCustomerFromBooking,
   recalculateCustomerTier,
@@ -97,6 +98,16 @@ export async function POST(req: NextRequest) {
     phone: body.phone,
     staffNote: body.staffNote,
   });
+  // ข้อมูลเสริมตอนร้านเพิ่มลูกค้าเอง (ที่อยู่/แผนที่/อีเมล) — ใส่เฉพาะช่องที่กรอกมา
+  const extra: Parameters<typeof updateCustomer>[1] = {};
+  for (const k of ["email", "address", "addressMapUrl"] as const) {
+    const v = typeof body[k] === "string" ? body[k].trim() : "";
+    if (v) extra[k] = v;
+  }
+  if (Object.keys(extra).length > 0) {
+    const updated = await updateCustomer(customer.id, extra);
+    return NextResponse.json({ ok: true, customer: updated ?? customer });
+  }
   return NextResponse.json({ ok: true, customer });
 }
 
@@ -264,7 +275,25 @@ export async function PATCH(req: NextRequest) {
       body.paidAmount != null
         ? Number(body.paidAmount)
         : Number(body.amount) || 0;
-    const bonusAmount = Number(body.bonusAmount) || 0;
+    const isCancelCredit = Boolean(body.isCancelCredit);
+    const bonusAmount = isCancelCredit ? 0 : Number(body.bonusAmount) || 0;
+    const sourceInvoiceId = isCancelCredit ? String(body.sourceInvoiceId || "").trim() : "";
+
+    // 🔁 ระบุเลขบิลมา → ต้องเป็นบิลของลูกค้าคนนี้ที่จ่ายแล้ว และยังไม่เคยแปลงเป็นเครดิต
+    // (กันกรอกเลขบิลผิด / แปลงบิลเดียวซ้ำสองรอบ)
+    if (sourceInvoiceId) {
+      const { getInvoice } = await import("@/lib/invoices-store");
+      const src = await getInvoice(sourceInvoiceId);
+      if (!src || src.customerId !== id) {
+        return NextResponse.json({ error: "ไม่พบบิลนี้ของลูกค้าคนนี้" }, { status: 400 });
+      }
+      if (src.status !== "paid") {
+        return NextResponse.json({ error: "บิลนี้ยังไม่ได้ชำระ" }, { status: 400 });
+      }
+      if (await findCancelCreditTopup(sourceInvoiceId)) {
+        return NextResponse.json({ error: "บิลนี้เก็บเป็นเครดิตไปแล้ว" }, { status: 400 });
+      }
+    }
 
     // ดูตัวอย่างการ์ดก่อนเติมจริง — ยังไม่แตะเครดิตลูกค้า ไม่ส่งอะไรทั้งนั้น
     if (body.preview === true) {
@@ -286,8 +315,15 @@ export async function PATCH(req: NextRequest) {
     const result = await topupMemberCredit(id, {
       paidAmount,
       bonusAmount,
-      note: body.note,
+      note:
+        isCancelCredit && sourceInvoiceId
+          ? [`ยกเลิกนัด · บิล ${sourceInvoiceId}`, String(body.note || "").trim()]
+              .filter(Boolean)
+              .join(" · ")
+          : body.note,
       isLegacy: Boolean(body.isLegacy),
+      isCancelCredit,
+      sourceInvoiceId: sourceInvoiceId || undefined,
     });
     if (!result) {
       return NextResponse.json({ error: "invalid_topup" }, { status: 400 });

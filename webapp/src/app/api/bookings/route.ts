@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isDayCareStay } from "@/lib/day-care";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
   createCalendarEvent,
   updateCalendarEventConfirmed,
   updateCalendarEvent,
   deleteCalendarEvent,
+  bookingCalendarPayload,
+  transportCalendarText,
 } from "@/lib/calendar";
 import {
   addBooking,
@@ -48,7 +51,7 @@ import {
   getCustomer,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
-import { cleanTransport, hasTransport, transportLabel, type BookingTransport } from "@/lib/transport";
+import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
 import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
@@ -65,31 +68,6 @@ import {
 } from "@/lib/booking-reminders";
 
 export const dynamic = "force-dynamic";
-
-/** บรรทัดรับ-ส่งในปฏิทิน — ให้คนขับเปิดแผนที่จากปฏิทินได้เลย */
-function transportCalendarText(t?: BookingTransport) {
-  if (!hasTransport(t)) return "";
-  return [
-    `\n🚗 ${transportLabel(t)}`,
-    t.address ? `จุดรับ-ส่ง: ${t.address}` : "",
-    t.mapUrl ? `แผนที่: ${t.mapUrl}` : "ยังไม่ได้ส่งแผนที่",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function bookingCalendarPayload(b: StoredBooking) {
-  return {
-    summary: `${b.service === "room" ? "🏠" : "🛁"}${hasTransport(b.transport) ? "🚗" : ""} ${b.catName} (${b.customerName})`,
-    description: `${b.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${b.notes || ""}${transportCalendarText(b.transport)}`,
-    start: b.date || b.checkin || "",
-    end: b.checkout || b.date || b.checkin || "",
-    time: b.time,
-    allDay: b.service === "room" && !b.time,
-    service: b.service === "room" ? ("room" as const) : ("groom" as const),
-    eventId: b.id,
-  };
-}
 
 /** หา LINE User ID ปลายทางของนัด (จากตัวนัด หรือจับคู่ลูกค้าในระบบ) */
 async function resolveRecipient(
@@ -212,9 +190,11 @@ export async function POST(req: NextRequest) {
     transport: cleanTransport(body.transport),
   });
 
+  const serviceLabel =
+    body.service === "room" ? (isDayCareStay(body) ? "Day Care" : "ห้องพัก") : "อาบน้ำ";
   const cal = await createCalendarEvent({
     summary: `${body.service === "room" ? "🏠" : "🛁"}${hasTransport(booking.transport) ? "🚗" : ""} ${body.catName} (${customer.name})`,
-    description: `${body.service === "room" ? "ห้องพัก" : "อาบน้ำ"} · ${body.notes || ""}${transportCalendarText(booking.transport)}`,
+    description: `${serviceLabel} · ${body.notes || ""}${transportCalendarText(booking.transport)}`,
     start: body.date || body.checkin,
     end: body.checkout || body.date || body.checkin,
     time: body.time,
@@ -232,7 +212,7 @@ export async function POST(req: NextRequest) {
     formatBookingTelegram("📌 จองใหม่", {
       ลูกค้า: customer.name,
       น้องแมว: body.catName,
-      บริการ: body.service === "room" ? "ห้องพัก" : "อาบน้ำ",
+      บริการ: serviceLabel,
       ...(groomProgram ? { โปรแกรม: groomProgramName(groomProgram, groomPrograms) } : {}),
       ...(hasTransport(booking.transport) ? { รับส่ง: transportLabel(booking.transport) } : {}),
       วันที่: `${body.date || body.checkin}${body.time ? ` ${body.time}` : ""}`,
@@ -267,7 +247,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "confirm") {
-    await updateBooking(id, { status: "confirmed", checkinTime });
+    // เวลาที่เลือกตอนกดยืนยัน = เวลามาส่งน้อง (ที่เดียวกับหน้าเลือกเวลา/หลังบ้าน/แจ้งเตือน)
+    await updateBooking(id, {
+      status: "confirmed",
+      ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+    });
     if (b.calendarEventId) {
       await updateCalendarEventConfirmed(b.calendarEventId, {
         summary: `${b.service === "room" ? "🏠" : "🛁"} ${b.catName} (${b.customerName})`,
@@ -305,7 +289,10 @@ export async function PATCH(req: NextRequest) {
       if (!bk) continue;
       // ยืนยันได้เฉพาะนัดของตัวเอง แม้จะมาในกลุ่มเดียวกัน — กันแอบยัด id ของคนอื่นปนมา
       if (!admin && !(!!lineUserId && bk.lineUserId === lineUserId)) continue;
-      await updateBooking(bk.id, { status: "confirmed", checkinTime });
+      await updateBooking(bk.id, {
+        status: "confirmed",
+        ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+      });
       if (bk.calendarEventId) {
         await updateCalendarEventConfirmed(bk.calendarEventId, {
           summary: `${bk.service === "room" ? "🏠" : "🛁"} ${bk.catName} (${bk.customerName})`,
@@ -538,7 +525,7 @@ export async function PATCH(req: NextRequest) {
                 ? cfg.messages.consentTerms
                 : DEFAULT_MESSAGES.consentTerms,
               url,
-            })
+            }, cfg.cards?.consent)
           );
         }
       } else if (part === "prestay") {
@@ -825,7 +812,7 @@ export async function PATCH(req: NextRequest) {
           ? cfg.messages.consentTerms
           : DEFAULT_MESSAGES.consentTerms,
         url,
-      });
+      }, cfg.cards?.consent);
       try {
         if (preview) return NextResponse.json({ ok: true, preview: [flex] });
         await pushLineMessage(to, [flex]);
@@ -894,7 +881,7 @@ export async function PATCH(req: NextRequest) {
     if (body.time != null) patch.time = String(body.time) || undefined;
     if (body.checkin != null) patch.checkin = String(body.checkin) || undefined;
     if (body.checkout != null) patch.checkout = String(body.checkout) || undefined;
-    if (patch.checkin && patch.checkout && patch.checkout <= patch.checkin) {
+    if (patch.checkin && patch.checkout && patch.checkout < patch.checkin) {
       return NextResponse.json({ error: "checkout_before_checkin" }, { status: 400 });
     }
     const res = await rescheduleGroup(id, patch, body.applyToGroup !== false);
@@ -919,7 +906,7 @@ export async function PATCH(req: NextRequest) {
           inv.kind === "updated"
             ? `แก้บิลเดิมเป็น ${inv.nights} คืน · ${inv.total} บาท`
             : inv.kind === "created_extra"
-              ? `ออกบิลต่อคืน ${inv.nights} คืน · ${inv.total} บาท`
+              ? `ออกบิลพักต่อ ${inv.nights} คืน · ${inv.total} บาท`
               : inv.kind === "warn"
                 ? `⚠️ ${inv.message}`
                 : "-",

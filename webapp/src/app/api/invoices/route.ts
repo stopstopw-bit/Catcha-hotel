@@ -108,6 +108,7 @@ function summaryFlexFromInvoice(
 }
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { logAudit } from "@/lib/audit-log";
+import { cancelAppointmentToCredit, creditableAmount } from "@/lib/cancel-to-credit";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -140,6 +141,9 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ invoices: await listInvoices(customerId) });
 }
+
+const CONVERTED_MSG =
+  "ยอดบิลนี้ถูกเก็บเป็นเครดิตแล้ว (🔁 ยกเลิกนัด) — ไปยกเลิกรายการนั้นในประวัติเครดิตของลูกค้าก่อน";
 
 /** ใครกดปุ่มนี้ — เอาไว้ลงบันทึกว่าใครทำอะไรกับเงิน */
 async function actorName(req: NextRequest): Promise<string> {
@@ -236,6 +240,13 @@ export async function POST(req: NextRequest) {
         coupon_invalid: "คูปองนี้ใช้ไม่ได้แล้ว (หมดอายุ/ใช้ไปแล้ว/ไม่ใช่ของลูกค้าคนนี้)",
         coupon_race: "คูปองนี้เพิ่งถูกใช้ไปหมาดๆ — เลือกใหม่อีกครั้ง",
       };
+      const stock = message.match(/^out_of_stock:(.*):(-?\d+)$/);
+      if (stock) {
+        return NextResponse.json(
+          { error: `สต็อก ${stock[1]} ไม่พอ (เหลือ ${stock[2]} ชิ้น)` },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         { error: known[message] || "ออกบิลไม่สำเร็จ" },
         { status: 400 }
@@ -478,10 +489,80 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // 🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต — ยกเลิกนัด + คงบิลไว้ตามเดิม + เติมเครดิตเท่ายอดที่รับมาแล้ว
+  // (ไม่ลงรายรับ/ไม่ให้แต้มซ้ำ) + ผูกเลขบิลในประวัติเครดิต + แจ้ง LINE ถ้าติ๊ก
+  if (action === "cancel_to_credit") {
+    const notify = body.notify === true;
+    if (preview) {
+      const cust = inv.customerId ? await getCustomer(inv.customerId) : null;
+      if (!notify || !cust?.lineUserId) return NextResponse.json({ ok: true, preview: [] });
+      return NextResponse.json({
+        ok: true,
+        preview: [
+          buildMemberBalanceFlex(
+            { customerName: cust.name, memberCredit: cust.memberCredit + creditableAmount(inv) },
+            (await getSiteConfig()).cards?.memberBalance
+          ),
+        ],
+      });
+    }
+
+    const res = await cancelAppointmentToCredit(id);
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: res.error === "busy" ? "กำลังทำรายการนี้อยู่ — รอสักครู่" : res.error },
+        { status: 400 }
+      );
+    }
+
+    let notifyError: string | undefined;
+    if (notify && res.lineUserId) {
+      try {
+        await pushLineMessage(res.lineUserId, [
+          buildMemberBalanceFlex(
+            { customerName: res.customerName, memberCredit: res.balance },
+            (await getSiteConfig()).cards?.memberBalance
+          ),
+        ]);
+      } catch (e) {
+        notifyError = e instanceof Error ? e.message : String(e);
+      }
+    } else if (notify) {
+      notifyError = "ลูกค้ายังไม่มี LINE User ID";
+    }
+
+    await logAudit({
+      actor: await actorName(req),
+      action: "cancel_to_credit",
+      resourceType: "invoice",
+      resourceId: id,
+      detail: {
+        ลูกค้า: inv.customerName,
+        ยอดเข้าเครดิต: res.amount,
+        เครดิตคงเหลือ: res.balance,
+        ยกเลิกนัด: res.cancelledCats.join(", ") || "-",
+      },
+    });
+    await sendTelegram(
+      formatBookingTelegram("🔁 ยกเลิกนัด เก็บยอดเป็นเครดิต", {
+        ลูกค้า: inv.customerName,
+        น้องแมว: res.cancelledCats.join(", ") || inv.catName,
+        บิล: inv.id,
+        เข้าเครดิต: `${res.amount.toLocaleString()} บาท`,
+        คงเหลือ: `${res.balance.toLocaleString()} บาท`,
+      })
+    );
+
+    return NextResponse.json({ ...res, notifyError });
+  }
+
   if (action === "unmark_paid") {
     const res = await revertInvoicePaid(id);
     if (!res.ok) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+      return NextResponse.json(
+        { error: res.error === "converted_to_credit" ? CONVERTED_MSG : res.error },
+        { status: 400 }
+      );
     }
     await sendTelegram(
       formatBookingTelegram("↩️ ยกเลิกการชำระ (แก้ไข)", {
@@ -702,7 +783,10 @@ export async function PATCH(req: NextRequest) {
       promoId: body.promoId,
     });
     if (!res.ok) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+      return NextResponse.json(
+        { error: res.error, message: "message" in res ? res.message : undefined },
+        { status: 400 }
+      );
     }
     return NextResponse.json({ ok: true, invoice: res.invoice });
   }
@@ -738,7 +822,10 @@ export async function PATCH(req: NextRequest) {
     const target = await getInvoice(id);
     const res = await deleteInvoice(id);
     if (!res.ok) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+      return NextResponse.json(
+        { error: res.error === "converted_to_credit" ? CONVERTED_MSG : res.error },
+        { status: 400 }
+      );
     }
     await logAudit({
       actor: await actorName(req),
