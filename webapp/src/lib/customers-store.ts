@@ -31,8 +31,14 @@ export type CatRecord = {
   medical?: string;
   /** ขนสั้น/ขนยาว — ถามพร้อมสายพันธุ์ตอนสมัครสมาชิก */
   furLength?: "short" | "long";
-  /** สี/ลักษณะเด่น — ถามตอนสมัครสมาชิก */
+  /** สี/ลักษณะเด่น — ถามตอนสมัครสมาชิก (ไม่บังคับ) */
   color?: string;
+  /** ทำหมันแล้ว (true) / ยังไม่ทำ (false) / ไม่ได้ระบุ (undefined) */
+  neutered?: boolean;
+  /** ประวัติการชัก/ช็อค — ถามตอนสมัครสมาชิก (ไม่บังคับ) */
+  seizureHistory?: string;
+  /** ประวัติการแพ้ (อาหาร/ยา/แชมพู) — ถามตอนสมัครสมาชิก (ไม่บังคับ) */
+  allergy?: string;
   /** น้ำหนักตัว (กก.) — ถามตอนสมัครสมาชิก แก้ได้ทั้งลูกค้าและหลังบ้าน */
   weightKg?: number;
   photoDataUrl?: string;
@@ -174,6 +180,9 @@ type CatRow = {
   medical: string | null;
   fur_length?: string | null;
   color?: string | null;
+  neutered?: boolean | null;
+  seizure_history?: string | null;
+  allergy?: string | null;
   weight_kg?: number | string | null;
   photo_data_url: string | null;
   staff_note: string | null;
@@ -327,6 +336,9 @@ function mapCustomer(row: CustomerRow): CustomerRecord {
       medical: c.medical ?? undefined,
       furLength: (c.fur_length as "short" | "long" | undefined) ?? undefined,
       color: c.color ?? undefined,
+      neutered: c.neutered ?? undefined,
+      seizureHistory: c.seizure_history ?? undefined,
+      allergy: c.allergy ?? undefined,
       weightKg: c.weight_kg != null && c.weight_kg !== "" ? Number(c.weight_kg) : undefined,
       photoDataUrl: c.photo_data_url ?? undefined,
       staffNote: c.staff_note ?? undefined,
@@ -1140,6 +1152,9 @@ const SHARED_PROFILE_FIELDS = [
   "medical",
   "furLength",
   "color",
+  "neutered",
+  "seizureHistory",
+  "allergy",
   "weightKg",
 ] as const;
 
@@ -1168,8 +1183,10 @@ export async function updateCat(
       | "medical"
       | "furLength"
       | "color"
+      | "seizureHistory"
+      | "allergy"
     >
-  > & { weightKg?: number | null },
+  > & { weightKg?: number | null; neutered?: boolean | null },
   opts: { source?: "staff" | "customer" } = {}
 ) {
   const c = await getCustomer(customerId);
@@ -1195,8 +1212,14 @@ export async function updateCat(
     cat.needsOwnerConfirm = opts.source === "customer" ? false : true;
   }
 
-  const { weightKg, ...rest } = patch;
+  const { weightKg, neutered, ...rest } = patch;
   Object.assign(cat, rest);
+  // null = ล้างคำตอบ (ไม่ระบุ), ไม่ส่งมา = คงค่าเดิม
+  const neuteredChanged = "neutered" in patch;
+  if (neuteredChanged) cat.neutered = typeof neutered === "boolean" ? neutered : undefined;
+  const historyChanged = "seizureHistory" in patch || "allergy" in patch;
+  if ("seizureHistory" in patch) cat.seizureHistory = patch.seizureHistory?.trim() || undefined;
+  if ("allergy" in patch) cat.allergy = patch.allergy?.trim() || undefined;
   // null = ลบน้ำหนักออก, ไม่ส่งมา = คงค่าเดิม
   const weightChanged = "weightKg" in patch;
   if (weightChanged) cat.weightKg = normalizeWeightKg(weightKg);
@@ -1241,6 +1264,28 @@ export async function updateCat(
       await sb
         .from("cats")
         .update({ weight_kg: cat.weightKg ?? null })
+        .eq("id", catId)
+        .then(
+          () => {},
+          () => {}
+        );
+    }
+    if (neuteredChanged) {
+      // คอลัมน์ใหม่ (cats.neutered) — แยกเขียนเผื่อยังไม่ได้รัน migration
+      await sb
+        .from("cats")
+        .update({ neutered: cat.neutered ?? null })
+        .eq("id", catId)
+        .then(
+          () => {},
+          () => {}
+        );
+    }
+    if (historyChanged) {
+      // คอลัมน์ใหม่ (cats.seizure_history / cats.allergy) — แยกเขียนเผื่อยังไม่ได้รัน migration
+      await sb
+        .from("cats")
+        .update({ seizure_history: cat.seizureHistory ?? null, allergy: cat.allergy ?? null })
         .eq("id", catId)
         .then(
           () => {},
@@ -1321,6 +1366,8 @@ export async function getCatStaffNotes(lineUserId: string, catName?: string) {
     staffNote: r.cat.staffNote?.trim() || undefined,
     privateNote: r.cat.staffPrivateNote?.trim() || undefined,
     medical: r.cat.medical?.trim() || undefined,
+    seizureHistory: r.cat.seizureHistory?.trim() || undefined,
+    allergy: r.cat.allergy?.trim() || undefined,
   };
 }
 
@@ -1361,6 +1408,9 @@ export async function addCat(
     medical?: string;
     furLength?: "short" | "long";
     color?: string;
+    neutered?: boolean;
+    seizureHistory?: string;
+    allergy?: string;
     weightKg?: number;
     staffNote?: string;
   },
@@ -1389,6 +1439,9 @@ export async function addCat(
     medical: data.medical?.trim() || undefined,
     furLength: data.furLength,
     color: data.color?.trim() || undefined,
+    neutered: typeof data.neutered === "boolean" ? data.neutered : undefined,
+    seizureHistory: data.seizureHistory?.trim() || undefined,
+    allergy: data.allergy?.trim() || undefined,
     weightKg: normalizeWeightKg(data.weightKg),
     staffNote: data.staffNote?.trim() || undefined,
     // พนักงานสร้างเรคคอร์ดนี้เอง → ยังไม่มีลูกค้ายืนยันข้อมูล ต่างจากลูกค้าสมัครเอง
@@ -1423,6 +1476,26 @@ export async function addCat(
           color: cat.color || null,
           needs_owner_confirm: cat.needsOwnerConfirm || false,
         })
+        .eq("id", catId)
+        .then(
+          () => {},
+          () => {}
+        );
+    }
+    if (cat.neutered != null) {
+      await sb
+        .from("cats")
+        .update({ neutered: cat.neutered })
+        .eq("id", catId)
+        .then(
+          () => {},
+          () => {}
+        );
+    }
+    if (cat.seizureHistory || cat.allergy) {
+      await sb
+        .from("cats")
+        .update({ seizure_history: cat.seizureHistory ?? null, allergy: cat.allergy ?? null })
         .eq("id", catId)
         .then(
           () => {},
@@ -2364,6 +2437,9 @@ export async function registerCustomerFromLine(data: {
     medical?: string;
     furLength?: "short" | "long";
     color?: string;
+    neutered?: boolean;
+    seizureHistory?: string;
+    allergy?: string;
     weightKg?: number;
     staffNote?: string;
   }[];
@@ -2382,6 +2458,9 @@ export async function registerCustomerFromLine(data: {
       medical: c.medical?.trim(),
       furLength: c.furLength,
       color: c.color?.trim(),
+      neutered: c.neutered,
+      seizureHistory: c.seizureHistory?.trim(),
+      allergy: c.allergy?.trim(),
       weightKg: c.weightKg,
       staffNote: c.staffNote?.trim(),
     }))
