@@ -38,7 +38,7 @@ import { listCustomers, getCatGroomInfo, getCatStaffNotes, getIntakeStatus } fro
 import type { StoredBooking } from "@/lib/bookings-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { resolveGroomForm } from "@/lib/groom-form";
-import { renderTemplate, DEFAULT_MESSAGES } from "@/lib/messages";
+import { renderTemplate, consentDates, consentTextFor } from "@/lib/messages";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { stayForGroom, groupBookings, groupCatNames } from "@/lib/booking-group";
 import { findBirthdayMatch } from "@/lib/birthday-greeting";
@@ -62,7 +62,7 @@ async function pushInChunks(to: string, messages: object[]) {
 /**
  * เรื่องที่ต้องขอก่อนรับน้องที่บ้านนี้ยังขาด (ชุดเดียวกับหน้าข้อมูลลูกค้า) — พ่วงไปกับการ์ดอัตโนมัติรอบนั้น
  * ส่งเฉพาะที่ลูกค้ายังไม่ได้ส่ง และนัดไม่ได้ปิดหัวข้อนั้นไว้ · กฎ + กดยินยอม แยกส่งโดยคนเรียก
- * room = ข้อมูลก่อนเข้าพัก + สมุดวัคซีน + บัตรประชาชน · groom = สมุดวัคซีนอย่างเดียว (ประวัติอาบน้ำมีของเดิมแล้ว)
+ * room = ข้อมูลก่อนเข้าพัก + สมุดวัคซีน + บัตรประชาชน · groom = สมุดวัคซีนอย่างเดียว (ประวัติอาบน้ำขอแยกด้านบน)
  * คืนเป็นรายการเรื่อง — คนเรียกรวมเป็นการ์ดใบเดียวด้วย mergeIntakeCards
  */
 async function intakeCardsFor(
@@ -167,12 +167,9 @@ async function consentCardFor(
   const card = buildConsentFlex(
     {
       businessName: cfg.business.name,
-      title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
+      ...consentTextFor(cfg.messages, b.service),
       catName: String(b.catName),
-      checkin: b.checkin || b.date,
-      checkout: b.checkout,
-      room: b.room,
-      terms: cfg.messages.consentTerms?.length ? cfg.messages.consentTerms : DEFAULT_MESSAGES.consentTerms,
+      ...consentDates(b),
       url: consentUrl,
     },
     cfg.cards?.consent
@@ -342,8 +339,12 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // นัดอาบน้ำขอแค่ประวัติก่อนอาบน้ำ — สมุดวัคซีน บัตร และกฎ + กดยินยอม เป็นเรื่องของการเข้าพัก
-      // (ขอในชุดก่อนเข้าพักแทน ส่งล่วงหน้ากว่า มีเวลาเตรียม)
+      // นัดอาบน้ำ: ประวัติ → สมุดวัคซีน → ข้อตกลงอาบน้ำ (แยกจากกฎเข้าพัก) · บัตรประชาชนเป็นเรื่องของการเข้าพัก
+      if (primary.service === "groom") {
+        intake.push(...(await intakeCardsFor(group, "groom", cfg)));
+        const consent = await consentCardFor(group, primary, cfg);
+        if (consent) intake.push(consent);
+      }
       // ขาดหลายเรื่อง = การ์ดใบเดียว ปุ่มเดียวไล่ทีละหน้า (เรื่องเดียว = การ์ดเดิม)
       dayMessages.push(
         ...mergeIntakeCards(
