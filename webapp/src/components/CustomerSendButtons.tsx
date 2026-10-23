@@ -528,7 +528,7 @@ export function CustomerSendButtons({
       k: "send_stay_info",
       label: `${INTAKE_LABEL.stayInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
       icon: "edit",
-      when: !!bookingId && hotelOn,
+      when: !!bookingId && hotelOn && stayOk,
       onClick: () => void sendGroomInfoAll("stay"),
     },
     {
