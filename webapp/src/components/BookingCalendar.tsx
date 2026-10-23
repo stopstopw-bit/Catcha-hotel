@@ -2496,7 +2496,6 @@ export function BookingCalendar() {
                     groomBookingIds={many ? group.map((x) => x.id) : undefined}
                     initialAutoOff={b.autoOff}
                     onDone={load}
-                    quickSteps
                   />
                   <InvoiceActionButtons bookingId={b.id} onDone={load} />
                 </div>
