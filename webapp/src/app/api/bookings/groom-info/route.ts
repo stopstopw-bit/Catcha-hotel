@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
-import { getBooking } from "@/lib/bookings-store";
+import { getBooking, listBookings } from "@/lib/bookings-store";
+import { stayForGroom } from "@/lib/booking-group";
 import {
   findCustomerByLine,
   getCatGroomInfo,
@@ -12,7 +13,7 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { getSiteConfig } from "@/lib/config-store";
 import { resolveGroomForm } from "@/lib/groom-form";
-import { resolveStayForm } from "@/lib/stay-form";
+import { BATH_SHARED_WITH_STAY, resolveStayForm } from "@/lib/stay-form";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
 
 type Kind = "groom" | "stay";
@@ -34,6 +35,23 @@ async function resolveTarget(lineUserId: string, bookingId: string, catId: strin
   const cat = me?.cats.find((c) => c.name.trim().toLowerCase() === String(b.catName).trim().toLowerCase());
   const kind: Kind = kindParam === "stay" || kindParam === "groom" ? kindParam : b.service === "room" ? "stay" : "groom";
   return { kind, catName: String(b.catName), me, cat, booking: b };
+}
+
+/**
+ * เข้าพัก + อาบก่อนกลับ (นัดเดียวกัน) และน้องยังไม่เคยกรอกประวัติอาบน้ำ →
+ * ฟอร์มก่อนเข้าพักถามเรื่องอาบน้ำต่อท้ายในหน้าเดียว (ข้อที่ซ้ำกันถามครั้งเดียว)
+ */
+async function needsBathPart(
+  t: Exclude<Awaited<ReturnType<typeof resolveTarget>>, null | "forbidden">,
+  lineUserId: string
+): Promise<boolean> {
+  const b = t.booking;
+  if (t.kind !== "stay" || !b || b.service !== "room") return false;
+  const list = await listBookings(b.lineUserId || lineUserId);
+  const hasBath = list.some((g) => g.service === "groom" && stayForGroom(g, list)?.id === b.id);
+  if (!hasBath) return false;
+  const groomStored = t.cat?.groomHealthInfo ?? (await getCatGroomInfo(b.lineUserId || lineUserId, t.catName));
+  return !parseGroomInfo(groomStored);
 }
 
 /**
@@ -65,6 +83,7 @@ async function getHandler(req: NextRequest) {
     info: parseGroomInfo(stored),
     // ตอบโรคประจำตัวไว้แล้วตอนสมัครสมาชิก → ฟอร์มก่อนเข้าพักไม่ถามซ้ำ
     knownMedical: Boolean(t.cat?.medical?.trim()),
+    withBath: await needsBathPart(t, session.lineUserId),
   });
 }
 
@@ -85,9 +104,61 @@ async function postHandler(req: NextRequest) {
   if (t === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (!t) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  // เก็บตามคำถามที่ร้านตั้งไว้จริง (ร้านเพิ่ม/แก้ตัวเลือกเองได้) — sanitize ตามชนิดของคำถาม
+  // เก็บตามคำถามที่ร้านตั้งไว้จริง (ร้านเพิ่ม/แก้ตัวเลือกเองได้)
   const cfg = await getSiteConfig();
   const fields = t.kind === "stay" ? resolveStayForm() : resolveGroomForm(cfg.groomForm);
+  const payload = sanitizeInfo(fields, info);
+  // ฟอร์มรวม เข้าพัก + อาบก่อนกลับ — ส่วนอาบน้ำเก็บเป็นประวัติอาบน้ำของน้องด้วย
+  const groomFields = resolveGroomForm(cfg.groomForm);
+  const groomPayload =
+    t.kind === "stay" && body.groomInfo && typeof body.groomInfo === "object" && (await needsBathPart(t, session.lineUserId))
+      ? sanitizeInfo(groomFields, {
+          ...body.groomInfo,
+          ...Object.fromEntries(
+            Object.entries(BATH_SHARED_WITH_STAY).map(([g, st]) => [g, (info as Record<string, unknown>)[st]])
+          ),
+        })
+      : null;
+
+  let res: { ok: boolean; error?: string };
+  if (t.kind === "stay") {
+    // ฟอร์มก่อนเข้าพักเก็บที่ตัวน้องในบัญชีลูกค้า — ต้องมีน้องตัวนี้ในบัญชีจริง
+    res = t.me && t.cat ? await setCatStayInfo(t.me.id, t.cat.id, JSON.stringify(payload)) : { ok: false, error: "not_found" };
+  } else {
+    res = await setCatGroomInfo(session.lineUserId, t.catName, JSON.stringify(payload));
+  }
+  if (!res.ok && res.error === "not_found") {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  if (res.ok && groomPayload) {
+    res = await setCatGroomInfo(t.booking?.lineUserId || session.lineUserId, t.catName, JSON.stringify(groomPayload));
+  }
+
+  const customerName = t.booking?.customerName || (t.me as CustomerRecord | undefined)?.name || "-";
+  await sendTelegram(
+    formatBookingTelegram(
+      groomPayload
+        ? "🏠🛁 ข้อมูลน้องก่อนเข้าพัก + อาบน้ำ (ลูกค้ากรอก)"
+        : t.kind === "stay"
+          ? "🏠 ข้อมูลน้องก่อนเข้าพัก (ลูกค้ากรอก)"
+          : "🩺 ประวัติน้องก่อนอาบน้ำ (ลูกค้ากรอก)",
+      {
+        น้อง: t.catName,
+        ลูกค้า: customerName,
+        ...groomInfoSummary(payload, fields),
+        // ข้อที่ถามครั้งเดียวขึ้นแล้วด้านบน — ไม่ซ้ำ
+        ...(groomPayload
+          ? groomInfoSummary(groomPayload, groomFields.filter((f) => !(f.key in BATH_SHARED_WITH_STAY)))
+          : {}),
+      }
+    )
+  );
+
+  return NextResponse.json({ ok: res.ok, needSql: !res.ok && res.error === "need_sql" });
+}
+
+/** เก็บตามคำถามที่ร้านตั้งไว้จริง — sanitize ตามชนิดของคำถาม */
+function sanitizeInfo(fields: ReturnType<typeof resolveStayForm>, info: unknown): Record<string, unknown> {
   const payload: Record<string, unknown> = { submittedAt: new Date().toISOString() };
   for (const f of fields) {
     const raw = (info as Record<string, unknown>)[f.key];
@@ -101,28 +172,7 @@ async function postHandler(req: NextRequest) {
       payload[f.key] = String(raw ?? "").trim().slice(0, 500);
     }
   }
-
-  let res: { ok: boolean; error?: string };
-  if (t.kind === "stay") {
-    // ฟอร์มก่อนเข้าพักเก็บที่ตัวน้องในบัญชีลูกค้า — ต้องมีน้องตัวนี้ในบัญชีจริง
-    res = t.me && t.cat ? await setCatStayInfo(t.me.id, t.cat.id, JSON.stringify(payload)) : { ok: false, error: "not_found" };
-  } else {
-    res = await setCatGroomInfo(session.lineUserId, t.catName, JSON.stringify(payload));
-  }
-  if (!res.ok && res.error === "not_found") {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
-
-  const customerName = t.booking?.customerName || (t.me as CustomerRecord | undefined)?.name || "-";
-  await sendTelegram(
-    formatBookingTelegram(t.kind === "stay" ? "🏠 ข้อมูลน้องก่อนเข้าพัก (ลูกค้ากรอก)" : "🩺 ประวัติน้องก่อนอาบน้ำ (ลูกค้ากรอก)", {
-      น้อง: t.catName,
-      ลูกค้า: customerName,
-      ...groomInfoSummary(payload, fields),
-    })
-  );
-
-  return NextResponse.json({ ok: res.ok, needSql: !res.ok && res.error === "need_sql" });
+  return payload;
 }
 
 export function GET(req: NextRequest) {
