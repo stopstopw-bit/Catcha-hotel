@@ -153,7 +153,7 @@ export function CustomerSendButtons({
   const invId = invoiceId || foundInvoiceId;
   // บิลที่มีทั้งอาบน้ำและเข้าพัก (service = "both") ต้องเห็นการ์ดฝั่งเข้าพักด้วย
   const hasRoomStay = service === "room" || service === "both";
-  /** นัดอาบน้ำอย่างเดียวไม่มีเรื่องของการเข้าพัก (สมุดวัคซีน/บัตร/กฎ/เตรียมตัว/เวลาเข้า-ออก/มัดจำ) */
+  /** นัดอาบน้ำอย่างเดียวไม่มีเรื่องของการเข้าพัก (บัตร/เตรียมตัว/เวลาเข้า-ออก/มัดจำ) — สมุดวัคซีน + ข้อตกลงยังขอ */
   const stayOk = service !== "groom";
   const depForBill = invoiceId ? invoiceDeposit : foundDeposit;
   const billPaid = (invoiceId ? invoiceStatus : foundStatus) === "paid";
@@ -282,14 +282,10 @@ export function CustomerSendButtons({
   };
   const intakePickOptions: { key: IntakePickKey; label: string }[] = [
     { key: "info", label: hasRoomStay ? INTAKE_LABEL.stayInfo : INTAKE_LABEL.groomInfo },
-    // สมุดวัคซีน บัตรประชาชน และกฎ/กดยินยอม (ข้อตกลงการเข้าพัก) เฉพาะนัดที่มีเข้าพัก
-    ...(hasRoomStay
-      ? [
-          { key: "vaccine" as const, label: "สมุดวัคซีน" },
-          { key: "idcard" as const, label: "บัตรประชาชน" },
-          { key: "consent" as const, label: INTAKE_LABEL.consent },
-        ]
-      : []),
+    // นัดอาบน้ำก็ขอสมุดวัคซีน + ข้อตกลงอาบน้ำ · บัตรประชาชนเฉพาะนัดที่มีเข้าพัก
+    { key: "vaccine", label: "สมุดวัคซีน" },
+    ...(hasRoomStay ? [{ key: "idcard" as const, label: "บัตรประชาชน" }] : []),
+    { key: "consent", label: hasRoomStay ? INTAKE_LABEL.consent : "ข้อตกลงอาบน้ำ + กดยินยอม" },
     ...(hasRoomStay
       ? [{ key: "deposit" as const, label: depForBill > 0 ? `มัดจำ (ขอแล้ว ${depForBill.toLocaleString()}฿)` : "มัดจำ" }]
       : []),
@@ -455,15 +451,15 @@ export function CustomerSendButtons({
   const hasRemaining = depForBill > 0;
 
   // ครบทุกหัวข้อเท่ากับปุ่มเดี่ยวด้านบน — เลือกผสมได้อิสระ ส่งใน 1 ข้อความ
-  // การ์ดของการเข้าพัก (ข้อมูลก่อนเข้าพัก/สมุดวัคซีน/บัตร/กฎ/เตรียมตัว/เลือกเวลา) ไม่ขึ้นในนัดอาบน้ำอย่างเดียว
+  // การ์ดของการเข้าพัก (ข้อมูลก่อนเข้าพัก/บัตร/เตรียมตัว/เลือกเวลา) ไม่ขึ้นในนัดอาบน้ำอย่างเดียว
   // ใบที่ต้องมีบิล/จ่ายแล้วยังซ่อนไว้จนกว่าจะมีข้อมูลจริง (กันส่งการ์ดว่าง)
   // ชุดถามข้อมูลก่อนรับน้องขึ้นก่อน ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า
   const BUNDLE_OPTIONS: { key: string; label: string; when: boolean }[] = [
     { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && hotelOn && stayOk },
     { key: "groomInfo", label: INTAKE_LABEL.groomInfo, when: !!bookingId && groomOn },
-    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId && stayOk },
+    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId },
     { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && hotelOn && stayOk },
-    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId && stayOk },
+    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId },
     { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && hotelOn && stayOk },
     { key: "reminder", label: "แจ้งเตือนนัด", when: !!bookingId },
     { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId && stayOk },
@@ -542,7 +538,7 @@ export function CustomerSendButtons({
       k: "send_vaccine_request",
       label: INTAKE_LABEL.vaccine,
       icon: "image",
-      when: !!bookingId && stayOk,
+      when: !!bookingId,
       onClick: () => bookingSend("send_vaccine_request", "ส่งการ์ดขอสมุดวัคซีนแล้ว 💉"),
     },
     {
@@ -556,7 +552,7 @@ export function CustomerSendButtons({
       k: "send_consent",
       label: INTAKE_LABEL.consent,
       icon: "doc",
-      when: !!bookingId && stayOk,
+      when: !!bookingId,
       onClick: () => bookingSend("send_consent", "ส่งการ์ดกฎ + กดยินยอมแล้ว 📋"),
     },
     {

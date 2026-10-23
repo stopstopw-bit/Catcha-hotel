@@ -2344,7 +2344,8 @@ export function BookingCalendar() {
                   </div>
                 </div>
                 <CatTags group={group} />
-                {b.service === "room" &&
+                {/* อาบก่อนกลับระหว่างเข้าพัก ใช้ข้อตกลง/สมุดวัคซีนของการเข้าพัก — ไม่ซ้ำแถวที่นี่ */}
+                {(b.service === "room" || !stayForGroom(b, liveBookings)) &&
                   (b.consentAcceptedAt ? (
                     <div className="mt-2 flex items-center gap-2">
                       <p className="flex min-w-0 items-center gap-1 text-[11px] font-bold text-ok">
@@ -2375,18 +2376,16 @@ export function BookingCalendar() {
                       ยังไม่กดยอมรับข้อตกลง
                     </p>
                   ))}
-                {/* สมุดวัคซีนรายตัว — โชว์ทุกนัดเข้าพัก พนักงานแนบเองได้ ไม่ต้องรอลูกค้ากดยอมรับข้อตกลงก่อน
-                    นัดอาบน้ำอย่างเดียวไม่ใช้สมุดวัคซีน — เหลือแค่แถวหยดยาเห็บหมัด (ถ้ามี) */}
+                {/* สมุดวัคซีนรายตัว — โชว์ทุกนัด (อาบน้ำก็ขอ) พนักงานแนบเองได้ ไม่ต้องรอลูกค้ากดยอมรับข้อตกลงก่อน
+                    อาบก่อนกลับระหว่างเข้าพักใช้สมุดของการเข้าพัก */}
                 <div className="mt-1 space-y-1">
-                  {group.filter((x) => b.service !== "groom" || x.fleaTickTreated).map((x) => (
+                  {group.filter((x) => b.service !== "groom" || !stayForGroom(x, liveBookings)).map((x) => (
                     <div key={x.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
                       <span className="flex items-center gap-1 font-bold text-brown-soft">
                         <Icon name="paw" size={12} />
                         {x.catName}
                       </span>
-                      {b.service !== "groom" && (
-                        <VaccinePhotosAdmin bookingId={x.id} value={x.vaccinePhotoUrl} onDone={load} />
-                      )}
+                      <VaccinePhotosAdmin bookingId={x.id} value={x.vaccinePhotoUrl} onDone={load} />
                       {x.fleaTickTreated && (
                         <span className="flex items-center gap-1 font-bold text-ok">
                           <Icon name="check" size={12} strokeWidth={2.4} />

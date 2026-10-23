@@ -62,7 +62,7 @@ import {
 import { getSiteConfig } from "@/lib/config-store";
 import { getLineCredentials } from "@/lib/line-config";
 import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
-import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
+import { consentDates, consentTextFor, renderTemplate } from "@/lib/messages";
 import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import {
@@ -626,14 +626,16 @@ function groomInfoCardFor(
     const room = b.service === "room";
     const hasDeposit = Number(body.depositAmount) > 0;
     // ร้านติ๊กเลือกเองว่าจะขออะไรบ้าง · ไม่ส่งมา = ทุกเรื่องตามบริการ (ระบบยังข้ามเรื่องที่ส่งแล้วให้)
-    // สมุดวัคซีน บัตร และกฎ + กดยินยอม เป็นเรื่องของการเข้าพัก — นัดอาบน้ำอย่างเดียวขอแค่ประวัติ
+    // นัดอาบน้ำ = ประวัติ → สมุดวัคซีน → ข้อตกลงอาบน้ำ (บัตรประชาชนเป็นเรื่องของการเข้าพัก)
     const allowed = new Set(
-      b.service === "groom" ? ["groomInfo"] : ["stayInfo", "groomInfo", "vaccine", "idcard", "consent"]
+      b.service === "groom"
+        ? ["groomInfo", "vaccine", "consent"]
+        : ["stayInfo", "groomInfo", "vaccine", "idcard", "consent"]
     );
     const raw: string[] = Array.isArray(body.parts) ? body.parts.map(String) : [];
     const picked: string[] | null = Array.isArray(body.parts) ? raw.filter((x) => allowed.has(x)) : null;
     body.parts = [
-      ...(picked ?? (room ? ["stayInfo", "vaccine", "idcard", "consent"] : ["groomInfo"])),
+      ...(picked ?? (room ? ["stayInfo", "vaccine", "idcard", "consent"] : ["groomInfo", "vaccine", "consent"])),
       ...(hasDeposit ? ["deposit"] : []),
       // แจ้งยอดชำระค่าบริการ (บิล) — การ์ดแยกของตัวเอง ส่งไปพร้อมกันในข้อความเดียว
       ...(raw.includes("payment") ? ["payment"] : []),
@@ -701,14 +703,9 @@ function groomInfoCardFor(
             ids: [b.id],
             card: buildConsentFlex({
               businessName: cfg.business.name,
-              title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
+              ...consentTextFor(cfg.messages, b.service),
               catName: String(gb.catName),
-              checkin: gb.checkin || gb.date,
-              checkout: gb.checkout,
-              room: gb.room,
-              terms: cfg.messages.consentTerms?.length
-                ? cfg.messages.consentTerms
-                : DEFAULT_MESSAGES.consentTerms,
+              ...consentDates(gb),
               url,
             }, cfg.cards?.consent),
           });
@@ -1069,14 +1066,9 @@ function groomInfoCardFor(
       }
       const flex = buildConsentFlex({
         businessName: cfg.business.name,
-        title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
+        ...consentTextFor(cfg.messages, b.service),
         catName: String(gb.catName),
-        checkin: gb.checkin || gb.date,
-        checkout: gb.checkout,
-        room: gb.room,
-        terms: cfg.messages.consentTerms?.length
-          ? cfg.messages.consentTerms
-          : DEFAULT_MESSAGES.consentTerms,
+        ...consentDates(gb),
         url,
       }, cfg.cards?.consent);
       try {

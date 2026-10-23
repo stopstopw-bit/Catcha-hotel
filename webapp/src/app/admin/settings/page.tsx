@@ -706,6 +706,25 @@ function MessagesTab({
         }
         rows={6}
       />
+      <p className="text-xs font-extrabold text-catcha-chocolate">
+        ข้อตกลงก่อนอาบน้ำ (นัดอาบน้ำใช้ชุดนี้แทนกฎเข้าพัก)
+      </p>
+      <Field
+        label="หัวเรื่อง"
+        value={msgs?.groomConsentTitle || ""}
+        onChange={(v) => setMsgs({ ...msgs, groomConsentTitle: v })}
+      />
+      <TextAreaField
+        label="ข้อตกลงอาบน้ำ (1 บรรทัด = 1 ข้อ · ขึ้นต้นด้วย หัวข้อ — แล้วตามด้วยเนื้อหา หัวข้อจะเป็นตัวหนา)"
+        value={(msgs?.groomConsentTerms || []).join("\n")}
+        onChange={(v) =>
+          setMsgs({
+            ...msgs,
+            groomConsentTerms: v.split("\n").map((s) => s.trim()).filter(Boolean),
+          })
+        }
+        rows={8}
+      />
       <TextAreaField
         label="ข้อความชวนกดยอมรับเงื่อนไข (แนบลิงก์ตอนแจ้งเข้าพัก + ปุ่ม 📋 เงื่อนไข)"
         hint="ใช้ได้: {shop} {cat} {url} — ต้องมี {url} เพื่อแนบลิงก์"
