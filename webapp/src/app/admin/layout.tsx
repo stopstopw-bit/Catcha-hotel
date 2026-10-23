@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { LocaleProvider } from "@/components/LocaleProvider";
+import { ConfigProvider, useConfig } from "@/components/ConfigProvider";
 import { Logo } from "@/components/Logo";
 import { HeaderBand } from "@/components/HeaderBand";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/AdminNav";
 import { Toaster } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
+import { disabledFeatureForAdminPath } from "@/lib/features";
 
 function greeting() {
   const h = new Date().getHours();
@@ -42,6 +44,12 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [ok, setOk] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // ร้านปิดฟีเจอร์นี้ในตั้งค่า (เปิด/ปิดฟีเจอร์) — เปิดลิงก์ตรงมาก็เด้งกลับหน้าหลัก
+  const { config, loading: configLoading } = useConfig();
+  const featureBlocked = !configLoading && Boolean(disabledFeatureForAdminPath(config, pathname));
+  useEffect(() => {
+    if (featureBlocked) router.replace("/admin");
+  }, [featureBlocked, router]);
 
   useEffect(() => {
     if (pathname === "/admin/login") {
@@ -87,7 +95,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, router]);
 
-  if (!ok) return null;
+  if (!ok || featureBlocked) return null;
 
   if (pathname === "/admin/login") {
     return <>{children}</>;
@@ -159,7 +167,9 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <LocaleProvider>
-      <AdminShell>{children}</AdminShell>
+      <ConfigProvider>
+        <AdminShell>{children}</AdminShell>
+      </ConfigProvider>
     </LocaleProvider>
   );
 }

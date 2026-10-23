@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import { claimCustomerPromo } from "@/lib/promos-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
 /** ลูกค้ากดใช้โปรจากหน้าแอป */
 export async function POST(req: NextRequest) {
+  const blocked = await featureOff("promos");
+  if (blocked) return blocked;
   const body = await req.json().catch(() => ({}));
   const promoId = String(body.promoId || "").trim();
   const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";

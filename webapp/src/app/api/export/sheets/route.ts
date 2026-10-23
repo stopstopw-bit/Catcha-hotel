@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFrom } from "@/lib/auth";
+import { featureOff } from "@/lib/features-server";
 import { exportToGoogleSheets } from "@/lib/google-sheets-export";
 
 export const runtime = "nodejs";
@@ -12,6 +13,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const blocked = await featureOff("exportSheets");
+  if (blocked) return blocked;
   const columns = Array.isArray(body.columns)
     ? body.columns.map(String)
     : undefined;

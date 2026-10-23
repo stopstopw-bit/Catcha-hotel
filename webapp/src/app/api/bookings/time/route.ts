@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import { getBooking, listBookings, setBookingTime } from "@/lib/bookings-store";
 import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
@@ -37,6 +38,9 @@ export async function GET(req: NextRequest) {
 
 /** ลูกค้าเลือกเวลามาส่ง/รับน้อง */
 export async function POST(req: NextRequest) {
+  // ร้านปิดเรื่องนี้ในตั้งค่า › เปิด/ปิดฟีเจอร์
+  const blocked = await featureOff("checkinTime");
+  if (blocked) return blocked;
   const body = await req.json().catch(() => ({}));
   const bookingId = String(body.bookingId || "").trim();
   const type = body.type === "checkout" ? "checkout" : "checkin";

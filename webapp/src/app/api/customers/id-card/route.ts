@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import { findCustomerByLine, setCustomerIdCard } from "@/lib/customers-store";
 import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
 
@@ -8,6 +9,9 @@ import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
  * รูปที่ส่งมามีข้อความขีดทับฝังไว้แล้วจากฝั่งเครื่องลูกค้า (lib/id-card-watermark)
  */
 export async function POST(req: NextRequest) {
+  // ร้านปิดเรื่องนี้ในตั้งค่า › เปิด/ปิดฟีเจอร์
+  const blocked = await featureOff("idCard");
+  if (blocked) return blocked;
   const body = await req.json().catch(() => ({}));
   const lineUserId = await resolveCustomerLineId(req, body.lineUserId);
   if (!lineUserId) return noCustomerSessionResponse();
