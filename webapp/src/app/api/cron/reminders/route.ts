@@ -84,7 +84,7 @@ async function intakeCardsFor(
       const style = cfg.cards?.groomInfo;
       const btn = style?.texts?.button || "🩺 แจ้งประวัติน้อง";
       out.push({
-        kind: "info",
+        kind: "stayInfo",
         url: url || undefined,
         count: needStay.length,
         card: buildGroomInfoFlex(

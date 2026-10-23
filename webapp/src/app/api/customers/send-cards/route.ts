@@ -91,7 +91,7 @@ async function handlePost(req: NextRequest) {
       const button = style?.texts?.button || "🩺 แจ้งประวัติน้อง";
       const url = buildCatInfoUrl(liffId, ask.map((x) => x.id), stay ? "stay" : "groom");
       addIntake({
-        kind: "info",
+        kind: stay ? "stayInfo" : "info",
         url,
         count: ask.length,
         card: buildGroomInfoFlex(
