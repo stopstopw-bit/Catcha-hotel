@@ -67,6 +67,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
   { table: "cats", column: "vaccine_photos", feature: "สมุดวัคซีนที่ตัวน้อง (ขอก่อนมีนัด)" },
   { table: "customers", column: "consent_accepted_at", feature: "ยอมรับข้อตกลงจากหน้าลูกค้า" },
+  { table: "cats", column: "neutered", feature: "ทำหมันแล้ว/ยังไม่ทำ" },
 ];
 
 export type SchemaCheckRow = {
@@ -494,6 +495,12 @@ where staff_note like '%🎁%';`,
         add column if not exists consent_flea_tick boolean,
         add column if not exists consent_care_note text;
     `,
+  },
+  {
+    // ทำหมันแล้ว (true) / ยังไม่ทำ (false) / ยังไม่ได้ถาม (null) — ถามตอนสมัครสมาชิก
+    // เพิ่มคอลัมน์อย่างเดียว แถวเดิมได้ null ไม่แก้ข้อมูลเก่า
+    name: "cats.neutered",
+    sql: "alter table cats add column if not exists neutered boolean;",
   },
 ];
 

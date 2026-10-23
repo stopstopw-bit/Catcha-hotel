@@ -16,6 +16,7 @@ type PetForm = {
   breed: string;
   breedOther: string;
   furLength: "" | "short" | "long";
+  neutered: "" | "yes" | "no";
   color: string;
   ageValue: string;
   ageUnit: "year" | "month";
@@ -34,6 +35,7 @@ function emptyPet(): PetForm {
     breed: "",
     breedOther: "",
     furLength: "",
+    neutered: "",
     color: "",
     ageValue: "",
     ageUnit: "year",
@@ -142,6 +144,7 @@ export function AddCustomerModal({
           gender: p.gender || undefined,
           breed: (p.breed === OTHER_BREED ? p.breedOther.trim() : p.breed) || undefined,
           furLength: p.furLength || undefined,
+          neutered: p.neutered ? p.neutered === "yes" : undefined,
           color: p.color || undefined,
           ageValue: p.ageValue || undefined,
           ageUnit: p.ageValue ? p.ageUnit : undefined,
@@ -313,6 +316,19 @@ export function AddCustomerModal({
                         options={[
                           ["short", "ขนสั้น"],
                           ["long", "ขนยาว"],
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <div className={labelCls}>
+                    ทำหมัน
+                    <div className="mt-1">
+                      <Toggle
+                        value={pet.neutered}
+                        onChange={(neutered) => updatePet(idx, { neutered })}
+                        options={[
+                          ["yes", "ทำหมันแล้ว"],
+                          ["no", "ยังไม่ทำ"],
                         ]}
                       />
                     </div>

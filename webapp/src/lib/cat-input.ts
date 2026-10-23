@@ -11,6 +11,7 @@ export type CatInput = {
   medical?: string;
   furLength?: "short" | "long";
   color?: string;
+  neutered?: boolean;
   weightKg?: number;
   staffNote?: string;
 };
@@ -28,6 +29,7 @@ export function parseCatInput(c: Record<string, unknown> | null | undefined): Ca
     medical: str(c?.medical),
     furLength: c?.furLength === "short" || c?.furLength === "long" ? c.furLength : undefined,
     color: str(c?.color),
+    neutered: typeof c?.neutered === "boolean" ? c.neutered : undefined,
     weightKg: normalizeWeightKg(c?.weightKg),
     staffNote: str(c?.staffNote),
   };

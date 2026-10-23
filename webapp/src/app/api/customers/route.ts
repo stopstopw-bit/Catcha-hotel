@@ -218,6 +218,7 @@ export async function PATCH(req: NextRequest) {
         breed: body.breed ? String(body.breed) : undefined,
         furLength,
         color: body.color ? String(body.color) : undefined,
+        neutered: typeof body.neutered === "boolean" ? body.neutered : undefined,
         ageValue: ageValue !== undefined && !isNaN(ageValue) ? ageValue : undefined,
         ageUnit: body.ageUnit === "month" ? "month" : "year",
         birthday: body.birthday ? String(body.birthday) : undefined,

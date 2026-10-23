@@ -32,6 +32,7 @@ type CatForm = {
   ageValue: string;
   ageUnit: "year" | "month";
   weightKg: string;
+  neutered: "" | "yes" | "no";
   birthday: string;
   medical: string;
   note: string;
@@ -100,6 +101,7 @@ export default function ProfilePage() {
               ageValue: x.ageValue != null ? String(x.ageValue) : "",
               ageUnit: (x.ageUnit as "year" | "month") || "year",
               weightKg: x.weightKg != null ? String(x.weightKg) : "",
+              neutered: x.neutered === true ? "yes" : x.neutered === false ? "no" : "",
               birthday: String(x.birthday || ""),
               medical: String(x.medical || ""),
               note: String(x.note || ""),
@@ -173,6 +175,7 @@ export default function ProfilePage() {
         ageValue: "",
         ageUnit: "year",
         weightKg: "",
+        neutered: "",
         birthday: "",
         medical: "",
         note: "",
@@ -215,6 +218,7 @@ export default function ProfilePage() {
             ageValue: c.ageValue,
             ageUnit: c.ageUnit,
             weightKg: c.weightKg,
+            neutered: c.neutered ? c.neutered === "yes" : null,
             birthday: c.birthday || undefined,
             medical: c.medical || undefined,
             note: c.note || undefined,
@@ -386,6 +390,19 @@ export default function ProfilePage() {
                 {cat.breed === OTHER_BREED && (
                   <input value={cat.breedOther} onChange={(e) => updateCat(idx, { breedOther: e.target.value })} placeholder="ระบุสายพันธุ์" className={sub} />
                 )}
+                <div className="flex gap-1 rounded-full bg-paper p-1">
+                  {([["yes", "ทำหมันแล้ว"], ["no", "ยังไม่ทำ"]] as const).map(([v, l]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={cat.neutered === v}
+                      onClick={() => updateCat(idx, { neutered: cat.neutered === v ? "" : v })}
+                      className={`min-h-[40px] flex-1 rounded-full text-sm font-bold transition ${cat.neutered === v ? "bg-card text-catcha-chocolate shadow-catcha-sm" : "text-brown-soft"}`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="number"

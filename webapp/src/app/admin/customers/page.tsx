@@ -2654,6 +2654,7 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
   const [breed, setBreed] = useState("");
   const [breedOther, setBreedOther] = useState("");
   const [furLength, setFurLength] = useState<AddCatFurLength>("");
+  const [neutered, setNeutered] = useState<"" | "yes" | "no">("");
   const [color, setColor] = useState("");
   const [ageValue, setAgeValue] = useState("");
   const [ageUnit, setAgeUnit] = useState<"year" | "month">("year");
@@ -2670,6 +2671,7 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
     setBreed("");
     setBreedOther("");
     setFurLength("");
+    setNeutered("");
     setColor("");
     setAgeValue("");
     setAgeUnit("year");
@@ -2694,6 +2696,7 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
         gender: gender || undefined,
         breed: (breed === OTHER_BREED ? breedOther.trim() : breed) || undefined,
         furLength: furLength || undefined,
+        neutered: neutered ? neutered === "yes" : undefined,
         color: color.trim() || undefined,
         ageValue: ageValue ? Number(ageValue) : undefined,
         ageUnit,
@@ -2800,6 +2803,15 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
                 options={[
                   { id: "short", label: "ขนสั้น" },
                   { id: "long", label: "ขนยาว" },
+                ]}
+              />
+
+              <Segmented
+                value={neutered}
+                onChange={setNeutered}
+                options={[
+                  { id: "yes", label: "ทำหมันแล้ว" },
+                  { id: "no", label: "ยังไม่ทำ" },
                 ]}
               />
 
@@ -3000,6 +3012,7 @@ export default function CustomersPage() {
       gender?: "male" | "female";
       breed?: string;
       furLength?: "short" | "long";
+      neutered?: boolean;
       color?: string;
       ageValue?: number;
       ageUnit?: "year" | "month";
@@ -3178,6 +3191,16 @@ export default function CustomersPage() {
                     options={[
                       { id: "short", label: "ขนสั้น" },
                       { id: "long", label: "ขนยาว" },
+                    ]}
+                  />
+                  <Segmented
+                    value={cat.neutered === true ? "yes" : cat.neutered === false ? "no" : ""}
+                    onChange={(v) => {
+                      if (v) saveCat(cat.id, { neutered: v === "yes" });
+                    }}
+                    options={[
+                      { id: "yes", label: "ทำหมันแล้ว" },
+                      { id: "no", label: "ยังไม่ทำ" },
                     ]}
                   />
                 </div>
