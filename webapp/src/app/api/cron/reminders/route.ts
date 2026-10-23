@@ -340,15 +340,8 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // นัดอาบน้ำ: ถามสมุดวัคซีน + กฎ/กดยินยอม ที่ยังขาด พ่วงไปกับการ์ดยืนยันเลย
-      // (นัดเข้าพักถามในชุดก่อนเข้าพักแทน — ส่งล่วงหน้ากว่า มีเวลาเตรียม)
-      if (primary.service === "groom") {
-        intake.push(...(await intakeCardsFor(group, "groom", cfg)));
-        if (cfg.automation?.intakeAutoEnabled !== false) {
-          const consent = await consentCardFor(group, primary, cfg);
-          if (consent) intake.push(consent);
-        }
-      }
+      // นัดอาบน้ำขอแค่ประวัติก่อนอาบน้ำ — สมุดวัคซีน บัตร และกฎ + กดยินยอม เป็นเรื่องของการเข้าพัก
+      // (ขอในชุดก่อนเข้าพักแทน ส่งล่วงหน้ากว่า มีเวลาเตรียม)
       // ขาดหลายเรื่อง = การ์ดใบเดียว ปุ่มเดียวไล่ทีละหน้า (เรื่องเดียว = การ์ดเดิม)
       dayMessages.push(
         ...mergeIntakeCards(
