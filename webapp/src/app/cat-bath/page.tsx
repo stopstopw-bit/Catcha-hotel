@@ -1,3 +1,4 @@
+import { VaccinePoster } from "@/components/VaccinePoster";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
@@ -252,6 +253,9 @@ export default async function CatBathPage() {
           </a>
         ))}
       </div>
+
+      {/* ก่อนอาบน้ำต้องฉีดวัคซีนให้ครบ */}
+      <VaccinePoster className="mx-auto mt-12 max-w-md" />
 
       {/* CTA */}
       <div className="mt-12 rounded-catcha bg-gradient-to-br from-honey/35 via-card to-latte/15 p-6 text-center shadow-catcha md:p-8">

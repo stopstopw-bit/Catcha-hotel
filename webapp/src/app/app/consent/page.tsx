@@ -16,6 +16,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { IntakeFlowBar } from "@/components/IntakeFlowBar";
+import { VaccinePoster } from "@/components/VaccinePoster";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
@@ -327,6 +328,8 @@ function ConsentContent() {
               </div>
             </div>
           )}
+
+          {isGroom && <VaccinePoster className="mt-5" />}
 
           <section className="mt-5">
             <SectionLabel>Terms · ข้อตกลง</SectionLabel>
