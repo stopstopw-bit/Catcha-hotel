@@ -60,6 +60,7 @@ import {
   getIntakeStatus,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
+import { getLineCredentials } from "@/lib/line-config";
 import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
 import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
@@ -677,6 +678,7 @@ function groomInfoCardFor(
           addIntake({
             kind: "consent",
             url,
+            ids: [b.id],
             card: buildConsentFlex({
               businessName: cfg.business.name,
               title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
@@ -822,6 +824,7 @@ function groomInfoCardFor(
           addIntake({
             kind: kind === "stay" ? "stayInfo" : "info",
             url: url || undefined,
+            ids: needInfo.map((x) => x.id),
             count: needInfo.length,
             card: buildGroomInfoFlex({
               catName: catNames,
@@ -860,6 +863,7 @@ function groomInfoCardFor(
           addIntake({
             kind: part,
             url,
+            ids: part === "vaccine" ? ask.map((x) => x.id) : [b.id],
             count: part === "vaccine" ? ask.length : undefined,
             card: buildDocRequestFlex({
               kind: part,
@@ -965,6 +969,7 @@ function groomInfoCardFor(
     }
 
     if (intake.length > 0) {
+      const liffId = (await getLineCredentials())?.liffId;
       messages.splice(
         intakeAt,
         0,
@@ -976,6 +981,7 @@ function groomInfoCardFor(
             businessName: cfg.business.name,
             dateText: bookingScheduleText(gb),
             always: intakeAlways,
+            flow: liffId ? { liffId, by: "b" } : undefined,
           },
           cfg.cards?.intake
         )

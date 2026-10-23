@@ -93,6 +93,7 @@ async function handlePost(req: NextRequest) {
       addIntake({
         kind: stay ? "stayInfo" : "info",
         url,
+        ids: ask.map((x) => x.id),
         count: ask.length,
         card: buildGroomInfoFlex(
           {
@@ -115,6 +116,7 @@ async function handlePost(req: NextRequest) {
       addIntake({
         kind: "vaccine",
         url,
+        ids: ask.map((x) => x.id),
         count: ask.length,
         card: buildDocRequestFlex(
           { kind: "vaccine", businessName: cfg.business.name, catName: ask.map((x) => x.name).join(", "), url },
@@ -178,6 +180,7 @@ async function handlePost(req: NextRequest) {
           service: parts.includes("stayInfo") || parts.includes("idcard") || !parts.includes("groomInfo") ? "stay" : "groom",
           catName: catNames,
           businessName: cfg.business.name,
+          flow: { liffId, by: "c" },
         },
         cfg.cards?.intake
       )
