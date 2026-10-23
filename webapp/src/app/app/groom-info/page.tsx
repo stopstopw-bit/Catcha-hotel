@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import { resolveGroomForm, type GroomField } from "@/lib/groom-form";
-import { resolveStayForm } from "@/lib/stay-form";
+import { BATH_SHARED_WITH_STAY, resolveStayForm } from "@/lib/stay-form";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
@@ -24,7 +24,12 @@ type CatForm = {
   weightUnknown: boolean;
   /** คำถามที่ข้ามให้ตัวนี้ (เช่น โรคประจำตัวที่ตอบไว้แล้วตอนสมัครสมาชิก) */
   skip: string[];
+  /** เข้าพัก + อาบก่อนกลับ — ถามเรื่องอาบน้ำต่อท้ายในฟอร์มเดียว (key ขึ้นต้น "g:") */
+  bath: boolean;
 };
+
+/** คำถามอาบน้ำในฟอร์มรวม — ใส่ "g:" กัน key ชนกับฝั่งเข้าพัก */
+const BATH_PREFIX = "g:";
 
 function emptyAnswers(fields: GroomField[]): Answers {
   const a: Answers = {};
@@ -75,6 +80,15 @@ function GroomInfoContent() {
   const kindParam = params.get("kind") || "";
   const [isStay, setIsStay] = useState(kindParam === "stay");
   const fields = isStay ? stayFields : groomFields;
+  // ส่วนอาบน้ำของฟอร์มรวม — ข้อที่ซ้ำกับฟอร์มเข้าพักถามครั้งเดียว (ใช้คำตอบฝั่งเข้าพัก)
+  const bathFields = useMemo(
+    () =>
+      groomFields
+        .filter((fd) => !(fd.key in BATH_SHARED_WITH_STAY))
+        .map((fd) => ({ ...fd, key: BATH_PREFIX + fd.key })),
+    [groomFields]
+  );
+  const fieldsFor = (f: CatForm) => (f.bath ? [...fields, ...bathFields] : fields);
 
   useEffect(() => {
     if (ids.length === 0) {
@@ -107,19 +121,21 @@ function GroomInfoContent() {
         results.forEach((d, i) => {
           if (!d?.found) return;
           const info = d.info || null;
+          const bath = stay && !!d.withBath;
           loaded.push({
             id: ids[i],
             catName: d.booking?.catName || "น้อง",
-            answers: loadAnswers(fs, info),
+            answers: { ...loadAnswers(fs, info), ...(bath ? emptyAnswers(bathFields) : {}) },
             weightUnknown: info?.weight === "unknown",
             skip: stay && d.knownMedical ? ["medical"] : [],
+            bath,
           });
         });
         setForms(loaded);
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString(), groomFields, stayFields, profile?.lineUserId]);
+  }, [params.toString(), groomFields, stayFields, bathFields, profile?.lineUserId]);
 
   const setAnswer = (idx: number, key: string, value: string | string[]) =>
     setForms((prev) =>
@@ -147,10 +163,10 @@ function GroomInfoContent() {
 
   /** คำถามที่บังคับตอบแล้วยังว่างอยู่ */
   const missingKeys = (f: CatForm) =>
-    fields
+    fieldsFor(f)
       .filter((fd) => {
         if (!fd.required || f.skip.includes(fd.key)) return false;
-        if (fd.key === "weight" && f.weightUnknown) return false;
+        if (fd.hasUnknownToggle && f.weightUnknown) return false;
         const v = f.answers[fd.key];
         return Array.isArray(v) ? v.length === 0 : !String(v || "").trim();
       })
@@ -169,8 +185,14 @@ function GroomInfoContent() {
     setSaveError("");
     try {
       const results = await Promise.all(
-        forms.map((f) =>
-          customerFetch("/api/bookings/groom-info", {
+        forms.map((f) => {
+          const own: Answers = {};
+          const bath: Answers = {};
+          for (const [k, v] of Object.entries(f.answers)) {
+            if (k.startsWith(BATH_PREFIX)) bath[k.slice(BATH_PREFIX.length)] = v;
+            else own[k] = v;
+          }
+          return customerFetch("/api/bookings/groom-info", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -178,12 +200,15 @@ function GroomInfoContent() {
               kind: isStay ? "stay" : "groom",
               lineUserId: profile?.lineUserId,
               info: {
-                ...f.answers,
-                weight: f.weightUnknown ? "unknown" : f.answers.weight || "",
+                ...own,
+                weight: f.weightUnknown ? "unknown" : own.weight || "",
               },
+              ...(f.bath
+                ? { groomInfo: { ...bath, weight: f.weightUnknown ? "unknown" : bath.weight || "" } }
+                : {}),
             }),
-          }).then((r) => r.ok)
-        )
+          }).then((r) => r.ok);
+        })
       );
       if (!results.every(Boolean)) {
         setSaveError("บันทึกไม่สำเร็จบางตัว — ลองใหม่อีกครั้ง หรือแจ้งพนักงานที่ร้านได้เลยค่ะ");
@@ -259,7 +284,7 @@ function GroomInfoContent() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow={isStay ? "Before your stay" : "Before grooming"}
-        title={isStay ? "ข้อมูลน้องก่อนเข้าพัก" : "ประวัติน้องก่อนอาบน้ำ"}
+        title={isStay ? (forms.some((f) => f.bath) ? "ข้อมูลน้องก่อนเข้าพัก + อาบน้ำ" : "ข้อมูลน้องก่อนเข้าพัก") : "ประวัติน้องก่อนอาบน้ำ"}
         back="/app"
         backLabel="กลับหน้าแรก"
         showLang={false}
@@ -303,11 +328,22 @@ function GroomInfoContent() {
                   </p>
                 )}
 
-                {fields.filter((fd) => !f.skip.includes(fd.key)).map((fd) => {
+                {fieldsFor(f).filter((fd) => !f.skip.includes(fd.key)).map((fd) => {
                   const isMissing = attempted && missing.includes(fd.key);
                   const value = f.answers[fd.key];
                   return (
                     <div key={fd.key}>
+                      {fd.key === bathFields[0]?.key && (
+                        <div className="mt-5 border-t border-catcha-line pt-4">
+                          <p className="flex items-center gap-1.5 text-sm font-extrabold text-catcha-chocolate">
+                            <Icon name="bath" size={16} />
+                            ก่อนอาบน้ำ (อาบก่อนกลับบ้าน)
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-brown-faint">
+                            น้องอาบน้ำก่อนกลับด้วย ขอถามเพิ่มอีกนิด ข้อที่ตอบไปแล้วด้านบนไม่ถามซ้ำค่ะ
+                          </p>
+                        </div>
+                      )}
                       <p
                         className={`mt-3 mb-1.5 text-xs font-bold ${
                           isMissing ? "text-wait" : "text-brown-soft"
@@ -356,7 +392,7 @@ function GroomInfoContent() {
                             onChange={(e) => setAnswer(idx, fd.key, e.target.value)}
                             disabled={fd.hasUnknownToggle && f.weightUnknown}
                             placeholder={fd.placeholder}
-                            inputMode={fd.key === "weight" ? "decimal" : undefined}
+                            inputMode={fd.hasUnknownToggle ? "decimal" : undefined}
                             className={`${inputClass} disabled:bg-paper/50 disabled:text-brown-faint`}
                           />
                           {fd.hasUnknownToggle && (
