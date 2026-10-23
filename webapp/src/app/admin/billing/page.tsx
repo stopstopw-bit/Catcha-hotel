@@ -28,6 +28,7 @@ import { priceSignature, findLastPrice } from "@/lib/special-price";
 import { groomPrefillForPet, itemIsForPet, lastGroomForPet, type PetCard } from "@/lib/pet-groom-memory";
 import { roomPricing, roomNightPrice } from "@/lib/room-board";
 import { isRoomLine, roomLineLabel, splitRoomLabel } from "@/lib/stay-line";
+import { normalizeLineDiscount, stripDiscountTag } from "@/lib/line-discount";
 import { dayCareLabel, dayCarePrice, isDayCareLabel, isDayCareStay } from "@/lib/day-care";
 import {
   isTransportLabel,
@@ -80,6 +81,8 @@ type Invoice = {
     catName?: string;
     qty?: number;
     unitAmount?: number;
+    discount?: number;
+    discountPercent?: number;
   }[];
 };
 
@@ -204,21 +207,16 @@ function joinCatNames(names: string[]): string | undefined {
 function computeLine(
   it: Item,
   programs: GroomProgram[] = GROOM_PROGRAMS
-): ReturnType<typeof computeLineBase> {
+): ReturnType<typeof computeLineBase> & { discount?: number; discountPercent?: number } {
   const base = computeLineBase(it, programs);
   const d = Math.max(0, it.discount || 0);
   if (it.kind === "freebie" || d <= 0 || base.amount <= 0) return base;
-  const off =
-    it.discountMode === "percent"
-      ? Math.round((base.amount * Math.min(100, d)) / 100)
-      : Math.min(base.amount, d);
-  if (off <= 0) return base;
-  const tag = it.discountMode === "percent" ? `ลด ${Math.min(100, d)}%` : `ลด ${off.toLocaleString()}฿`;
-  return {
+  // ส่งส่วนลดไปเป็นฟิลด์ของรายการ — เซิร์ฟเวอร์คิดยอด/ป้าย "(ส่วนลด …)" ด้วยสูตรเดียวกันนี้
+  // (เมื่อก่อนส่งไปแค่ยอดที่ลดแล้ว แต่เซิร์ฟเวอร์คิดใหม่จากราคาต่อหน่วย ส่วนลดเลยหายตอนออกบิลครั้งแรก)
+  return normalizeLineDiscount({
     ...base,
-    label: `${base.label} (${tag})`,
-    amount: base.amount - off,
-  };
+    ...(it.discountMode === "percent" ? { discountPercent: d } : { discount: d }),
+  });
 }
 
 function computeLineBase(
@@ -1309,7 +1307,17 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     if (inv.customerId) setCustomerId(inv.customerId);
     // โหลดรายการเป็นแบบ "พิมพ์เอง" (แก้ยอด/ชื่อได้) — เก็บของแถมฟรีด้วย
     setItems(
-      (inv.items || []).map((it) => {
+      (inv.items || []).map((raw) => {
+        // ส่วนลดเฉพาะรายการ: ถอดป้าย "(ส่วนลด …)" ออกจากชื่อ แล้วคิดจากราคาก่อนลด
+        // ช่อง "ลดเฉพาะรายการนี้" จะโหลดกลับมาให้ด้านล่าง (เมื่อก่อนหายตอนเปิดแก้บิล)
+        const it = {
+          ...raw,
+          label: stripDiscountTag(raw.label),
+          amount:
+            raw.unitAmount !== undefined
+              ? raw.unitAmount * Math.max(1, Math.round(raw.qty || 1))
+              : raw.amount,
+        };
         const qty = Math.max(1, Math.round(it.qty || 1));
         if (it.amount > 0 && isRoomLine(it)) {
           const { base, note } = splitRoomLabel(it.label.replace(/^🐱 .+? · /, ""));
@@ -1359,6 +1367,18 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
           // ช่องราคาของรายการ "พิมพ์เอง" คือราคาต่อหน่วย
           amount: it.unitAmount ?? Math.round(it.amount / qty),
         };
+      }).map((item, k) => {
+        const raw = inv.items![k];
+        if (raw.discountPercent) return { ...item, discount: raw.discountPercent, discountMode: "percent" as const };
+        // บิลเก่าไม่มีฟิลด์ส่วนลด → ถอดจากส่วนต่างราคาเต็มกับยอดจริง
+        const off =
+          raw.discount ??
+          (raw.unitAmount !== undefined
+            ? raw.unitAmount * Math.max(1, Math.round(raw.qty || 1)) - raw.amount
+            : 0);
+        return off > 0 && item.kind !== "freebie"
+          ? { ...item, discount: off, discountMode: "baht" as const }
+          : item;
       })
     );
     setBillDeposit(inv.deposit ? String(inv.deposit) : "");
@@ -2915,12 +2935,33 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
 
             {inv.items && inv.items.length > 0 && (
               <div className="mt-3 space-y-1 rounded-catcha-sm bg-paper/60 px-3 py-2 text-xs text-brown-soft">
-                {inv.items.map((it, k) => (
-                  <div key={k} className="flex justify-between gap-2">
-                    <span className="min-w-0 truncate">{it.label}</span>
-                    <span className="shrink-0">{it.amount.toLocaleString()} ฿</span>
-                  </div>
-                ))}
+                {inv.items.map((it, k) => {
+                  // ส่วนลดเฉพาะรายการ — โชว์ราคาเต็มขีดฆ่า + บรรทัด "ส่วนลด" แยกให้เห็นชัด
+                  const gross =
+                    it.unitAmount !== undefined ? it.unitAmount * Math.max(1, it.qty || 1) : it.amount;
+                  const off = it.kind === "freebie" ? 0 : gross - it.amount;
+                  return (
+                    <div key={k}>
+                      <div className="flex justify-between gap-2">
+                        <span className="min-w-0 truncate">{off > 0 ? stripDiscountTag(it.label) : it.label}</span>
+                        <span className="shrink-0">
+                          {off > 0 && (
+                            <s className="mr-1 text-brown-faint">{gross.toLocaleString()}</s>
+                          )}
+                          {it.amount.toLocaleString()} ฿
+                        </span>
+                      </div>
+                      {off > 0 && (
+                        <div className="flex justify-between gap-2 pl-2 text-[11px] font-bold text-ok">
+                          <span>
+                            ส่วนลดรายการนี้{it.discountPercent ? ` ${it.discountPercent}%` : ""}
+                          </span>
+                          <span>-{off.toLocaleString()} ฿</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {inv.discount ? (
                   <div className="flex justify-between border-t border-catcha-line pt-1 text-wait">
                     <span>ส่วนลด{inv.promoLabel ? ` (${inv.promoLabel})` : ""}</span>

@@ -14,6 +14,7 @@ import { MISS_YOU_DEFAULT_TITLE } from "./miss-you-card";
 import { DOC_REQUEST_DEFAULTS, INTAKE_CARD_DEFAULTS } from "./line-card-defaults";
 import { encodeFlow, type FlowBy, type FlowStep, type FlowToken } from "./intake-flow";
 import { buildLiffUrl } from "./liff-urls";
+import { splitDiscountTag } from "./line-discount";
 
 export { DOC_REQUEST_DEFAULTS, INTAKE_CARD_DEFAULTS };
 
@@ -922,28 +923,46 @@ export function buildBillSummaryFlex(data: {
       layout: "vertical",
       margin: "lg",
       spacing: "xs",
-      contents: paidItems.map((i) => ({
-        type: "box",
-        layout: "horizontal",
-        contents: [
+      contents: paidItems.flatMap((i) => {
+        // ส่วนลดเฉพาะรายการ → บรรทัดสีเขียว "ส่วนลด …" ใต้รายการ ให้ลูกค้าเห็นชัดว่าลดแล้ว
+        const { label, tag } = splitDiscountTag(i.label);
+        return [
           {
-            type: "text",
-            text: i.label,
-            size: "sm",
-            color: "#4E3E32",
-            flex: 4,
-            wrap: true,
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: label,
+                size: "sm",
+                color: "#4E3E32",
+                flex: 4,
+                wrap: true,
+              },
+              {
+                type: "text",
+                text: money(i.amount),
+                size: "sm",
+                color: "#4E3E32",
+                align: "end",
+                flex: 3,
+              },
+            ],
           },
-          {
-            type: "text",
-            text: money(i.amount),
-            size: "sm",
-            color: "#4E3E32",
-            align: "end",
-            flex: 3,
-          },
-        ],
-      })),
+          ...(tag
+            ? [
+                {
+                  type: "text",
+                  text: `↳ ${tag}`,
+                  size: "xs",
+                  weight: "bold",
+                  color: "#4A7348",
+                  wrap: true,
+                },
+              ]
+            : []),
+        ];
+      }),
     },
   ];
 
