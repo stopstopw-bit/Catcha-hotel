@@ -5,6 +5,7 @@ import { useLocale } from "@/components/LocaleProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import { BookingOnlyNotice, LineBookingCta, PageHeader } from "@/components/PageHeader";
 import { ContentBlocks } from "@/components/ContentBlocks";
+import { VaccinePoster } from "@/components/VaccinePoster";
 
 const GROOMING_MENU_POSTER = "/catalog/grooming/grooming-menu.jpg";
 const LEGACY_POSTERS = new Set([
@@ -49,6 +50,8 @@ export default function GroomingPage() {
             <img src={src} alt="" className="block w-full h-auto" />
           </div>
         ))}
+        {/* ก่อนอาบน้ำต้องฉีดวัคซีนให้ครบ — นัดอาบน้ำขอสมุดวัคซีนทุกครั้ง */}
+        <VaccinePoster />
       </div>
 
       <ContentBlocks blocks={config.groomingPageBlocks} />
