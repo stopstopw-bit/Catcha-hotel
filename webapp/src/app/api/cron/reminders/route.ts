@@ -19,6 +19,7 @@ import {
   type IntakeEntry,
 } from "@/lib/line";
 import { getPaymentConfig } from "@/lib/payment-config";
+import { getLineCredentials } from "@/lib/line-config";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import {
   buildDepositReminderText,
@@ -87,6 +88,7 @@ async function intakeCardsFor(
         kind: "stayInfo",
         url: url || undefined,
         count: needStay.length,
+        ids: needStay.map((x) => x.id),
         card: buildGroomInfoFlex(
           {
             catName: names(needStay),
@@ -114,6 +116,8 @@ async function intakeCardsFor(
       out.push({
         kind: "vaccine",
         url,
+        count: needVaccine.length,
+        ids: needVaccine.map((x) => x.id),
         card: buildDocRequestFlex(
           {
             kind: "vaccine",
@@ -134,6 +138,7 @@ async function intakeCardsFor(
       out.push({
         kind: "idcard",
         url,
+        ids: [primary.id],
         card: buildDocRequestFlex(
           {
             kind: "idcard",
@@ -172,7 +177,7 @@ async function consentCardFor(
     },
     cfg.cards?.consent
   );
-  return { kind: "consent", url: consentUrl, card };
+  return { kind: "consent", url: consentUrl, ids: [b.id], card };
 }
 
 /** Cron 12:00 น. ไทย (05:00 UTC) — ยืนยันนัดพรุ่งนี้ + เตือนมัดจำ 7 วัน + รายละเอียดเข้าพัก 3 วันก่อน */
@@ -182,6 +187,8 @@ export async function GET(req: NextRequest) {
 
   const cfg = await getSiteConfig();
   const auto = cfg.automation;
+  /** การ์ดรวมขอข้อมูลใช้ปุ่มเดียวไล่ทีละหน้า — ต้องมี LIFF ID */
+  const liffId = (await getLineCredentials())?.liffId;
   const errors: string[] = [];
   let sent = 0;
   let groomInfoCards = 0;
@@ -314,6 +321,7 @@ export async function GET(req: NextRequest) {
             kind: "info",
             url: url || undefined,
             count: needInfo.length,
+            ids: needInfo.map((x) => x.b.id),
             card: buildGroomInfoFlex({
               catName: names,
               dateText: primary.date ? `📅 นัดอาบน้ำ: ${primary.date}${primary.time ? ` ${primary.time}` : ""}` : undefined,
@@ -341,7 +349,7 @@ export async function GET(req: NextRequest) {
           if (consent) intake.push(consent);
         }
       }
-      // ขาดหลายเรื่อง = การ์ดใบเดียวหลายปุ่ม (เรื่องเดียว = การ์ดเดิม)
+      // ขาดหลายเรื่อง = การ์ดใบเดียว ปุ่มเดียวไล่ทีละหน้า (เรื่องเดียว = การ์ดเดิม)
       dayMessages.push(
         ...mergeIntakeCards(
           intake,
@@ -350,6 +358,7 @@ export async function GET(req: NextRequest) {
             catName: catLabel,
             businessName: cfg.business.name,
             dateText: bookingScheduleText(primary),
+            flow: liffId ? { liffId, by: "b" } : undefined,
           },
           cfg.cards?.intake
         )
@@ -438,7 +447,7 @@ export async function GET(req: NextRequest) {
         }, cfg.cards?.prestay),
       ];
       // กฎ + กดยินยอม (ปิดรายนัดได้ ไม่ส่งซ้ำถ้ากดยอมรับนัดนี้แล้ว) + ข้อมูลก่อนเข้าพัก / สมุดวัคซีน /
-      // บัตรประชาชน ที่ยังขาด — ขาดหลายเรื่องรวมเป็นการ์ดใบเดียวหลายปุ่ม
+      // บัตรประชาชน ที่ยังขาด — ขาดหลายเรื่องรวมเป็นการ์ดใบเดียว ปุ่มเดียวไล่ทีละหน้า
       const consent = await consentCardFor(group, b, cfg);
       const intake = [...(consent ? [consent] : []), ...(await intakeCardsFor(group, "room", cfg))];
       prestayBundle.push(
@@ -449,6 +458,7 @@ export async function GET(req: NextRequest) {
             catName: String(b.catName),
             businessName: cfg.business.name,
             dateText: bookingScheduleText(b),
+            flow: liffId ? { liffId, by: "b" } : undefined,
           },
           cfg.cards?.intake
         )

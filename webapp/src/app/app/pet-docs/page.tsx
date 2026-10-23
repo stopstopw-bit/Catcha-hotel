@@ -13,6 +13,8 @@ import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS, splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
+import { IntakeFlowBar } from "@/components/IntakeFlowBar";
+import { flowProgress } from "@/lib/intake-flow";
 
 type StayBooking = Booking & { checkin?: string; room?: string; vaccinePhotoUrl?: string };
 
@@ -108,6 +110,8 @@ function PetDocsContent() {
     if (!cat) return false;
     return isStayTarget(t) ? !cat.hasStayInfo : !cat.hasPetInfo;
   });
+  // มาจากการ์ดรวมขอข้อมูล (ไล่ทีละหน้า) = ขั้นประวัติผ่านมาแล้ว/ไม่ต้องทำ — ไม่ชวนกรอกซ้ำ
+  const inFlow = !!flowProgress(params);
   const infoHref = idsKey
     ? `/app/groom-info?id=${noInfo.map((t) => t.key).join(",")}`
     : `/app/groom-info?cats=${noInfo.map((t) => t.key).join(",")}&kind=stay`;
@@ -122,11 +126,15 @@ function PetDocsContent() {
         backLabel="กลับหน้าแรก"
         showLang={false}
       />
+      <IntakeFlowBar mode="progress" />
 
       {!ready || (loading && !!profile?.lineUserId) ? (
         <LoadingScreen />
       ) : need === "idcard" ? (
-        <IdCardSection stay={stay} />
+        <>
+          <IdCardSection stay={stay} />
+          <IntakeFlowBar mode="next" />
+        </>
       ) : targets.length === 0 ? (
         <EmptyState icon="paw" title="ไม่พบข้อมูลน้อง" />
       ) : (
@@ -134,7 +142,7 @@ function PetDocsContent() {
           {targets.map((t) => (
             <VaccineSection key={t.key} target={t} />
           ))}
-          {noInfo.length > 0 && (
+          {!inFlow && noInfo.length > 0 && (
             <a
               href={infoHref}
               className="flex min-h-[56px] items-center gap-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm"
@@ -151,6 +159,7 @@ function PetDocsContent() {
               <Icon name="chevron" size={16} className="text-brown-faint" />
             </a>
           )}
+          <IntakeFlowBar mode="next" />
         </div>
       )}
     </div>

@@ -60,6 +60,7 @@ import {
   getIntakeStatus,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
+import { getLineCredentials } from "@/lib/line-config";
 import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
 import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
 import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
@@ -608,14 +609,19 @@ function groomInfoCardFor(
   // ── 📋 การ์ดรวมขอข้อมูล — ใบเดียวหลายปุ่ม เฉพาะเรื่องที่บ้านนี้ยังขาด (ประวัติ/สมุดวัคซีน/บัตร/กฎ + มัดจำถ้าใส่ยอดมา) ──
   // ใช้ทางเดียวกับชุดการ์ด แค่เลือกหัวข้อให้เองตามบริการ แล้วบังคับรวมเป็นใบเดียวแม้เหลือเรื่องเดียว
   const intakeAlways = action === "send_intake";
+  /** แยกเป็นการ์ดทีละใบ (ร้านเลือกตอนกดส่ง) — ไม่รวมเป็นใบเดียว */
+  const intakeSeparate = intakeAlways && body.separate === true;
   if (intakeAlways) {
     const room = b.service === "room";
+    const hasDeposit = Number(body.depositAmount) > 0;
+    // ร้านติ๊กเลือกเองว่าจะขออะไรบ้าง · ไม่ส่งมา = ทุกเรื่องตามบริการ (ระบบยังข้ามเรื่องที่ส่งแล้วให้)
+    const allowed = new Set(["stayInfo", "groomInfo", "vaccine", "idcard", "consent"]);
+    const picked: string[] | null = Array.isArray(body.parts)
+      ? body.parts.map(String).filter((x: string) => allowed.has(x))
+      : null;
     body.parts = [
-      room ? "stayInfo" : "groomInfo",
-      "vaccine",
-      ...(room ? ["idcard"] : []),
-      "consent",
-      ...(Number(body.depositAmount) > 0 ? ["deposit"] : []),
+      ...(picked ?? [room ? "stayInfo" : "groomInfo", "vaccine", ...(room ? ["idcard"] : []), "consent"]),
+      ...(hasDeposit ? ["deposit"] : []),
     ];
   }
   if (action === "send_bundle" || intakeAlways) {
@@ -677,6 +683,7 @@ function groomInfoCardFor(
           addIntake({
             kind: "consent",
             url,
+            ids: [b.id],
             card: buildConsentFlex({
               businessName: cfg.business.name,
               title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
@@ -822,6 +829,7 @@ function groomInfoCardFor(
           addIntake({
             kind: kind === "stay" ? "stayInfo" : "info",
             url: url || undefined,
+            ids: needInfo.map((x) => x.id),
             count: needInfo.length,
             card: buildGroomInfoFlex({
               catName: catNames,
@@ -860,6 +868,7 @@ function groomInfoCardFor(
           addIntake({
             kind: part,
             url,
+            ids: part === "vaccine" ? ask.map((x) => x.id) : [b.id],
             count: part === "vaccine" ? ask.length : undefined,
             card: buildDocRequestFlex({
               kind: part,
@@ -964,7 +973,10 @@ function groomInfoCardFor(
       }
     }
 
-    if (intake.length > 0) {
+    if (intake.length > 0 && intakeSeparate) {
+      messages.splice(intakeAt, 0, ...intake.map((e) => e.card));
+    } else if (intake.length > 0) {
+      const liffId = (await getLineCredentials())?.liffId;
       messages.splice(
         intakeAt,
         0,
@@ -976,6 +988,7 @@ function groomInfoCardFor(
             businessName: cfg.business.name,
             dateText: bookingScheduleText(gb),
             always: intakeAlways,
+            flow: liffId ? { liffId, by: "b" } : undefined,
           },
           cfg.cards?.intake
         )
