@@ -15,6 +15,7 @@ import type { BookingTransport } from "@/lib/transport";
 import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
 import { UNKNOWN_CAT, isUnknownCat } from "@/lib/unknown-cat";
+import { PetProgramSelect } from "@/components/GroomProgramPicker";
 import { dayCarePrice } from "@/lib/day-care";
 import {
   typeAvailability,
@@ -430,11 +431,16 @@ export default function NewBookingPage() {
 
   // เวลานัดอาบน้ำ — ใช้เช็กว่าชนกับคิวที่มีอยู่ไหม
   const [groomTime, setGroomTime] = useState("12:30");
+  const [groomProgram, setGroomProgram] = useState("");
+  // แต่ละตัวอาบคนละโปรแกรมได้ — ค่าที่แก้รายตัว (ตามชื่อน้อง) ทับโปรแกรมรวม
+  const [petPrograms, setPetPrograms] = useState<Record<string, string>>({});
   /** เข้าพัก + อาบน้ำด้วย — บันทึกแล้วสร้างนัดอาบน้ำให้อีกนัด (วันว่าง = วันออก) */
   const [alsoGroom, setAlsoGroom] = useState(false);
   const [addGroomDate, setAddGroomDate] = useState("");
   const [addGroomTime, setAddGroomTime] = useState("12:30");
   const [addGroomProgram, setAddGroomProgram] = useState("");
+  const [addPetPrograms, setAddPetPrograms] = useState<Record<string, string>>({});
+  const bookingCats = catNames.length > 0 ? catNames : catInput.trim() ? [catInput.trim()] : [];
   const withGroom = service === "room" && alsoGroom;
   /** นัดอาบน้ำก่อนกลับที่เพิ่งบันทึกไปพร้อมการเข้าพัก — โชว์ในแผงจองสำเร็จ */
   const [lastBath, setLastBath] = useState<{ date: string; time: string } | null>(null);
@@ -588,8 +594,6 @@ export default function NewBookingPage() {
       service,
       date: service === "groom" ? String(fd.get("date") || "") : undefined,
       time: service === "groom" ? String(fd.get("time") || "") : undefined,
-      groomProgram:
-        service === "groom" ? String(fd.get("groomProgram") || "") || undefined : undefined,
       room: service === "room" ? String(fd.get("room") || "") : undefined,
       roomUnit:
         service === "room" && fd.get("roomUnit")
@@ -650,6 +654,9 @@ export default function NewBookingPage() {
             : twoRooms
               ? { roomUnit: unit1 ?? undefined }
               : {}),
+          ...(service === "groom"
+            ? { groomProgram: (petPrograms[cat] ?? groomProgram) || undefined }
+            : {}),
           catName: cat,
         }),
       });
@@ -683,7 +690,7 @@ export default function NewBookingPage() {
             service: "groom",
             date: addGroomDate,
             time: addGroomTime,
-            groomProgram: addGroomProgram || undefined,
+            groomProgram: (addPetPrograms[stay.catName] ?? addGroomProgram) || undefined,
             catName: stay.catName,
           }),
         });
@@ -723,6 +730,9 @@ export default function NewBookingPage() {
       setAlsoGroom(false);
       setGroomDateTouched(false);
       setAddGroomProgram("");
+      setAddPetPrograms({});
+      setGroomProgram("");
+      setPetPrograms({});
       setRoomUnit(null);
       closeRoom2();
       form.reset();
@@ -921,10 +931,13 @@ export default function NewBookingPage() {
             </label>
 
             <label className="block text-xs font-bold text-brown-soft">
-              โปรแกรมอาบน้ำ (ถ้าลูกค้าเลือกมาแล้ว)
+              {bookingCats.length > 1 ? "โปรแกรมอาบน้ำ — ทุกตัว (ถ้าลูกค้าเลือกมาแล้ว)" : "โปรแกรมอาบน้ำ (ถ้าลูกค้าเลือกมาแล้ว)"}
               <select
-                name="groomProgram"
-                defaultValue=""
+                value={groomProgram}
+                onChange={(e) => {
+                  setGroomProgram(e.target.value);
+                  setPetPrograms({});
+                }}
                 className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown"
               >
                 <option value="">— ยังไม่ระบุ (เลือกตอนคิดเงิน) —</option>
@@ -935,9 +948,29 @@ export default function NewBookingPage() {
                 ))}
               </select>
               <p className="mt-1 text-[10px] text-brown-faint">
+                {bookingCats.length > 1 ? "ตัวไหนอาบไม่เหมือนกัน เปลี่ยนได้ที่ช่องใต้ชื่อน้องด้านล่าง · " : ""}
                 เลือกไว้แล้วจะติดไปในนัด · การ์ดแจ้งเตือน · และเด้งเข้าบิลให้อัตโนมัติ
               </p>
             </label>
+            {bookingCats.length > 1 && (
+                <ul className="space-y-1.5">
+                  {bookingCats.map((cat, i) => (
+                    <li
+                      key={`${cat}-${i}`}
+                      className="flex flex-wrap items-center gap-2 rounded-catcha-sm bg-paper px-3 py-1.5"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-brown">{cat}</span>
+                      <PetProgramSelect
+                        cat={cat}
+                        value={petPrograms[cat] ?? groomProgram}
+                        onChange={(v) => setPetPrograms((p) => ({ ...p, [cat]: v }))}
+                        programs={groomPrograms}
+                        emptyLabel="— ยังไม่ระบุ (เลือกตอนคิดเงิน) —"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
           </>
         ) : (
           <>
@@ -1234,10 +1267,13 @@ export default function NewBookingPage() {
                     <GroomClashNote clashes={clashes} />
                   </label>
                   <label className="block text-xs font-bold text-brown-soft">
-                    โปรแกรมอาบน้ำ (ถ้าเลือกแล้ว)
+                    {bookingCats.length > 1 ? "โปรแกรมอาบน้ำ — ทุกตัว (ถ้าเลือกแล้ว)" : "โปรแกรมอาบน้ำ (ถ้าเลือกแล้ว)"}
                     <select
                       value={addGroomProgram}
-                      onChange={(e) => setAddGroomProgram(e.target.value)}
+                      onChange={(e) => {
+                        setAddGroomProgram(e.target.value);
+                        setAddPetPrograms({});
+                      }}
                       className="mt-1 min-h-[44px] w-full rounded-catcha-sm border border-catcha-line bg-card px-3 py-2.5 text-sm text-brown"
                     >
                       <option value="">— ยังไม่ระบุ (เลือกตอนคิดเงิน) —</option>
@@ -1248,6 +1284,25 @@ export default function NewBookingPage() {
                       ))}
                     </select>
                   </label>
+                  {bookingCats.length > 1 && (
+                <ul className="space-y-1.5">
+                  {bookingCats.map((cat, i) => (
+                    <li
+                      key={`${cat}-${i}`}
+                      className="flex flex-wrap items-center gap-2 rounded-catcha-sm bg-card px-3 py-1.5"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-brown">{cat}</span>
+                      <PetProgramSelect
+                        cat={cat}
+                        value={addPetPrograms[cat] ?? addGroomProgram}
+                        onChange={(v) => setAddPetPrograms((p) => ({ ...p, [cat]: v }))}
+                        programs={groomPrograms}
+                        emptyLabel="— ยังไม่ระบุ (เลือกตอนคิดเงิน) —"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
                   <p className="text-[10px] text-brown-faint">
                     รวมเป็นนัดเดียวกับการเข้าพัก บิลใบเดียว · ระบบจองคิวอาบน้ำวันนั้นให้น้องทุกตัวที่เลือก (กันเวลาช่าง) ไม่ส่งยืนยันนัดอาบน้ำแยก
                   </p>

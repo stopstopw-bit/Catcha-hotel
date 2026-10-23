@@ -163,6 +163,8 @@ export function buildAppointmentConfirmFlex(booking: {
   notes?: string;
   /** โปรแกรมอาบน้ำที่เลือกไว้ (id ของ GROOM_PROGRAMS) — โชว์ให้ลูกค้าเห็นว่าอาบโปรแกรมไหน */
   groomProgram?: string;
+  /** ข้อความโปรแกรมที่คำนวณไว้แล้ว (ชื่อจากตั้งค่าร้าน / รายตัวเมื่อหลายตัวคนละโปรแกรม) — ทับ groomProgram */
+  programText?: string;
   /** บริการรับ-ส่ง — โชว์แถวรับ-ส่ง + ปุ่มให้ลูกค้าส่งจุดรับ-ส่ง (ลิงก์ Google Maps) */
   transport?: BookingTransport;
   transportUrl?: string;
@@ -246,8 +248,14 @@ export function buildAppointmentConfirmFlex(booking: {
           flexDetailRow("🗓️", t("dateLabel", "วันที่"), dateText),
           flexDetailRow("⏰", t("timeLabel", "เวลา / รายละเอียด"), timeText),
           // เฉพาะนัดอาบน้ำที่เลือกโปรแกรมไว้ — โชว์ว่าอาบโปรแกรมไหน ลูกค้าจะได้ไม่ต้องถามซ้ำ
-          ...(!isRoom && groomProgramName(booking.groomProgram)
-            ? [flexDetailRow("🛁", t("programLabel", "โปรแกรมอาบน้ำ"), groomProgramName(booking.groomProgram))]
+          ...(!isRoom && (booking.programText || groomProgramName(booking.groomProgram))
+            ? [
+                flexDetailRow(
+                  "🛁",
+                  t("programLabel", "โปรแกรมอาบน้ำ"),
+                  booking.programText || groomProgramName(booking.groomProgram)
+                ),
+              ]
             : []),
           ...(show("location") && booking.location
             ? [flexDetailRow("📍", t("locationLabel", "สถานที่"), booking.location)]
