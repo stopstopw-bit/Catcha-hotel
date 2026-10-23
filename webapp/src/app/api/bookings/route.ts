@@ -820,7 +820,7 @@ function groomInfoCardFor(
           const catNames = needInfo.map((x) => x.catName).join(", ");
           const card = groomInfoCardFor(b, cfg, kind);
           addIntake({
-            kind: "info",
+            kind: kind === "stay" ? "stayInfo" : "info",
             url: url || undefined,
             count: needInfo.length,
             card: buildGroomInfoFlex({

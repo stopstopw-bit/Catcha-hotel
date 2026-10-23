@@ -405,6 +405,8 @@ export function buildConsentFlex(data: {
   businessName: string;
   title: string;
   catName: string;
+  /** อีโมจิน้อง — ไม่ส่ง = 🐱 */
+  petEmoji?: string;
   checkin?: string;
   checkout?: string;
   room?: string;
@@ -432,7 +434,7 @@ export function buildConsentFlex(data: {
     },
     {
       type: "text",
-      text: `${data.businessName} · 🐱 ${politeCat(data.catName)}`,
+      text: `${data.businessName} · ${data.petEmoji || "🐱"} ${politeCat(data.catName)}`,
       size: "xs",
       color: "#A2907E",
       margin: "md",
@@ -1157,6 +1159,8 @@ export function buildBillSummaryFlex(data: {
 export function buildPrestayFlex(data: {
   businessName: string;
   catName: string;
+  /** อีโมจิน้อง — ไม่ส่ง = 🐱 */
+  petEmoji?: string;
   /** ช่วงวันเข้าพัก จัดรูปแล้ว เช่น "12 ก.ค. 2569 → 17 ก.ค. 2569" */
   dateText: string;
   room?: string;
@@ -1174,7 +1178,7 @@ export function buildPrestayFlex(data: {
     // ชื่อน้อง + ร้าน
     {
       type: "text",
-      text: `🐱 ${politeCat(data.catName)}`,
+      text: `${data.petEmoji || "🐱"} ${politeCat(data.catName)}`,
       weight: "bold",
       size: style?.titleSize || "xl",
       color: style?.accentColor || "#5C4033",
@@ -1526,6 +1530,8 @@ export const STAY_INFO_HEADER = "🐾 ข้อมูลน้องก่อน
 /** การ์ดสอบถามประวัติน้องก่อนอาบน้ำ — ข้อความ + ปุ่มไปกรอกแบบฟอร์มใน LIFF */
 export function buildGroomInfoFlex(data: {
   catName: string;
+  /** อีโมจิน้อง — ไม่ส่ง = 🐱 */
+  petEmoji?: string;
   dateText?: string;
   body: string;
   url?: string;
@@ -1536,7 +1542,7 @@ export function buildGroomInfoFlex(data: {
   const contents: Record<string, unknown>[] = [
     {
       type: "text",
-      text: `🐱 ${politeCat(data.catName)}`,
+      text: `${data.petEmoji || "🐱"} ${politeCat(data.catName)}`,
       weight: "bold",
       size: st.titleSize || "lg",
       color: st.accentColor || "#5C4033",
@@ -1623,6 +1629,8 @@ export function buildDocRequestFlex(data: {
   kind: "vaccine" | "idcard";
   businessName: string;
   catName: string;
+  /** อีโมจิน้อง — ไม่ส่ง = 🐱 */
+  petEmoji?: string;
   dateText?: string;
   url: string;
 }, style?: CardStyleConfig) {
@@ -1634,7 +1642,7 @@ export function buildDocRequestFlex(data: {
   const contents: Record<string, unknown>[] = [
     {
       type: "text",
-      text: `🐱 ${politeCat(data.catName)}`,
+      text: `${data.petEmoji || "🐱"} ${politeCat(data.catName)}`,
       weight: "bold",
       size: st.titleSize || "lg",
       color: st.accentColor || "#5C4033",
@@ -1695,7 +1703,8 @@ export function buildDocRequestFlex(data: {
  * ข้อความแก้ได้ใน /admin/cards (cards.intake) · หัวการ์ดตามบริการ (เข้าพัก / อาบน้ำ)
  */
 
-export type IntakeButtonKind = "info" | "vaccine" | "idcard" | "consent";
+/** stayInfo = ฟอร์มข้อมูลก่อนเข้าพัก · info = ประวัติก่อนอาบน้ำ (คนละฟอร์ม ป้ายปุ่มต้องไม่ซ้ำกัน) */
+export type IntakeButtonKind = "stayInfo" | "info" | "vaccine" | "idcard" | "consent";
 export type IntakeDeposit = {
   amount: number;
   bankName: string;
@@ -1706,6 +1715,8 @@ export type IntakeDeposit = {
 export function buildIntakeFlex(data: {
   service: "stay" | "groom";
   catName: string;
+  /** อีโมจิน้อง — ไม่ส่ง = 🐱 */
+  petEmoji?: string;
   businessName: string;
   dateText?: string;
   buttons: { kind: IntakeButtonKind; url: string; count?: number }[];
@@ -1716,7 +1727,7 @@ export function buildIntakeFlex(data: {
   const header = data.service === "stay" ? t("headerStay") : t("headerGroom");
   const cat = politeCat(data.catName);
   const contents: Record<string, unknown>[] = [
-    { type: "text", text: `🐱 ${cat}`, weight: "bold", size: st.titleSize || "lg", color: st.accentColor || "#5C4033", wrap: true },
+    { type: "text", text: `${data.petEmoji || "🐱"} ${cat}`, weight: "bold", size: st.titleSize || "lg", color: st.accentColor || "#5C4033", wrap: true },
     {
       type: "text",
       text: data.dateText ? `${data.businessName} · ${data.dateText}` : data.businessName,
@@ -1780,6 +1791,7 @@ export function buildIntakeFlex(data: {
   }
 
   const label: Record<IntakeButtonKind, string> = {
+    stayInfo: t("stayInfoButton"),
     info: t("infoButton"),
     vaccine: t("vaccineButton"),
     idcard: t("idcardButton"),
@@ -1835,7 +1847,7 @@ export type IntakeEntry = {
   deposit?: IntakeDeposit;
 };
 
-const INTAKE_ORDER: IntakeEntry["kind"][] = ["info", "vaccine", "idcard", "consent", "deposit"];
+const INTAKE_ORDER: IntakeEntry["kind"][] = ["stayInfo", "info", "vaccine", "idcard", "consent", "deposit"];
 
 /**
  * รวมหลายเรื่องเป็นการ์ดใบเดียว (ประหยัดโควตา LINE + ลูกค้าไม่ต้องไล่อ่านหลายใบ)
@@ -1843,7 +1855,14 @@ const INTAKE_ORDER: IntakeEntry["kind"][] = ["info", "vaccine", "idcard", "conse
  */
 export function mergeIntakeCards(
   entries: IntakeEntry[],
-  ctx: { service: "stay" | "groom"; catName: string; businessName: string; dateText?: string; always?: boolean },
+  ctx: {
+    service: "stay" | "groom";
+    catName: string;
+    businessName: string;
+    dateText?: string;
+    always?: boolean;
+    petEmoji?: string;
+  },
   style?: CardStyleConfig
 ): object[] {
   if (entries.length === 0) return [];
@@ -1854,6 +1873,7 @@ export function mergeIntakeCards(
       {
         service: ctx.service,
         catName: ctx.catName,
+        petEmoji: ctx.petEmoji,
         businessName: ctx.businessName,
         dateText: ctx.dateText,
         buttons: sorted
