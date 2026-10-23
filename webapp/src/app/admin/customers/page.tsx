@@ -17,6 +17,9 @@ import { AddCustomerModal } from "@/components/AddCustomerModal";
 import { EditCustomerSheet } from "@/components/EditCustomerSheet";
 import { CatServiceHistory } from "@/components/CatServiceHistory";
 import type { HistoryBill } from "@/lib/cat-service-history";
+import { pastPriceList, type PastInvoice } from "@/lib/special-price";
+import { lastGroomForPet } from "@/lib/pet-groom-memory";
+import { PastPricesList } from "@/components/PastPrices";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { CustomerIntakeCards } from "@/components/CustomerIntakeCards";
@@ -673,6 +676,43 @@ function formatThaiDateTimeShort(iso: string) {
  * แต่ไม่เคยโผล่ที่ไหนในหลังบ้านเลย — ต้องไปหาทีละนัดในปฏิทินเอง ตอนนี้รวมมาไว้ที่นี่
  * ที่เดียว จะได้ใช้เป็นหลักฐานได้ทันทีถ้ามีปัญหา ไม่ต้องไล่หา
  */
+/** บิลย่อในประวัติลูกค้า → รูปแบบที่ special-price / pet-groom-memory อ่านได้ */
+function billsAsPast(bills?: HistoryBill[]): PastInvoice[] {
+  return (bills || []).map((b) => ({
+    createdAt: b.date,
+    items: b.items.map((it) => ({ ...it, amount: it.amount ?? 0 })),
+  }));
+}
+
+/**
+ * ราคาที่ลูกค้าคนนี้เคยจ่าย แยกน้องแต่ละตัว + บริการ — อ่านจากบิล ไม่ต้องกรอกเพิ่ม
+ * น้องที่ได้ราคาพิเศษ พนักงานคนไหนเปิดดูก็รู้ราคาเดิม (หน้าคิดเงินจะถามให้ใช้ราคาเดิมเองด้วย)
+ */
+function PastPricesSection({ bills }: { bills?: HistoryBill[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const prices = pastPriceList(billsAsPast(bills));
+  if (prices.length === 0) return null;
+  return (
+    <section className="mb-4 rounded-catcha bg-card p-4 shadow-catcha-sm">
+      <CardHeader
+        icon="money"
+        title="ราคาที่ลูกค้าคนนี้เคยจ่าย"
+        sub="ราคาล่าสุดของน้องแต่ละตัว แยกตามบริการ · ตอนออกบิลระบบจะถามให้ใช้ราคาเดิม"
+      />
+      <PastPricesList prices={prices} limit={showAll ? undefined : 6} />
+      {prices.length > 6 && !showAll && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-2 min-h-[40px] w-full rounded-catcha-sm bg-paper py-2 text-xs font-extrabold text-latte-deep"
+        >
+          ดูทั้งหมดอีก {prices.length - 6} รายการ
+        </button>
+      )}
+    </section>
+  );
+}
+
 function StaysConsentSection({ bookings }: { bookings: EditableBooking[] }) {
   // ชื่อห้องจริงแทน id (catflix → Catflix & Chill)
   const [roomNames, setRoomNames] = useState<Record<string, string>>({});
@@ -3099,6 +3139,24 @@ export default function CustomersPage() {
                 />
               </div>
               <p className="-mt-1 px-4 pb-2 text-[10px] text-brown-faint">แตะรูปเพื่อดูเต็มจอ · ปุ่มกล้องเพื่อเปลี่ยนรูป (ลูกค้าเห็นในแอปด้วย)</p>
+              {(() => {
+                // อาบน้ำครั้งล่าสุดของตัวนี้ — ตอนออกบิลระบบจะเลือกแบบเดิมให้เอง
+                const last = lastGroomForPet(
+                  billsAsPast(selected.history.serviceBills),
+                  cat.name,
+                  c.cats.length === 1
+                );
+                return last ? (
+                  <p className="mx-4 mb-2 flex items-start gap-1.5 rounded-catcha-sm bg-honey/15 px-3 py-2 text-[11px] text-brown">
+                    <Icon name="bath" size={14} />
+                    <span>
+                      อาบครั้งก่อน {last.when ? `(${last.when.slice(0, 10)})` : ""}: {last.programName} · {last.breed}
+                      {last.sizeLabel ? ` · ${last.sizeLabel}` : ""} ·{" "}
+                      <b>฿{last.unitAmount.toLocaleString()}</b>
+                    </span>
+                  </p>
+                ) : null;
+              })()}
 
               <div className="space-y-3 border-t border-catcha-line p-4">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -3293,6 +3351,8 @@ export default function CustomersPage() {
           </div>
           <AddCatForm customerId={c.id} onAdded={() => open(c.id)} />
         </section>
+
+        <PastPricesSection bills={selected.history.serviceBills} />
 
         <CatServiceHistory
           cats={c.cats}

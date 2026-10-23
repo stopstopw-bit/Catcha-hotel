@@ -2167,7 +2167,17 @@ export type ServiceBill = {
   bookingId?: string;
   catName: string;
   date: string;
-  items: { kind?: string; program?: string; label: string; catName?: string; qty?: number }[];
+  items: {
+    kind?: string;
+    program?: string;
+    label: string;
+    catName?: string;
+    qty?: number;
+    amount: number;
+    unitAmount?: number;
+    breed?: string;
+    size?: string;
+  }[];
 };
 
 async function listServiceBills(customerId: string): Promise<ServiceBill[]> {
@@ -2182,7 +2192,18 @@ async function listServiceBills(customerId: string): Promise<ServiceBill[]> {
       date: (i.paidAt || i.createdAt || "").slice(0, 10),
       items: (i.items || [])
         .filter((it) => it.kind === "grooming" || isRoomLine(it))
-        .map((it) => ({ kind: it.kind, program: it.program, label: it.label, catName: it.catName, qty: it.qty })),
+        .map((it) => ({
+          kind: it.kind,
+          program: it.program,
+          label: it.label,
+          catName: it.catName,
+          qty: it.qty,
+          // ราคาที่จ่ายจริง/ขนและไซส์ — ไว้จำ "ครั้งก่อนน้องตัวนี้จ่ายเท่าไหร่" (pet-groom-memory.ts)
+          amount: it.amount,
+          unitAmount: it.unitAmount,
+          breed: it.breed,
+          size: it.size,
+        })),
     }))
     .filter((b) => b.items.length > 0);
 }
