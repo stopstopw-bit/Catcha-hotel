@@ -234,7 +234,7 @@ export async function GET(req: NextRequest) {
           notes: primary.notes,
           groomProgram: primary.groomProgram,
           transport: primary.transport,
-        }),
+        }, group),
       ];
 
       // พนักงานเคยกรอก/แก้ข้อมูลน้องตัวไหนในกลุ่มนี้แทนลูกค้าไว้ ยังไม่เคยให้ลูกค้ายืนยัน —
