@@ -153,6 +153,8 @@ export function CustomerSendButtons({
   const invId = invoiceId || foundInvoiceId;
   // บิลที่มีทั้งอาบน้ำและเข้าพัก (service = "both") ต้องเห็นการ์ดฝั่งเข้าพักด้วย
   const hasRoomStay = service === "room" || service === "both";
+  /** นัดอาบน้ำอย่างเดียวไม่มีเรื่องของการเข้าพัก (สมุดวัคซีน/บัตร/กฎ/เตรียมตัว/เวลาเข้า-ออก/มัดจำ) */
+  const stayOk = service !== "groom";
   const depForBill = invoiceId ? invoiceDeposit : foundDeposit;
   const billPaid = (invoiceId ? invoiceStatus : foundStatus) === "paid";
 
@@ -453,19 +455,19 @@ export function CustomerSendButtons({
   const hasRemaining = depForBill > 0;
 
   // ครบทุกหัวข้อเท่ากับปุ่มเดี่ยวด้านบน — เลือกผสมได้อิสระ ส่งใน 1 ข้อความ
-  // ครบทุกการ์ดเท่าที่ส่งได้ (ไม่จำกัดตามบริการ) — นัดอาบน้ำก็ส่งกฎ/เตรียมตัว/เลือกเวลาได้ถ้าร้านต้องการ
+  // การ์ดของการเข้าพัก (ข้อมูลก่อนเข้าพัก/สมุดวัคซีน/บัตร/กฎ/เตรียมตัว/เลือกเวลา) ไม่ขึ้นในนัดอาบน้ำอย่างเดียว
   // ใบที่ต้องมีบิล/จ่ายแล้วยังซ่อนไว้จนกว่าจะมีข้อมูลจริง (กันส่งการ์ดว่าง)
   // ชุดถามข้อมูลก่อนรับน้องขึ้นก่อน ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า
   const BUNDLE_OPTIONS: { key: string; label: string; when: boolean }[] = [
-    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && hotelOn },
+    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && hotelOn && stayOk },
     { key: "groomInfo", label: INTAKE_LABEL.groomInfo, when: !!bookingId && groomOn },
-    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId },
-    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && hotelOn },
-    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId },
-    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && hotelOn },
+    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId && stayOk },
+    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && hotelOn && stayOk },
+    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId && stayOk },
+    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && hotelOn && stayOk },
     { key: "reminder", label: "แจ้งเตือนนัด", when: !!bookingId },
-    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId },
-    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId },
+    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId && stayOk },
+    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId && stayOk },
     { key: "deposit", label: "เรียกเก็บมัดจำ", when: true },
     {
       key: "depositThanks",
@@ -526,7 +528,7 @@ export function CustomerSendButtons({
       k: "send_stay_info",
       label: `${INTAKE_LABEL.stayInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
       icon: "edit",
-      when: !!bookingId && hotelOn,
+      when: !!bookingId && hotelOn && stayOk,
       onClick: () => void sendGroomInfoAll("stay"),
     },
     {
@@ -540,28 +542,28 @@ export function CustomerSendButtons({
       k: "send_vaccine_request",
       label: INTAKE_LABEL.vaccine,
       icon: "image",
-      when: !!bookingId,
+      when: !!bookingId && stayOk,
       onClick: () => bookingSend("send_vaccine_request", "ส่งการ์ดขอสมุดวัคซีนแล้ว 💉"),
     },
     {
       k: "send_idcard_request",
       label: INTAKE_LABEL.idcard,
       icon: "user",
-      when: !!bookingId && hotelOn,
+      when: !!bookingId && hotelOn && stayOk,
       onClick: () => bookingSend("send_idcard_request", "ส่งการ์ดขอบัตรประชาชนแล้ว 🪪"),
     },
     {
       k: "send_consent",
       label: INTAKE_LABEL.consent,
       icon: "doc",
-      when: !!bookingId,
+      when: !!bookingId && stayOk,
       onClick: () => bookingSend("send_consent", "ส่งการ์ดกฎ + กดยินยอมแล้ว 📋"),
     },
     {
       k: "send_prestay",
       label: INTAKE_LABEL.prestay,
       icon: "bed",
-      when: !!bookingId && hotelOn,
+      when: !!bookingId && hotelOn && stayOk,
       onClick: () => bookingSend("send_prestay", "ส่งการ์ดแจ้งเตรียมตัวเข้าพักแล้ว 🏠"),
     },
     {
@@ -743,7 +745,8 @@ export function CustomerSendButtons({
         <div className="mt-2 flex flex-wrap gap-2">
           {[
             ...QUICK_STEP_KEYS,
-            invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : "dep",
+            // นัดอาบน้ำอย่างเดียวไม่มีมัดจำ / เตรียมตัวเข้าพัก — ปุ่มลัดเหลือแค่เรื่องของอาบน้ำ
+            invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : stayOk ? "dep" : "",
           ].map((k) => {
             const a = singleActions.find((x) => x.k === k && x.when);
             if (!a) return null;
