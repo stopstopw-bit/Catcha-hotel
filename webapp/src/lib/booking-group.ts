@@ -19,6 +19,7 @@ export type GroupableBooking = {
   time?: string;
   checkin?: string;
   checkout?: string;
+  status?: string;
 };
 
 /** กุญแจจัดกลุ่ม — ลูกค้าคนเดียวกัน บริการเดียวกัน และช่วงเวลาตรงกันทุกช่อง */
@@ -47,7 +48,8 @@ export function groupBookings<T extends GroupableBooking>(list: T[]): T[][] {
 
 /** ชื่อแมวทุกตัวในกลุ่ม เช่น "ลาล่า, บาซ่า, ซิมบ้า" */
 export function groupCatNames(group: GroupableBooking[]) {
-  return group.map((b) => b.catName).join(", ");
+  // ตัวเดียวกันมีทั้งนัดเข้าพักและอาบน้ำก่อนกลับได้ (กลุ่มบิล) — ชื่อไม่ซ้ำ
+  return Array.from(new Set(group.map((b) => b.catName))).join(", ");
 }
 
 /**
@@ -59,8 +61,15 @@ export function groupCatNames(group: GroupableBooking[]) {
  */
 export function groupForBilling<T extends GroupableBooking>(list: T[]): T[][] {
   const day = (s?: string) => (s || "").slice(0, 10);
+  // อาบน้ำก่อนกลับ (อาบระหว่างพัก) = ส่วนหนึ่งของการเข้าพักครั้งนั้น → บิลใบเดียวกับค่าห้อง
+  const inStay = new Map<string, T>();
+  for (const b of list) {
+    const stay = stayForGroom(b, list);
+    if (stay) inStay.set(b.id, stay);
+  }
   const byHouse = new Map<string, T[]>();
   for (const b of list) {
+    if (inStay.has(b.id)) continue;
     const k = [b.customerId || b.customerName, b.service || ""].join("|");
     byHouse.set(k, [...(byHouse.get(k) || []), b]);
   }
@@ -92,5 +101,34 @@ export function groupForBilling<T extends GroupableBooking>(list: T[]): T[][] {
     }
     out.push(...byDay.values());
   }
+  for (const [id, stay] of inStay) {
+    const g = out.find((x) => x.some((y) => y.id === stay.id));
+    const b = list.find((x) => x.id === id)!;
+    if (g) g.push(b);
+    else out.push([b]);
+  }
   return out;
+}
+
+const isLive = (b: GroupableBooking) => b.status !== "cancelled" && b.status !== "no_show";
+
+/**
+ * นัดอาบน้ำที่อยู่ระหว่างการเข้าพักของน้องตัวเดียวกัน (ปกติคืออาบวันออกก่อนกลับบ้าน)
+ * → คืนนัดเข้าพักที่มันเป็นส่วนหนึ่ง ใช้รวมบิล/การ์ดเป็นนัดเดียว และไม่ส่งยืนยันนัดอาบน้ำแยก
+ * (ลูกค้าไม่ต้องพาน้องมา น้องอยู่ที่ร้านอยู่แล้ว) · คิวอาบน้ำยังเป็นนัดของตัวเองเพื่อกันเวลาช่าง
+ */
+export function stayForGroom<T extends GroupableBooking>(b: T, list: T[]): T | undefined {
+  if (b.service !== "groom" || !b.date || !isLive(b)) return undefined;
+  const d = b.date.slice(0, 10);
+  const who = b.customerId || b.customerName;
+  return list.find(
+    (s) =>
+      s.service === "room" &&
+      isLive(s) &&
+      (s.customerId || s.customerName) === who &&
+      s.catName === b.catName &&
+      !!s.checkin &&
+      s.checkin.slice(0, 10) <= d &&
+      d <= (s.checkout || s.checkin).slice(0, 10)
+  );
 }

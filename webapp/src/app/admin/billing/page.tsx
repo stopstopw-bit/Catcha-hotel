@@ -584,11 +584,12 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     if (!bId) return;
     const bk = bookings.find((b) => b.id === bId);
     if (!bk) return;
-    // นัดห้องพัก ต้องรอ rooms โหลดก่อน ไม่งั้น match ราคาไม่เจอ → ยอด 0
-    if (bk.service === "room" && rooms.length === 0) return;
-    autoPicked.current = true;
     // กดปุ่ม "ออกบิล" จากตารางนัดส่งมาแค่ id เดียว — ดึงทั้งบ้านมาด้วย
+    // (กดจากนัดอาบน้ำก่อนกลับ ก็ได้บิลเดียวกับค่าห้อง)
     const group = groupForBilling(bookings).find((g) => g.some((x) => x.id === bId));
+    // นัดห้องพัก ต้องรอ rooms โหลดก่อน ไม่งั้น match ราคาไม่เจอ → ยอด 0
+    if ((group || [bk]).some((x) => x.service === "room") && rooms.length === 0) return;
+    autoPicked.current = true;
     pickBooking(group || [bk]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings, rooms]);
@@ -1012,12 +1013,25 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     }
 
     // ตั้งชื่อน้องให้แต่ละบรรทัดเมื่อมาหลายตัว จะได้รู้ว่าตัวไหนใช้บริการอะไร
-    const many = group.length > 1;
-    if (bk.service === "room") {
+    const many = new Set(group.map((g) => g.catName)).size > 1;
+    // อาบน้ำก่อนกลับ = อยู่ในกลุ่มเดียวกับการเข้าพัก → บิลเดียว: บรรทัดห้อง + บรรทัดอาบน้ำ
+    const groomLines = (list: Booking[]) =>
+      list.map((g) => {
+        const base = { ...newGrooming(groomPrograms), catName: many ? g.catName : undefined };
+        // ลูกค้าเลือกโปรแกรมอาบน้ำมาตอนจองแล้ว → เซ็ตให้เลย ไม่ต้องเลือกซ้ำ
+        const prog = g.groomProgram ? groomProgram(g.groomProgram, groomPrograms) : undefined;
+        if (prog) {
+          base.program = prog.id;
+          base.breed = prog.breeds[0].breed;
+        }
+        return base;
+      });
+    const stayPart = group.filter((g) => g.service === "room");
+    if (stayPart.length > 0) {
       // คิดค่าห้องเป็นรายห้อง ไม่ใช่รายตัว: น้องที่อยู่ห้องเดียวกันรวมเป็นบรรทัดเดียว
       // ห้องที่ล็อกเลขไว้ = ห้องตามเลขนั้น · ไม่ได้ล็อก = จัดเต็มห้องละ cap ตัวตามที่ระบบจัดห้องทำ
       const units = new Map<string, Booking[]>();
-      for (const g of group) {
+      for (const g of stayPart) {
         // วันเข้า/ออกต่างกัน (บ้านเดียวกันแต่ต่อคืนไม่เท่ากัน) = คนละบรรทัด คืนของใครของมัน
         const k = `${g.checkin || ""}|${g.checkout || ""}|${g.room || ""}#${g.roomUnit ?? "auto"}`;
         units.set(k, [...(units.get(k) || []), g]);
@@ -1028,8 +1042,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         const cap = k.endsWith("#auto") ? matched?.pricing.cap || 1 : cats.length;
         for (let i = 0; i < cats.length; i += cap) lines.push(cats.slice(i, i + cap));
       }
-      setItems(
-        lines.map((cats) => {
+      setItems([
+        ...lines.map((cats): Item => {
           const g = cats[0];
           // เข้า-ออกวันเดียวกัน = Day Care → ใช้ราคา Day Care ของห้องนั้น
           const day = isDayCareStay(g);
@@ -1049,21 +1063,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
             nights: nightsBetween(g.checkin, g.checkout),
             catName: many ? cats.map((c) => c.catName).join(", ") : undefined,
           };
-        })
-      );
+        }),
+        ...groomLines(group.filter((g) => g.service === "groom")),
+      ]);
     } else {
-      setItems(
-        group.map((g) => {
-          const base = { ...newGrooming(groomPrograms), catName: many ? g.catName : undefined };
-          // ลูกค้าเลือกโปรแกรมอาบน้ำมาตอนจองแล้ว → เซ็ตให้เลย ไม่ต้องเลือกซ้ำ
-          const prog = g.groomProgram ? groomProgram(g.groomProgram, groomPrograms) : undefined;
-          if (prog) {
-            base.program = prog.id;
-            base.breed = prog.breeds[0].breed;
-          }
-          return base;
-        })
-      );
+      setItems(groomLines(group));
     }
     // นัดที่ใช้บริการรับ-ส่ง → ใส่ค่ารับ-ส่งให้เลย (รับ-ส่งทีเดียวทั้งบ้าน จึงเป็นบรรทัดเดียว)
     const trips = Math.max(0, ...group.map((g) => transportTrips(g.transport)));
@@ -1083,7 +1087,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       ]);
     }
     if (many) {
-      toast(`ดึงนัดบ้านนี้มาแล้ว ${group.length} ตัว — ออกบิลใบเดียว 🧾`, "success");
+      toast(`ดึงนัดบ้านนี้มาแล้ว ${new Set(group.map((g) => g.catName)).size} ตัว — ออกบิลใบเดียว 🧾`, "success");
     }
   };
 
@@ -1767,6 +1771,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                 )}
                 {bookingGroups.map((group) => {
                   const bk = group[0];
+                  const cats = new Set(group.map((g) => g.catName)).size;
+                  const withBath = bk.service === "room" && group.some((g) => g.service === "groom");
                   return (
                     <li key={group.map((g) => g.id).join(",")}>
                       <button
@@ -1782,9 +1788,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                             <span className="truncate text-sm font-bold text-catcha-chocolate">
                               {groupCatNames(group)} · {bk.customerName}
                             </span>
-                            {group.length > 1 && (
+                            {cats > 1 && (
                               <span className="shrink-0 rounded-full bg-latte/25 px-1.5 py-px text-[10px] font-extrabold text-latte-deep">
-                                {group.length} ตัว
+                                {cats} ตัว
                               </span>
                             )}
                           </span>
@@ -1792,6 +1798,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                             {bk.service === "room"
                               ? `${isDayCareStay(bk) ? `Day Care ${bk.checkin}` : `${bk.checkin || "?"} → ${bk.checkout || "?"}`}${bk.room ? ` · ${bk.room}` : ""}`
                               : bk.date || ""}
+                            {withBath ? " · + อาบน้ำก่อนกลับ" : ""}
                             {group.length > 1 ? " · บิลใบเดียว" : ""}
                           </span>
                         </span>
