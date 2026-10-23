@@ -35,6 +35,8 @@ type CatForm = {
   neutered: "" | "yes" | "no";
   birthday: string;
   medical: string;
+  seizureHistory: string;
+  allergy: string;
   note: string;
   needsConfirm: boolean;
   /** น้องที่ยังไม่ได้บันทึก — ใช้ผูกรูปที่เลือกไว้ก่อน */
@@ -104,6 +106,8 @@ export default function ProfilePage() {
               neutered: x.neutered === true ? "yes" : x.neutered === false ? "no" : "",
               birthday: String(x.birthday || ""),
               medical: String(x.medical || ""),
+              seizureHistory: String(x.seizureHistory || ""),
+              allergy: String(x.allergy || ""),
               note: String(x.note || ""),
               needsConfirm: Boolean(x.needsConfirm),
             };
@@ -178,6 +182,8 @@ export default function ProfilePage() {
         neutered: "",
         birthday: "",
         medical: "",
+        seizureHistory: "",
+        allergy: "",
         note: "",
         needsConfirm: false,
         tempKey: `new-${Date.now()}`,
@@ -221,6 +227,8 @@ export default function ProfilePage() {
             neutered: c.neutered ? c.neutered === "yes" : null,
             birthday: c.birthday || undefined,
             medical: c.medical || undefined,
+            seizureHistory: c.seizureHistory.trim(),
+            allergy: c.allergy.trim(),
             note: c.note || undefined,
           })),
         }),
@@ -440,10 +448,19 @@ export default function ProfilePage() {
                   <input type="date" value={cat.birthday} onChange={(e) => updateCat(idx, { birthday: e.target.value })} className={`${sub} mt-0.5`} />
                 </label>
                 <StaffNoteTagPicker
+                  label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
                   medicalValue={cat.medical}
                   noteValue={cat.note}
                   onChange={(medical, note) => updateCat(idx, { medical, note })}
                 />
+                <label className="block text-[11px] font-bold text-brown-soft">
+                  ประวัติการชัก/ช็อค <span className="font-normal text-brown-faint">(ไม่มีเว้นว่างได้)</span>
+                  <input value={cat.seizureHistory} onChange={(e) => updateCat(idx, { seizureHistory: e.target.value })} placeholder="เช่น ไม่เคย · หรือ เคยชักตอนตกใจ" className={`${sub} mt-0.5 font-normal text-brown`} />
+                </label>
+                <label className="block text-[11px] font-bold text-brown-soft">
+                  ประวัติการแพ้ <span className="font-normal text-brown-faint">(อาหาร / ยา / แชมพู)</span>
+                  <input value={cat.allergy} onChange={(e) => updateCat(idx, { allergy: e.target.value })} placeholder="เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ" className={`${sub} mt-0.5 font-normal text-brown`} />
+                </label>
                 {!cat.id && (
                   <button
                     type="button"

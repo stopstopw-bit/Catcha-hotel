@@ -219,6 +219,8 @@ export async function PATCH(req: NextRequest) {
         furLength,
         color: body.color ? String(body.color) : undefined,
         neutered: typeof body.neutered === "boolean" ? body.neutered : undefined,
+        seizureHistory: body.seizureHistory ? String(body.seizureHistory) : undefined,
+        allergy: body.allergy ? String(body.allergy) : undefined,
         ageValue: ageValue !== undefined && !isNaN(ageValue) ? ageValue : undefined,
         ageUnit: body.ageUnit === "month" ? "month" : "year",
         birthday: body.birthday ? String(body.birthday) : undefined,

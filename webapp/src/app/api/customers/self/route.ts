@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
         ageUnit: x.ageUnit || "year",
         weightKg: x.weightKg ?? "",
         neutered: x.neutered ?? null,
+        seizureHistory: x.seizureHistory ?? "",
+        allergy: x.allergy ?? "",
         birthday: x.birthday || "",
         medical: x.medical || "",
         note: x.staffNote || "",
@@ -115,8 +117,13 @@ export async function POST(req: NextRequest) {
       // ไม่มี id = น้องที่ลูกค้าเพิ่มเองในหน้านี้ → สร้างใหม่ (ไม่ต้องทักแชทให้ร้านเพิ่มให้)
       const weightKg = normalizeWeightKg(cat.weightKg);
       const neutered = typeof cat.neutered === "boolean" ? cat.neutered : undefined;
+      // หน้าเก่าที่ยังไม่มีช่องประวัติชัก/แพ้ จะไม่ส่งมา — คงค่าเดิมไว้
+      const history = {
+        ...("seizureHistory" in cat ? { seizureHistory: String(cat.seizureHistory || "") } : {}),
+        ...("allergy" in cat ? { allergy: String(cat.allergy || "") } : {}),
+      };
       if (!cat.id) {
-        const after = await addCat(c.id, { ...fields, weightKg, neutered }, { source: "customer" });
+        const after = await addCat(c.id, { ...fields, ...history, weightKg, neutered }, { source: "customer" });
         const id = after?.cats[after.cats.length - 1]?.id;
         if (id) created.push({ index, id });
       } else {
@@ -128,6 +135,7 @@ export async function POST(req: NextRequest) {
             ...fields,
             ...("weightKg" in cat ? { weightKg: weightKg ?? null } : {}),
             ...("neutered" in cat ? { neutered: neutered ?? null } : {}),
+            ...history,
           },
           { source: "customer" }
         );

@@ -2660,6 +2660,8 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
   const [ageUnit, setAgeUnit] = useState<"year" | "month">("year");
   const [birthday, setBirthday] = useState("");
   const [medical, setMedical] = useState("");
+  const [seizureHistory, setSeizureHistory] = useState("");
+  const [allergy, setAllergy] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2677,6 +2679,8 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
     setAgeUnit("year");
     setBirthday("");
     setMedical("");
+    setSeizureHistory("");
+    setAllergy("");
     setNote("");
     setError("");
   };
@@ -2702,6 +2706,8 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
         ageUnit,
         birthday: birthday || undefined,
         medical: medical.trim() || undefined,
+        seizureHistory: seizureHistory.trim() || undefined,
+        allergy: allergy.trim() || undefined,
         staffNote: note.trim() || undefined,
       }),
     });
@@ -2848,12 +2854,25 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
               </label>
 
               <StaffNoteTagPicker
+                label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
                 medicalValue={medical}
                 noteValue={note}
                 onChange={(m, n) => {
                   setMedical(m);
                   setNote(n);
                 }}
+              />
+              <input
+                value={seizureHistory}
+                onChange={(e) => setSeizureHistory(e.target.value)}
+                placeholder="ประวัติการชัก/ช็อค (ไม่บังคับ)"
+                className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
+              />
+              <input
+                value={allergy}
+                onChange={(e) => setAllergy(e.target.value)}
+                placeholder="ประวัติการแพ้ (ไม่บังคับ)"
+                className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
               />
 
               {error && <p className="text-xs font-bold text-wait">{error}</p>}
@@ -3019,6 +3038,8 @@ export default function CustomersPage() {
       weightKg?: number | null;
       birthday?: string;
       medical?: string;
+      seizureHistory?: string;
+      allergy?: string;
     }
   ) => {
     if (!selected) return;
@@ -3284,10 +3305,35 @@ export default function CustomersPage() {
                   />
                 </label>
                 <StaffNoteTagPicker
+                  label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
                   medicalValue={cat.medical || ""}
                   noteValue={cat.staffNote || ""}
                   onChange={(medical, staffNote) => saveCat(cat.id, { medical, staffNote })}
                 />
+                <label className="block text-[11px] font-bold text-brown-soft">
+                  <span className="mb-1 block">ประวัติการชัก/ช็อค</span>
+                  <input
+                    defaultValue={cat.seizureHistory}
+                    placeholder="เช่น ไม่เคย · หรือ เคยชักตอนตกใจ"
+                    className={inputCls}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (cat.seizureHistory || "")) saveCat(cat.id, { seizureHistory: v });
+                    }}
+                  />
+                </label>
+                <label className="block text-[11px] font-bold text-brown-soft">
+                  <span className="mb-1 block">ประวัติการแพ้</span>
+                  <input
+                    defaultValue={cat.allergy}
+                    placeholder="เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ"
+                    className={inputCls}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (cat.allergy || "")) saveCat(cat.id, { allergy: v });
+                    }}
+                  />
+                </label>
                 <label className="block rounded-catcha-sm border border-wait/40 bg-wait/5 px-3 py-2.5 text-[11px] font-bold text-wait">
                   <span className="mb-1 flex items-center gap-1.5">
                     <Icon name="eye" size={14} />

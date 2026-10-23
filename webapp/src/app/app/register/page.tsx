@@ -29,6 +29,8 @@ type CatInput = {
   ageUnknown: boolean;
   birthday: string;
   medical: string;
+  seizureHistory: string;
+  allergy: string;
   note: string;
 };
 
@@ -52,6 +54,8 @@ function emptyCat(): CatInput {
     ageUnknown: false,
     birthday: "",
     medical: "",
+    seizureHistory: "",
+    allergy: "",
     note: "",
   };
 }
@@ -172,6 +176,8 @@ export default function RegisterPage() {
               weightKg: !c.weightUnknown && c.weightKg ? Number(c.weightKg) : undefined,
               birthday: (!c.ageUnknown && c.birthday) || undefined,
               medical: c.medical || undefined,
+              seizureHistory: c.seizureHistory.trim() || undefined,
+              allergy: c.allergy.trim() || undefined,
               furLength: c.furLength || undefined,
               neutered: c.neutered ? c.neutered === "yes" : undefined,
               color: c.color || undefined,
@@ -529,10 +535,29 @@ export default function RegisterPage() {
                 </div>
 
                 <StaffNoteTagPicker
+                  label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
                   medicalValue={cat.medical}
                   noteValue={cat.note}
                   onChange={(medical, note) => updateCat(idx, { medical, note })}
                 />
+                <label className="block text-[11px] font-bold text-brown-soft">
+                  ประวัติการชัก/ช็อค <span className="font-normal text-brown-faint">(ไม่มีเว้นว่างได้)</span>
+                  <input
+                    value={cat.seizureHistory}
+                    onChange={(e) => updateCat(idx, { seizureHistory: e.target.value })}
+                    placeholder="เช่น ไม่เคย · หรือ เคยชักตอนตกใจ"
+                    className={`${subFieldClass} mt-0.5 font-normal text-brown`}
+                  />
+                </label>
+                <label className="block text-[11px] font-bold text-brown-soft">
+                  ประวัติการแพ้ <span className="font-normal text-brown-faint">(อาหาร / ยา / แชมพู · ไม่มีเว้นว่างได้)</span>
+                  <input
+                    value={cat.allergy}
+                    onChange={(e) => updateCat(idx, { allergy: e.target.value })}
+                    placeholder="เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ"
+                    className={`${subFieldClass} mt-0.5 font-normal text-brown`}
+                  />
+                </label>
 
                 {cats.length > 1 && (
                   <button

@@ -23,6 +23,8 @@ type PetForm = {
   weightKg: string;
   birthday: string;
   medical: string;
+  seizureHistory: string;
+  allergy: string;
   note: string;
 };
 
@@ -42,6 +44,8 @@ function emptyPet(): PetForm {
     weightKg: "",
     birthday: "",
     medical: "",
+    seizureHistory: "",
+    allergy: "",
     note: "",
   };
 }
@@ -151,6 +155,8 @@ export function AddCustomerModal({
           weightKg: p.weightKg || undefined,
           birthday: p.birthday || undefined,
           medical: p.medical || undefined,
+          seizureHistory: p.seizureHistory.trim() || undefined,
+          allergy: p.allergy.trim() || undefined,
           staffNote: p.note || undefined,
         })),
       }),
@@ -392,10 +398,29 @@ export function AddCustomerModal({
                     </div>
                   </div>
                   <StaffNoteTagPicker
+                    label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
                     medicalValue={pet.medical}
                     noteValue={pet.note}
                     onChange={(medical, note) => updatePet(idx, { medical, note })}
                   />
+                  <label className={labelCls}>
+                    ประวัติการชัก/ช็อค
+                    <input
+                      value={pet.seizureHistory}
+                      onChange={(e) => updatePet(idx, { seizureHistory: e.target.value })}
+                      placeholder="เช่น ไม่เคย · หรือ เคยชักตอนตกใจ"
+                      className={fieldCls}
+                    />
+                  </label>
+                  <label className={labelCls}>
+                    ประวัติการแพ้
+                    <input
+                      value={pet.allergy}
+                      onChange={(e) => updatePet(idx, { allergy: e.target.value })}
+                      placeholder="เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ"
+                      className={fieldCls}
+                    />
+                  </label>
                   {pets.length > 1 && (
                     <button
                       type="button"

@@ -68,6 +68,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "cats", column: "vaccine_photos", feature: "สมุดวัคซีนที่ตัวน้อง (ขอก่อนมีนัด)" },
   { table: "customers", column: "consent_accepted_at", feature: "ยอมรับข้อตกลงจากหน้าลูกค้า" },
   { table: "cats", column: "neutered", feature: "ทำหมันแล้ว/ยังไม่ทำ" },
+  { table: "cats", column: "seizure_history", feature: "ประวัติการชัก/ช็อค และการแพ้" },
 ];
 
 export type SchemaCheckRow = {
@@ -501,6 +502,11 @@ where staff_note like '%🎁%';`,
     // เพิ่มคอลัมน์อย่างเดียว แถวเดิมได้ null ไม่แก้ข้อมูลเก่า
     name: "cats.neutered",
     sql: "alter table cats add column if not exists neutered boolean;",
+  },
+  {
+    // ประวัติการชัก/ช็อค + ประวัติการแพ้ — ถามตอนสมัครสมาชิก (ไม่บังคับ) · เพิ่มคอลัมน์อย่างเดียว
+    name: "cats.seizure_allergy",
+    sql: "alter table cats add column if not exists seizure_history text, add column if not exists allergy text;",
   },
 ];
 
