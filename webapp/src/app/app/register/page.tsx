@@ -70,10 +70,17 @@ export default function RegisterPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  // ติ๊ก "มีโค้ดเพื่อนแนะนำ" แล้วค่อยโชว์ช่องกรอก — มาจากลิงก์ชวนจะติ๊ก + เติมโค้ดให้เอง
+  const [hasReferralCode, setHasReferralCode] = useState(false);
+  const [fromLink, setFromLink] = useState(false);
 
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("ref");
-    if (ref) setReferralCode(ref);
+    if (ref) {
+      setReferralCode(ref.toUpperCase());
+      setHasReferralCode(true);
+      setFromLink(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -126,6 +133,10 @@ export default function RegisterPage() {
       setError("เลือกช่องทางที่รู้จักเราด้วยนะคะ");
       return;
     }
+    if (hasReferralCode && !referralCode.trim()) {
+      setError("กรอกโค้ดเพื่อนแนะนำ หรือเอาติ๊กออกถ้าไม่มีโค้ดนะคะ");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -141,7 +152,7 @@ export default function RegisterPage() {
           email,
           birthday,
           referralSource: referral,
-          referralCode: referralCode || undefined,
+          referralCode: (hasReferralCode && referralCode.trim()) || undefined,
           postalCode: postalCode || undefined,
           marketingConsent: consent,
           cats: cats
@@ -203,10 +214,10 @@ export default function RegisterPage() {
         showLang={false}
       />
 
-      {referralCode && (
+      {fromLink && (
         <div className="mb-4 flex items-start gap-2 rounded-catcha border border-honey/50 bg-honey/20 px-4 py-3 text-xs font-extrabold text-catcha-chocolate">
           <Icon name="gift" size={16} className="mt-px" />
-          <span>สมัครผ่านเพื่อนแนะนำ — มาใช้บริการครั้งแรก รับคูปองส่วนลด <span className="text-latte-deep">100฿</span> ทั้งคุณและเพื่อน!</span>
+          <span>สมัครผ่านเพื่อนแนะนำ — สมัครเสร็จรับคูปองส่วนลด <span className="text-latte-deep">100฿</span> ทั้งคุณและเพื่อนทันที!</span>
         </div>
       )}
 
@@ -523,6 +534,34 @@ export default function RegisterPage() {
             ))}
           </div>
         </section>
+
+        {/* ── โค้ดเพื่อนแนะนำ (ไม่บังคับ) ── */}
+        <div className="rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={hasReferralCode}
+              onChange={(e) => setHasReferralCode(e.target.checked)}
+              className="h-5 w-5 flex-none accent-[#4A7348]"
+            />
+            <span className="text-xs font-bold text-brown">
+              มีโค้ดเพื่อนแนะนำ
+              <span className="block text-[11px] font-normal text-brown-faint">
+                กรอกโค้ด รับคูปอง 100฿ ทั้งคุณและเพื่อน
+              </span>
+            </span>
+          </label>
+          {hasReferralCode && (
+            <input
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+              placeholder="เช่น CAT1A2B3C"
+              autoCapitalize="characters"
+              autoComplete="off"
+              className={`mt-3 ${fieldClass} font-extrabold tracking-wider`}
+            />
+          )}
+        </div>
 
         {/* ── ยินยอมรับข่าวสาร ── */}
         <label className="flex cursor-pointer items-start gap-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
