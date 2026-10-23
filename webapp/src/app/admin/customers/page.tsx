@@ -33,6 +33,8 @@ import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { BirthdayPicker } from "@/components/BirthdayPicker";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { Icon } from "@/components/Icon";
+import { useConfig } from "@/components/ConfigProvider";
+import { isFeatureOn } from "@/lib/features";
 import { GroomProgramPicker, useGroomPrograms } from "@/components/GroomProgramPicker";
 import { groomProgramName } from "@/lib/grooming-prices";
 import { tidyServiceText } from "@/lib/stay-line";
@@ -1331,6 +1333,8 @@ function CustomerSummaryCard({
   const [msg, setMsg] = useState("");
   const [followUpBusy, setFollowUpBusy] = useState(false);
   const [followUpPreview, setFollowUpPreview] = useState<Record<string, unknown>[] | null>(null);
+  const { config: siteConfig } = useConfig();
+  const followUpOn = isFeatureOn(siteConfig, "followUp");
   const [addAmt, setAddAmt] = useState("");
   const [addReason, setAddReason] = useState("");
   const [addBusy, setAddBusy] = useState(false);
@@ -1892,7 +1896,7 @@ function CustomerSummaryCard({
         </div>
       </div>
 
-      {(inactive || customer.lineUserId) && (
+      {followUpOn && (inactive || customer.lineUserId) && (
         <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sage/20 text-ok">
@@ -2831,6 +2835,7 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
 }
 
 export default function CustomersPage() {
+  const { config } = useConfig();
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [list, setList] = useState<CustomerListItem[]>([]);
@@ -3400,11 +3405,14 @@ export default function CustomersPage() {
         <div className="mt-6">
           <SectionLabel>Add &amp; sell · เพิ่มแต้ม / ขายคอร์ส / เติมเครดิต</SectionLabel>
           <div ref={setToolsSlot} />
-          <MemberTopupSection
-            customerId={c.id}
-            memberCredit={c.memberCredit}
-            onDone={() => open(c.id)}
-          />
+          {/* ร้านปิดเครดิต Member ในตั้งค่า › เปิด/ปิดฟีเจอร์ — เติมใหม่ไม่ได้ (ยอดเดิมยังหักจ่ายได้) */}
+          {isFeatureOn(config, "memberCredit") && (
+            <MemberTopupSection
+              customerId={c.id}
+              memberCredit={c.memberCredit}
+              onDone={() => open(c.id)}
+            />
+          )}
         </div>
       </div>
     );

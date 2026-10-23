@@ -39,6 +39,7 @@ import {
 } from "@/lib/customer-crm";
 import { pushLineMessage, buildMemberBalanceFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
+import { isFeatureOn } from "@/lib/features";
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
@@ -320,6 +321,10 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "topup_member") {
+    // ร้านปิดเครดิต Member ในตั้งค่า › เปิด/ปิดฟีเจอร์ — เติมใหม่ไม่ได้
+    if (!isFeatureOn(await getSiteConfig(), "memberCredit")) {
+      return NextResponse.json({ error: "feature_disabled", feature: "memberCredit" }, { status: 403 });
+    }
     const paidAmount =
       body.paidAmount != null
         ? Number(body.paidAmount)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import { findCustomerByLine } from "@/lib/customers-store";
 import { getOffer, claimOffer } from "@/lib/coupons-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
@@ -25,6 +26,8 @@ export async function GET(req: NextRequest) {
 
 /** ลูกค้ากดรับคูปอง */
 export async function POST(req: NextRequest) {
+  const blocked = await featureOff("coupons");
+  if (blocked) return blocked;
   const body = await req.json().catch(() => ({}));
   const offerId = String(body.offerId || "").trim();
   const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";

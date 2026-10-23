@@ -16,6 +16,7 @@ import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
+import { isFeatureOn } from "@/lib/features";
 
 type StayBooking = Booking & {
   checkin?: string;
@@ -368,7 +369,7 @@ function ConsentContent() {
                 )}
               </section>
 
-              {!idCardOnFile && (
+              {!idCardOnFile && isFeatureOn(config, "idCard") && (
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="user" size={14} />
@@ -412,7 +413,7 @@ function ConsentContent() {
               )}
 
               {/* ลิงก์จากหน้าข้อมูลลูกค้า: สมุดวัคซีนมีการ์ดขอแยกต่างหาก (เก็บที่ตัวน้อง) ไม่ถามซ้ำตรงนี้ */}
-              {!customerMode && (
+              {!customerMode && isFeatureOn(config, "vaccine") && (
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="image" size={14} />

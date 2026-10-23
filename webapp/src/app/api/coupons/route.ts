@@ -13,6 +13,8 @@ import { getLineCredentials, normalizeLiffId } from "@/lib/line-config";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import { buildLiffUrl } from "@/lib/liff-urls";
+import { getSiteConfig } from "@/lib/config-store";
+import { isFeatureOn } from "@/lib/features";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
 /** กระเป๋าคูปองของลูกค้า + รหัสชวนเพื่อน (แอปลูกค้า: คุกกี้เซสชันลูกค้า · หลังบ้าน: customerId) */
@@ -37,11 +39,14 @@ export async function GET(req: NextRequest) {
   const coupons = activeOnly
     ? await activeCustomerCoupons(cust.id)
     : await listCustomerCoupons(cust.id);
-  const referralCode = referralCodeFor(cust.id);
+  // ร้านปิด "ชวนเพื่อนรับคูปอง" — ไม่ส่งลิงก์ชวนเพื่อนให้แอป
+  const referralOn = isFeatureOn(await getSiteConfig(), "referral");
+  const referralCode = referralOn ? referralCodeFor(cust.id) : "";
   // ใช้ LIFF ตัวเดียวกับที่แอปลูกค้าเปิดจริง (LiffProvider ใช้ NEXT_PUBLIC_LIFF_ID ก่อน) —
   // ร้านมี LIFF 2 ตัว ถ้าหยิบคนละตัว ลิงก์จะเปิดไปคนละ endpoint
-  const liffId =
-    normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID) || (await getLineCredentials())?.liffId;
+  const liffId = referralOn
+    ? normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID) || (await getLineCredentials())?.liffId
+    : undefined;
   const referralUrl = liffId
     ? buildLiffUrl(liffId, { path: "register", ref: referralCode })
     : "";

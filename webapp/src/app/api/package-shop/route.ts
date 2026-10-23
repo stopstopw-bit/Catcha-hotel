@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import {
   listPackageOffers,
   createPackageOffer,
@@ -48,10 +49,15 @@ export async function GET(req: NextRequest) {
   if (lineUserId) {
     // ลูกค้า — เห็นเฉพาะที่เปิดขาย และเห็นเฉพาะออร์เดอร์ของตัวเอง
     const customer = await findCustomerByLine(lineUserId);
-    const [offers, payment] = await Promise.all([
+    const [allOffers, payment, off, creditOff] = await Promise.all([
       listPackageOffers(true),
       getPaymentConfig(),
+      featureOff("packages"),
+      featureOff("memberCredit"),
     ]);
+    // ร้านปิด "ขายคอร์สในแอป" — ไม่โชว์อะไรให้ซื้อ (ออร์เดอร์เดิมของลูกค้ายังเห็น)
+    // ปิดเครดิต Member — ไม่โชว์ชุดเติมเครดิต
+    const offers = off ? [] : allOffers.filter((o) => !(creditOff && o.kind === "credit"));
     const orders = customer
       ? await listPackageOrders({ customerId: customer.id })
       : [];
@@ -66,6 +72,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await isAdmin(req))) {
+    const blocked = await featureOff("packages");
+    if (blocked) return blocked;
+  }
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
 
@@ -83,6 +93,10 @@ export async function POST(req: NextRequest) {
     const offer = offers.find((o) => o.id === String(body.offerId || ""));
     if (!offer) {
       return NextResponse.json({ error: "offer_not_found" }, { status: 404 });
+    }
+    if (offer.kind === "credit") {
+      const blocked = await featureOff("memberCredit");
+      if (blocked) return blocked;
     }
 
     const order = await createPackageOrder({
