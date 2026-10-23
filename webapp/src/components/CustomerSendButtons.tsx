@@ -116,7 +116,7 @@ export function CustomerSendButtons({
   /** (ไม่บังคับ) ควบคุมการเปิดแผ่นส่งการ์ดจากข้างนอก — เช่นเมนู ⋯ ของบิล */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** ซ่อนปุ่ม "ส่ง LINE" ของตัวเอง (ใช้คู่กับ open/onOpenChange) */
+  /** ซ่อนปุ่ม "การ์ดอื่นๆ" / "ส่งการ์ดหาลูกค้า" ของตัวเอง (ใช้คู่กับ open/onOpenChange) */
   hideTrigger?: boolean;
   /** โชว์ปุ่มลัดตามขั้นตอนรับงาน (ข้อมูลน้อง/สมุดวัคซีน/บัตร/กฎ/ยอดโอน) บนการ์ดนัดเลย ไม่ต้องเปิดแผ่นล่าง */
   quickSteps?: boolean;
@@ -515,8 +515,8 @@ export function CustomerSendButtons({
     {
       // ใบเดียวหลายปุ่ม — ระบบดูให้ว่ายังขาดอะไร ครบแล้วไม่ขอซ้ำ
       k: "send_intake",
-      label: "การ์ดขอข้อมูล (เลือกเรื่องได้)",
-      icon: "send",
+      label: "ขอข้อมูลลูกค้า (เลือกรวม/แยกการ์ด)",
+      icon: "inbox",
       when: !!bookingId,
       onClick: sendIntake,
     },
@@ -719,47 +719,66 @@ export function CustomerSendButtons({
         </div>
       )}
 
-      {!hideTrigger && (
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className="flex min-h-[40px] items-center gap-2 rounded-full bg-[#06C755]/15 px-4 py-2 text-xs font-extrabold text-[#06883c]"
-        >
-          <Icon name="send" size={16} />
-          ส่ง LINE
-          {noLine && <span className="font-bold text-brown-soft">· ยังไม่ผูก</span>}
-          {autoOff.length > 0 && (
-            <span className="rounded-full bg-wait/15 px-1.5 text-[10px] text-wait">
-              ปิดอัตโนมัติ {autoOff.length}
-            </span>
-          )}
-        </button>
-      )}
-
-      {/* ปุ่มลัดตามขั้นตอน — กดแล้วขึ้นตัวอย่างการ์ดก่อนส่งเหมือนปุ่มอื่น */}
-      {quickSteps && bookingId && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {[
-            ...QUICK_STEP_KEYS,
-            // นัดอาบน้ำอย่างเดียวไม่มีมัดจำ / เตรียมตัวเข้าพัก — ปุ่มลัดเหลือแค่เรื่องของอาบน้ำ
-            invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : stayOk ? "dep" : "",
-          ].map((k) => {
-            const a = singleActions.find((x) => x.k === k && x.when);
-            if (!a) return null;
-            return (
+      {/* ปุ่มตามขั้นตอน + "การ์ดอื่นๆ" (เปิดรายการการ์ดทั้งหมด) — ชื่อปุ่มบอกเลยว่ากดแล้วส่งอะไร */}
+      {quickSteps && bookingId ? (
+        <div>
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold text-brown-soft">
+            ส่งการ์ดหาลูกค้าทาง LINE
+            {noLine && <span className="text-wait">· ลูกค้ายังไม่ผูก LINE</span>}
+            {autoOff.length > 0 && (
+              <span className="rounded-full bg-wait/15 px-1.5 text-[10px] text-wait">ปิดอัตโนมัติ {autoOff.length}</span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ...QUICK_STEP_KEYS,
+              // นัดอาบน้ำอย่างเดียวไม่มีมัดจำ / เตรียมตัวเข้าพัก — ปุ่มลัดเหลือแค่เรื่องของอาบน้ำ
+              invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : stayOk ? "dep" : "",
+            ].map((k) => {
+              const a = singleActions.find((x) => x.k === k && x.when);
+              if (!a) return null;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  disabled={noLine || busy !== ""}
+                  onClick={a.onClick}
+                  className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3 py-2 text-xs font-bold text-catcha-chocolate active:bg-paper disabled:opacity-40"
+                >
+                  <Icon name={a.icon} size={15} />
+                  {busy === k ? "กำลังโหลด…" : a.label}
+                </button>
+              );
+            })}
+            {!hideTrigger && (
               <button
-                key={k}
                 type="button"
-                disabled={noLine || busy !== ""}
-                onClick={a.onClick}
-                className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3 py-2 text-xs font-bold text-catcha-chocolate active:bg-paper disabled:opacity-40"
+                onClick={() => setSheetOpen(true)}
+                className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-paper px-3 py-2 text-xs font-bold text-brown"
               >
-                <Icon name={a.icon} size={15} />
-                {busy === k ? "กำลังโหลด…" : a.label}
+                <Icon name="grid" size={15} />
+                การ์ดอื่นๆ
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
+      ) : (
+        !hideTrigger && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="flex min-h-[40px] items-center gap-2 rounded-full border border-catcha-line bg-card px-4 py-2 text-xs font-extrabold text-catcha-chocolate"
+          >
+            <Icon name="message" size={16} />
+            ส่งการ์ดหาลูกค้า
+            {noLine && <span className="font-bold text-brown-soft">· ยังไม่ผูก LINE</span>}
+            {autoOff.length > 0 && (
+              <span className="rounded-full bg-wait/15 px-1.5 text-[10px] text-wait">
+                ปิดอัตโนมัติ {autoOff.length}
+              </span>
+            )}
+          </button>
+        )
       )}
 
       {sheetOpen && (
