@@ -18,6 +18,7 @@ import { MyPackagesSection } from "@/components/MyPackagesSection";
 import { MyMemberCreditSection } from "@/components/MyMemberCreditSection";
 import { PackageShopSection } from "@/components/PackageShopSection";
 import { HeaderBand, IconChip } from "@/components/HeaderBand";
+import { customerFetch } from "@/lib/customer-fetch";
 
 export default function CustomerHome() {
   const { locale } = useLocale();
@@ -38,7 +39,7 @@ export default function CustomerHome() {
 
   useEffect(() => {
     if (!profile?.lineUserId) return;
-    fetch(`/api/coupons?lineUserId=${profile.lineUserId}&active=1`)
+    customerFetch(`/api/coupons?lineUserId=${encodeURIComponent(profile.lineUserId)}&active=1`)
       .then((r) => r.json())
       .then((d) => setCouponCount((d.coupons || []).length))
       .catch(() => {});

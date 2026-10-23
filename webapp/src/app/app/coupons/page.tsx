@@ -6,6 +6,8 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { BTN_PRIMARY, BTN_SECONDARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState, SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { customerFetch } from "@/lib/customer-fetch";
+import { copyText, lineShareUrl } from "@/lib/copy-text";
 
 type Coupon = {
   id: string;
@@ -29,6 +31,9 @@ export default function CouponsPage() {
   const [referralUrl, setReferralUrl] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [copied, setCopied] = useState(false);
+  // คัดลอกไม่ได้ (เบราว์เซอร์ในแอปบางรุ่น) → โชว์ลิงก์ให้กดค้างคัดลอกเอง
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [packages, setPackages] = useState<
     { id: string; name: string; totalUses: number; usedUses: number }[]
   >([]);
@@ -36,19 +41,26 @@ export default function CouponsPage() {
 
   useEffect(() => {
     if (!profile?.lineUserId) return;
-    // คูปองผูกด้วย customerId (ตัวที่แอปรู้อยู่แล้ว) ถ้ามี — ตรงกันทุกอุปกรณ์ ไม่แตกตาม
-    // LINE ID ที่สลับไปมา · no-store กัน webview เก็บผลเก่าไว้โชว์ค้าง
-    const couponWho = customer?.id
-      ? `customerId=${customer.id}`
-      : `lineUserId=${profile.lineUserId}`;
-    fetch(`/api/coupons?${couponWho}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
+    // ตัวตนมาจากคุกกี้เซสชันลูกค้า (เซิร์ฟเวอร์ไม่เชื่อ id ที่ส่งมา) · no-store กัน webview เก็บผลเก่าไว้โชว์ค้าง
+    customerFetch(`/api/coupons?lineUserId=${encodeURIComponent(profile.lineUserId)}`, { cache: "no-store" })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setLoadError(d.error || "โหลดคูปองไม่สำเร็จ ลองเปิดหน้านี้ใหม่อีกครั้งนะคะ");
+          return;
+        }
+        setLoadError("");
         if (!d.found) return;
         setCoupons(d.coupons || []);
-        setReferralUrl(d.referralUrl || "");
         setReferralCode(d.referralCode || "");
+        setReferralUrl(
+          d.referralUrl ||
+            (d.referralCode
+              ? `${window.location.origin}/app/register?ref=${encodeURIComponent(d.referralCode)}`
+              : "")
+        );
       })
+      .catch(() => setLoadError("โหลดคูปองไม่สำเร็จ ลองเปิดหน้านี้ใหม่อีกครั้งนะคะ"))
       .finally(() => setLoading(false));
     // คอร์ส: API บังคับใช้ lineUserId (กันเดา id คนอื่น) — ยิงด้วย lineUserId ของตัวเอง
     fetch(`/api/packages?lineUserId=${profile.lineUserId}&active=1`, { cache: "no-store" })
@@ -57,14 +69,16 @@ export default function CouponsPage() {
       .catch(() => {});
   }, [profile?.lineUserId, customer?.id]);
 
+  const shareText = `🐱 มาเลี้ยงน้องแมวที่ CatCha Hotel กันนะ! สมัครผ่านลิงก์นี้ + มาใช้บริการครั้งแรก รับคูปองส่วนลด 100฿ ทั้งคู่เลย 🎁\n${referralUrl}`;
+
   const share = async () => {
-    const text = `🐱 มาเลี้ยงน้องแมวที่ CatCha Hotel กันนะ! สมัครผ่านลิงก์นี้ + มาใช้บริการครั้งแรก รับคูปองส่วนลด 100฿ ทั้งคู่เลย 🎁\n${referralUrl}`;
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(shareText)) {
       setCopied(true);
+      setCopyFailed(false);
       setTimeout(() => setCopied(false), 2500);
-    } catch {
+    } else {
       setCopied(false);
+      setCopyFailed(true);
     }
   };
 
@@ -108,6 +122,24 @@ export default function CouponsPage() {
           <Icon name={copied ? "check" : "link"} size={18} />
           {copied ? "คัดลอกลิงก์แล้ว — เอาไปส่งเพื่อนได้เลย!" : "คัดลอกลิงก์ชวนเพื่อน"}
         </button>
+        {referralUrl && (
+          <a
+            href={lineShareUrl(shareText)}
+            className="mt-2 flex items-center justify-center gap-1.5 text-xs font-extrabold text-latte-deep underline-offset-2 active:underline"
+          >
+            <Icon name="send" size={14} />
+            หรือส่งให้เพื่อนในแชท LINE เลย
+          </a>
+        )}
+        {copyFailed && referralUrl && (
+          <div className="mt-2 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2">
+            <p className="text-[11px] font-bold text-brown-soft">เครื่องนี้คัดลอกอัตโนมัติไม่ได้ — กดค้างที่ลิงก์เพื่อคัดลอกนะคะ</p>
+            <p className="mt-1 select-all break-all text-xs font-bold text-catcha-chocolate">{referralUrl}</p>
+          </div>
+        )}
+        {loadError && (
+          <p className="mt-2 text-[11px] font-bold text-red-600">{loadError}</p>
+        )}
       </div>
 
       {/* ── คอร์ส/แพ็กเกจ ── */}
