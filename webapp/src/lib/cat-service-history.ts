@@ -39,7 +39,17 @@ export type HistoryBill = {
   catName: string;
   /** วันที่จ่าย/ออกบิล YYYY-MM-DD */
   date: string;
-  items: { kind?: string; program?: string; label: string; catName?: string; qty?: number }[];
+  items: {
+    kind?: string;
+    program?: string;
+    label: string;
+    catName?: string;
+    qty?: number;
+    amount?: number;
+    unitAmount?: number;
+    breed?: string;
+    size?: string;
+  }[];
 };
 
 export type CatHistory = {

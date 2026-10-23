@@ -11,6 +11,8 @@ import { CustomerIntakeCards } from "@/components/CustomerIntakeCards";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { TransportPicker } from "@/components/TransportPicker";
+import { PastPricesHint } from "@/components/PastPrices";
+import { pastPriceList, type PastInvoice, type PastPrice } from "@/lib/special-price";
 import type { BookingTransport } from "@/lib/transport";
 import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
@@ -397,6 +399,23 @@ export default function NewBookingPage() {
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
+
+  // ราคาที่ลูกค้าคนนี้เคยจ่าย (แยกรายตัว) — บอกราคาเดิมตอนรับจองได้เลย ไม่ต้องไปเปิดบิลเก่า
+  const [pastPrices, setPastPrices] = useState<PastPrice[]>([]);
+  useEffect(() => {
+    setPastPrices([]);
+    if (!customerId) return;
+    let cancelled = false;
+    fetch(`/api/invoices?customerId=${encodeURIComponent(customerId)}`)
+      .then((r) => (r.ok ? r.json() : { invoices: [] }))
+      .then((d: { invoices?: PastInvoice[] }) => {
+        if (!cancelled) setPastPrices(pastPriceList(d.invoices || [], customerId));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId]);
 
   useEffect(() => {
     const d = searchParams.get("date");
@@ -891,6 +910,8 @@ export default function NewBookingPage() {
 
         {/* ถามข้อมูลก่อนรับน้องได้เลยตั้งแต่ตอนเลือกลูกค้า — ยังไม่ต้องกดบันทึกนัด */}
         {pickedCustomer && <CustomerIntakeCards key={pickedCustomer.id} customer={pickedCustomer} onDone={() => {}} />}
+
+        <PastPricesHint prices={pastPrices} />
 
         {lineUserId && (
           <p className="flex items-center gap-2 rounded-catcha-sm bg-sage/15 px-3 py-2 text-[11px] font-bold text-ok">
