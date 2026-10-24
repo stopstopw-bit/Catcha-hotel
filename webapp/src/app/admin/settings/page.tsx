@@ -673,7 +673,7 @@ function MessagesTab({
         ⏰ เตือนอัตโนมัติก่อนเข้าพัก
       </p>
       <p className="text-[11px] font-bold text-brown-soft">
-        เตือนยอดคงเหลือก่อนเข้าพัก ส่งเป็นการ์ดแล้ว — แก้ข้อความได้ที่{" "}
+        ยอดคงเหลือก่อนเข้าพักอยู่ในการ์ดเตรียมตัวก่อนเข้าพักใบเดียวกัน (ส่งแยกเฉพาะเมื่อปิดการ์ดเตรียมตัว) — แก้ข้อความการ์ดแยกได้ที่{" "}
         <a href="/admin/cards" className="text-catcha-chocolate underline">ปรับแต่งการ์ด › แจ้งยอดก่อนเข้าพัก</a>
       </p>
       <p className="text-[11px] font-bold text-brown-soft">

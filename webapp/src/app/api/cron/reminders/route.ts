@@ -12,6 +12,7 @@ import {
   buildConsentFlex,
   buildDocRequestFlex,
   mergeIntakeCards,
+  intakeStartLink,
   politeCat,
   STAY_INFO_HEADER,
   type IntakeEntry,
@@ -216,9 +217,9 @@ export async function GET(req: NextRequest) {
     if (!primary.lineUserId) continue;
     try {
       const catLabel = groupCatNames(group);
-      // เข้าพัก: ไม่ส่งการ์ด "กำหนดการนัด" วันก่อนเข้าพัก — การ์ดเตรียมตัว (วัน/ห้อง/เลือกเวลา) ส่งไปก่อนหน้านี้แล้ว
-      // (เจ้าของร้านเลือกไม่ส่งเลย 2026-10-24) · นัดอาบน้ำยังส่งตามเดิม
-      const skipConfirmCard = primary.service === "room";
+      // เข้าพักที่ลูกค้าเลือกเวลามาส่งแล้ว = ยืนยันกับเราแล้ว และได้การ์ดเตรียมตัว (วัน/ห้อง) ไปก่อนหน้านี้แล้ว
+      // ไม่ต้องส่งการ์ด "กำหนดการนัด" ซ้ำอีกใบ — ส่งเฉพาะบ้านที่ยังไม่ได้เลือกเวลา
+      const skipConfirmCard = primary.service === "room" && group.every((x) => x.arrivalTime);
       // รวมการ์ดของวันนี้ไว้ใน push เดียว (เตือนนัด + ขอประวัติ ถ้าจำเป็น) — นับ 1 ข้อความ LINE
       const dayMessages: object[] = skipConfirmCard ? [] : [
         await buildBookingConfirmFlex({
@@ -406,8 +407,8 @@ export async function GET(req: NextRequest) {
     /** ปิดเฉพาะเมื่อปิดครบทุกตัวในบ้าน — ปิดตัวเดียวไม่ควรทำให้ทั้งบ้านเงียบ */
     const groupMuted = (topic: string) => group.every((x) => autoMuted(x, topic));
 
-    // #1 — แจ้งยอดคงเหลือ N วันก่อนเข้าพัก (ถ้ามีมัดจำ + ยังค้าง)
-    // ตรงวันเดียวกับชุดก่อนเข้าพัก → แนบในชุดนั้นแทน (ไม่ส่งแยกอีกข้อความ)
+    // #1 — แจ้งยอดคงเหลือแยก N วันก่อนเข้าพัก (ถ้ามีมัดจำ + ยังค้าง) — ปกติยอดอยู่ในการ์ดเตรียมตัว
+    // ส่งแยกเฉพาะเมื่อปิดการ์ดเตรียมตัว หรือตั้งให้เตือนยอดหลังการ์ดเตรียมตัว (ดู balanceReminderSender)
     if (b.checkin === in7 && balanceReminderSender(group, cfg) === "deposit") {
       const inv = allInvoices.find(
         (i) => i.bookingId && ids.includes(i.bookingId) && i.status === "pending" && (i.deposit || 0) > 0
@@ -437,9 +438,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // #4 — ชุดก่อนเข้าพัก N วัน: การ์ดเตรียมตัว (มีปุ่มเลือกเวลาส่งน้องในใบเดียวกัน)
-    // + การ์ดขอข้อมูลที่ยังขาด + ยอดคงเหลือ (เฉพาะเมื่อไม่ได้ส่งไปแล้วในรอบเตือนยอด)
-    // รวมทั้งหมดใน push เดียว = นับ 1 ข้อความ LINE — ลิงก์ยอมรับชี้ที่นัดนี้เท่านั้น
+    // #4 — ก่อนเข้าพัก N วัน: การ์ดใบเดียว = เตรียมตัว + ข้อมูลที่ยังขาด (ปุ่มเดียว) + ยอดคงเหลือ
+    // + ปุ่มเลือกเวลาส่งน้อง — ลิงก์ยอมรับชี้ที่นัดนี้เท่านั้น
     if (
       auto?.prestayReminderEnabled !== false &&
       !groupMuted("prestay") &&
@@ -451,38 +451,54 @@ export async function GET(req: NextRequest) {
         checkinPickerSender(group, cfg) === "prestay"
           ? await getBookingTimeUrl(b.id, "checkin")
           : "";
+      // กฎ + กดยินยอม (ปิดรายนัดได้ ไม่ส่งซ้ำถ้ากดยอมรับนัดนี้แล้ว) + ข้อมูลก่อนเข้าพัก / สมุดวัคซีน /
+      // บัตรประชาชน ที่ยังขาด → เป็นปุ่มเดียวในการ์ดเตรียมตัว ระบบพาไปทีละหน้า
+      const consent = await consentCardFor(group, b, cfg);
+      const intake = [...(consent ? [consent] : []), ...(await intakeCardsFor(group, "room", cfg))];
+      const flow = liffId ? { liffId, by: "b" as const } : undefined;
+      const intakeLink = intakeStartLink(intake, { flow }, cfg.cards?.intake);
+      // ยอดคงเหลือ (มีบิลค้าง + มัดจำแล้ว) อยู่ในการ์ดใบเดียวกัน
+      let balance: Parameters<typeof buildPrestayFlex>[0]["balance"];
+      if (balanceReminderSender(group, cfg) === "prestay") {
+        const inv = allInvoices.find(
+          (i) => i.bookingId && ids.includes(i.bookingId) && i.status === "pending" && (i.deposit || 0) > 0
+        );
+        const remaining = inv ? inv.total - (inv.deposit || 0) : 0;
+        if (inv && remaining > 0) {
+          balance = {
+            deposit: inv.deposit || 0,
+            remaining,
+            bankName: cfg.payment.bankName,
+            accountNumber: cfg.payment.accountNumber,
+            accountName: cfg.payment.accountName,
+          };
+        }
+      }
+      // ทุกอย่างรวมในการ์ดใบเดียว: เตรียมตัว + ข้อมูลที่ยังขาด + ยอดคงเหลือ + ปุ่มเลือกเวลา
       const prestayBundle: object[] = [
-        // การ์ดเตรียมตัว (ไม่มีลิงก์เซ็นแล้ว) + การ์ดเงื่อนไข/ลายเซ็น แยกกันคนละใบ
         buildPrestayFlex({
           ...buildPrestayFlexData(b, cfg),
           consentUrl: undefined,
           timeUrl: timeUrl || undefined,
+          intake: intakeLink || undefined,
+          balance,
         }, cfg.cards?.prestay),
       ];
-      // กฎ + กดยินยอม (ปิดรายนัดได้ ไม่ส่งซ้ำถ้ากดยอมรับนัดนี้แล้ว) + ข้อมูลก่อนเข้าพัก / สมุดวัคซีน /
-      // บัตรประชาชน ที่ยังขาด — ขาดหลายเรื่องรวมเป็นการ์ดใบเดียว ปุ่มเดียวไล่ทีละหน้า
-      const consent = await consentCardFor(group, b, cfg);
-      const intake = [...(consent ? [consent] : []), ...(await intakeCardsFor(group, "room", cfg))];
-      prestayBundle.push(
-        ...mergeIntakeCards(
-          intake,
-          {
-            service: "stay",
-            catName: String(b.catName),
-            businessName: cfg.business.name,
-            dateText: bookingScheduleText(b),
-            flow: liffId ? { liffId, by: "b" } : undefined,
-          },
-          cfg.cards?.intake
-        )
-      );
-      // มีบิลค้าง + มัดจำแล้ว → แนบการ์ดยอดคงเหลือ เฉพาะเมื่อรอบเตือนยอดไม่ได้ส่งไปแล้ว
-      if (balanceReminderSender(group, cfg) === "prestay") {
-        const pendingInv = allInvoices.find(
-          (i) => i.bookingId && ids.includes(i.bookingId) && i.status === "pending" && (i.deposit || 0) > 0
+      // ทำเป็นปุ่มเดียวไม่ได้ (ไม่มี LIFF ID) → การ์ดขอข้อมูลแยกแบบเดิม
+      if (!intakeLink) {
+        prestayBundle.push(
+          ...mergeIntakeCards(
+            intake,
+            {
+              service: "stay",
+              catName: String(b.catName),
+              businessName: cfg.business.name,
+              dateText: bookingScheduleText(b),
+              flow,
+            },
+            cfg.cards?.intake
+          )
         );
-        const card = pendingInv ? buildDepositReminderCard(b, pendingInv, cfg) : null;
-        if (card) prestayBundle.push(card);
       }
       try {
         await pushInChunks(to, prestayBundle);
