@@ -672,13 +672,10 @@ function MessagesTab({
       <p className="text-xs font-extrabold text-catcha-chocolate">
         ⏰ เตือนอัตโนมัติก่อนเข้าพัก
       </p>
-      <TextAreaField
-        label="เตือนยอดคงเหลือ (7 วันก่อนเข้าพัก)"
-        hint="ใช้ได้: {shop} {cat} {checkin} {deposit} {remaining} {bank} {accountNumber} {accountName}"
-        value={msgs?.depositReminder || ""}
-        onChange={(v) => setMsgs({ ...msgs, depositReminder: v })}
-        rows={7}
-      />
+      <p className="text-[11px] font-bold text-brown-soft">
+        ยอดคงเหลือก่อนเข้าพักอยู่ในการ์ดเตรียมตัวก่อนเข้าพักใบเดียวกัน (ส่งแยกเฉพาะเมื่อปิดการ์ดเตรียมตัว) — แก้ข้อความการ์ดแยกได้ที่{" "}
+        <a href="/admin/cards" className="text-catcha-chocolate underline">ปรับแต่งการ์ด › แจ้งยอดก่อนเข้าพัก</a>
+      </p>
       <p className="text-[11px] font-bold text-brown-soft">
         การ์ดแจ้งเข้าพัก (จัดรูปแบบสวยงามอัตโนมัติ · ส่ง 3 วันก่อนเข้าพัก)
       </p>
