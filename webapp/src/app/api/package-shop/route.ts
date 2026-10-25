@@ -165,12 +165,14 @@ export async function POST(req: NextRequest) {
     }
     const offer = await createPackageOffer({
       name: String(body.name || ""),
-      kind: body.kind === "credit" ? "credit" : "uses",
+      // "nights" เคยถูกแปลงเป็น "uses" ตรงนี้ — คอร์สวันพักเลยกลายเป็นนับครั้ง (1 ครั้งคลุมทั้งบิล)
+      kind: body.kind === "credit" || body.kind === "nights" ? body.kind : "uses",
       totalUses: Number(body.totalUses) || 0,
       price: Number(body.price) || 0,
       creditBonus: Number(body.creditBonus) || 0,
       description: body.description ? String(body.description) : undefined,
       groomProgram: body.groomProgram ? String(body.groomProgram) : undefined,
+      roomType: body.roomType ? String(body.roomType) : undefined,
       image: body.image ? String(body.image) : undefined,
     });
     if (!offer) {
@@ -277,12 +279,18 @@ export async function PATCH(req: NextRequest) {
   if (action === "update_offer") {
     const res = await updatePackageOffer(String(body.offerId || ""), {
       name: body.name !== undefined ? String(body.name) : undefined,
-      kind: body.kind !== undefined ? (body.kind === "credit" ? "credit" : "uses") : undefined,
+      kind:
+        body.kind !== undefined
+          ? body.kind === "credit" || body.kind === "nights"
+            ? body.kind
+            : "uses"
+          : undefined,
       totalUses: body.totalUses !== undefined ? Number(body.totalUses) : undefined,
       price: body.price !== undefined ? Number(body.price) : undefined,
       creditBonus: body.creditBonus !== undefined ? Number(body.creditBonus) : undefined,
       description: body.description !== undefined ? String(body.description) : undefined,
       groomProgram: body.groomProgram !== undefined ? String(body.groomProgram) : undefined,
+      roomType: body.roomType !== undefined ? String(body.roomType) : undefined,
     });
     if (!res.ok) {
       return NextResponse.json({ error: res.error }, { status: 400 });

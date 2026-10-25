@@ -63,6 +63,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "pos_sales", column: "method", feature: "POS บิลขายหน้าร้าน" },
   { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
+  { table: "package_offers", column: "room_type", feature: "คอร์สวันพักในแอปแยกตามประเภทห้อง" },
   { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
   { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
   { table: "cats", column: "vaccine_photos", feature: "สมุดวัคซีนที่ตัวน้อง (ขอก่อนมีนัด)" },
@@ -453,6 +454,15 @@ where staff_note like '%🎁%';`,
       alter table customer_packages add column if not exists groom_program text;
       alter table package_offers add column if not exists groom_program text;
       alter table package_orders add column if not exists groom_program text;
+    `,
+  },
+  {
+    // คอร์สวันพักที่ขายในแอปผูกประเภทห้อง (ห้องแต่ละแบบราคาไม่เท่ากัน) — ว่าง = ใช้ได้ทุกห้องแบบเดิม
+    // ออร์เดอร์ก๊อปห้องไว้ ณ ตอนสั่ง แล้วคอร์สที่สร้างตอนยืนยันได้ room_type ของ customer_packages
+    name: "packages.offer_room_type",
+    sql: `
+      alter table package_offers add column if not exists room_type text;
+      alter table package_orders add column if not exists room_type text;
     `,
   },
   {

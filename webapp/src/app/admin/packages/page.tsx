@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { EmptyState, MoreMenu, SectionLabel, Segmented } from "@/components/ui";
 import { GroomProgramPicker, useGroomPrograms } from "@/components/GroomProgramPicker";
 import { groomProgramName, type GroomProgram } from "@/lib/grooming-prices";
+import { RoomTypePicker, useRoomOptions, type RoomOption } from "@/components/RoomTypePicker";
 
 type PackageKind = "uses" | "credit" | "nights";
 
@@ -23,6 +24,9 @@ type Offer = {
   imageUrl?: string;
   /** เฉพาะ kind==="uses" — ผูกโปรแกรมอาบน้ำ ไม่ระบุ = ทุกโปรแกรม */
   groomProgram?: string;
+  /** เฉพาะ kind==="nights" — ผูกประเภทห้อง ไม่ระบุ = ทุกห้อง */
+  roomType?: string;
+  roomLabel?: string;
   active: boolean;
 };
 
@@ -47,9 +51,11 @@ function OfferRow({
   patch,
   pickImage,
   programs,
+  rooms,
 }: {
   offer: Offer;
   programs: GroomProgram[];
+  rooms: RoomOption[];
   patch: (body: Record<string, unknown>, okMsg: string, key: string) => Promise<void>;
   pickImage: (file: File, onDone: (dataUrl: string) => void) => Promise<void>;
 }) {
@@ -61,6 +67,7 @@ function OfferRow({
   const [creditBonus, setCreditBonus] = useState(String(o.creditBonus));
   const [desc, setDesc] = useState(o.description || "");
   const [program, setProgram] = useState(o.groomProgram || "");
+  const [room, setRoom] = useState(o.roomType || "");
   const [saving, setSaving] = useState(false);
   const isCredit = o.kind === "credit";
   const isNights = o.kind === "nights";
@@ -73,6 +80,7 @@ function OfferRow({
     setCreditBonus(String(o.creditBonus));
     setDesc(o.description || "");
     setProgram(o.groomProgram || "");
+    setRoom(o.roomType || "");
     setEditing(true);
   };
 
@@ -93,6 +101,7 @@ function OfferRow({
           creditBonus: Math.round(Number(creditBonus) || 0),
           description: desc.trim(),
           ...(o.kind === "uses" ? { groomProgram: program } : {}),
+          ...(isNights ? { roomType: room } : {}),
         },
         isCredit ? "แก้ไขแพ็กเกจเครดิตแล้ว ✏️" : "แก้ไขคอร์สแล้ว ✏️",
         o.id
@@ -177,6 +186,15 @@ function OfferRow({
           {o.kind === "uses" && (
             <GroomProgramPicker value={program} onChange={setProgram} programs={programs} />
           )}
+          {isNights && (
+            <RoomTypePicker
+              value={room}
+              onChange={setRoom}
+              rooms={rooms}
+              nights={Math.round(Number(uses) || 0)}
+              price={Math.round(Number(price) || 0)}
+            />
+          )}
           <div className="flex gap-2 pt-1">
             <button
               type="button"
@@ -251,6 +269,7 @@ function OfferRow({
               ).toLocaleString()} เครดิต`
             : `${o.totalUses} ${unitWord} · ${o.price.toLocaleString()} ฿`}
           {o.groomProgram && ` · ${groomProgramName(o.groomProgram, programs) || "โปรแกรมที่ลบไปแล้ว"}`}
+          {isNights && ` · ${o.roomType ? o.roomLabel || "ห้องที่ลบไปแล้ว" : "ทุกห้อง"}`}
         </span>
         {o.description ? (
           <span className="block truncate text-[11px] text-brown-faint">{o.description}</span>
@@ -304,7 +323,9 @@ export default function AdminPackagesPage() {
   const [desc, setDesc] = useState("");
   const [image, setImage] = useState("");
   const [program, setProgram] = useState("");
+  const [room, setRoom] = useState("");
   const groomPrograms = useGroomPrograms();
+  const rooms = useRoomOptions();
 
   /** ย่อรูปก่อนส่งเสมอ — รูปจากมือถือ 5MB ยิงขึ้นไปตรงๆ จะโดนตีกลับ */
   const pickImage = async (file: File, onDone: (dataUrl: string) => void) => {
@@ -363,6 +384,7 @@ export default function AdminPackagesPage() {
           description: desc.trim() || undefined,
           image: image || undefined,
           groomProgram: kind === "uses" ? program || undefined : undefined,
+          roomType: kind === "nights" ? room || undefined : undefined,
         }),
       });
       if (res.ok) {
@@ -379,6 +401,7 @@ export default function AdminPackagesPage() {
         setDesc("");
         setImage("");
         setProgram("");
+        setRoom("");
         load();
       } else {
         toast("เพิ่มไม่สำเร็จ", "error");
@@ -546,6 +569,15 @@ export default function AdminPackagesPage() {
             {kind === "uses" && (
               <GroomProgramPicker value={program} onChange={setProgram} programs={groomPrograms} />
             )}
+            {kind === "nights" && (
+              <RoomTypePicker
+                value={room}
+                onChange={setRoom}
+                rooms={rooms}
+                nights={Math.round(Number(uses) || 0)}
+                price={Math.round(Number(price) || 0)}
+              />
+            )}
 
             <label className="flex cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2.5">
               {image ? (
@@ -704,7 +736,14 @@ export default function AdminPackagesPage() {
           ) : (
             <ul className="divide-y divide-catcha-line">
               {offers.map((o) => (
-                <OfferRow key={o.id} offer={o} patch={patch} pickImage={pickImage} programs={groomPrograms} />
+                <OfferRow
+                  key={o.id}
+                  offer={o}
+                  patch={patch}
+                  pickImage={pickImage}
+                  programs={groomPrograms}
+                  rooms={rooms}
+                />
               ))}
             </ul>
           )}

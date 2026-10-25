@@ -14,6 +14,8 @@ type Offer = {
   creditBonus: number;
   description?: string;
   imageUrl?: string;
+  /** คอร์สวันพักที่ผูกห้อง — ชื่อห้อง เช่น "ห้อง Mid Cozy" */
+  roomLabel?: string;
 };
 
 type Order = {
@@ -82,7 +84,7 @@ export function PackageShopSection() {
       offer.kind === "credit"
         ? `รับเครดิตรวม ${(offer.price + offer.creditBonus).toLocaleString()} บาท (จ่าย ${offer.price.toLocaleString()} รับเพิ่มฟรี ${offer.creditBonus.toLocaleString()})`
         : offer.kind === "nights"
-          ? `(เข้าพักได้ ${offer.totalUses} คืน)`
+          ? `(เข้าพักได้ ${offer.totalUses} คืน${offer.roomLabel ? ` · ${offer.roomLabel}` : ""})`
           : `(${offer.totalUses} ครั้ง)`;
     if (
       !confirm(
@@ -221,6 +223,7 @@ export function PackageShopSection() {
                         <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
                           เข้าพักได้ {o.totalUses} คืน
                         </span>
+                        {o.roomLabel && <span>{o.roomLabel}</span>}
                         {o.totalUses > 0 && (
                           <span className="text-brown-faint">
                             ตกคืนละ {Math.round(o.price / o.totalUses).toLocaleString()}฿
