@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLiff } from "@/components/LiffProvider";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { Icon } from "@/components/Icon";
+import { ExpandableText } from "@/components/ExpandableText";
 
 type Offer = {
   id: string;
@@ -253,9 +254,13 @@ export function PackageShopSection() {
                     )}
                   </p>
                   {o.description && (
-                    <p className="mt-1 whitespace-pre-line text-[10px] leading-relaxed text-brown-faint">
-                      {o.description}
-                    </p>
+                    <div className="mt-1">
+                      <ExpandableText
+                        text={o.description}
+                        lines={3}
+                        className="text-[10px] leading-relaxed text-brown-faint"
+                      />
+                    </div>
                   )}
                   <div className="mt-auto flex items-end justify-between gap-2 pt-2.5">
                     <p className="text-lg font-extrabold leading-none text-latte-deep">
