@@ -8,7 +8,7 @@ import { Icon } from "@/components/Icon";
 type Offer = {
   id: string;
   name: string;
-  kind: "uses" | "credit" | "nights";
+  kind: "uses" | "credit" | "nights" | "bundle";
   totalUses: number;
   price: number;
   creditBonus: number;
@@ -16,12 +16,14 @@ type Offer = {
   imageUrl?: string;
   /** คอร์สวันพักที่ผูกห้อง — ชื่อห้อง เช่น "ห้อง Mid Cozy" */
   roomLabel?: string;
+  /** ชุดรวม / ของแถม — เช่น ["ห้อง Mid Cozy 5 คืน", "อาบน้ำ Catcha Premium 6 ครั้ง + แถม 2"] */
+  itemLabels?: string[];
 };
 
 type Order = {
   id: string;
   name: string;
-  kind: "uses" | "credit" | "nights";
+  kind: "uses" | "credit" | "nights" | "bundle";
   totalUses: number;
   price: number;
   creditBonus: number;
@@ -80,8 +82,9 @@ export function PackageShopSection() {
 
   const buy = async (offer: Offer) => {
     if (!profile?.lineUserId) return;
-    const detail =
-      offer.kind === "credit"
+    const detail = offer.itemLabels?.length
+      ? `(${offer.itemLabels.join(" · ")})`
+      : offer.kind === "credit"
         ? `รับเครดิตรวม ${(offer.price + offer.creditBonus).toLocaleString()} บาท (จ่าย ${offer.price.toLocaleString()} รับเพิ่มฟรี ${offer.creditBonus.toLocaleString()})`
         : offer.kind === "nights"
           ? `(เข้าพักได้ ${offer.totalUses} คืน${offer.roomLabel ? ` · ${offer.roomLabel}` : ""})`
@@ -213,7 +216,13 @@ export function PackageShopSection() {
                     {o.name}
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold text-brown-soft">
-                    {o.kind === "credit" ? (
+                    {o.itemLabels?.length ? (
+                      o.itemLabels.map((l) => (
+                        <span key={l} className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
+                          {l}
+                        </span>
+                      ))
+                    ) : o.kind === "credit" ? (
                       <span className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
                         รวมเครดิต {(o.price + o.creditBonus).toLocaleString()} บาท
                         {o.creditBonus > 0 ? ` (รับเพิ่มฟรี ${o.creditBonus.toLocaleString()})` : ""}
