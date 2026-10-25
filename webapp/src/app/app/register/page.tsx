@@ -40,6 +40,7 @@ import { isFeatureOn } from "@/lib/features";
 import { referralReward } from "@/lib/referral";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { customerFetch } from "@/lib/customer-fetch";
+import { resolveRegisterForm } from "@/lib/register-form";
 
 function emptyCat(): CatInput {
   return {
@@ -68,6 +69,11 @@ export default function RegisterPage() {
   const { config } = useConfig();
   const breeds = config.options?.catBreeds?.length ? config.options.catBreeds : BREED_OPTIONS;
   const referralOn = isFeatureOn(config, "referral");
+  // ช่องไหนแสดง/บังคับ/ชื่อช่อง — ร้านตั้งเองในหลังบ้าน › การ์ด › ฟอร์มสมัครสมาชิก
+  const rf = resolveRegisterForm(config.registerForm);
+  /** ป้าย (ไม่บังคับ) ต่อท้ายชื่อช่องที่ร้านตั้งว่าไม่บังคับ */
+  const optTag = (on: boolean) =>
+    on ? null : <span className="font-normal text-brown-faint"> (ไม่บังคับ)</span>;
   const referrals = config.options?.referralOptions?.length
     ? config.options.referralOptions
     : REFERRAL_OPTIONS;
@@ -117,16 +123,25 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!profile?.lineUserId) return;
 
-    // บังคับกรอกให้ครบทุกช่อง (ยกเว้นรูป/สี/อายุ/วันเกิดน้อง/โรคประจำตัว) — ไม่อยากได้ตัวไหนให้กดลบออก
+    // บังคับเฉพาะช่องที่ร้านตั้งว่าบังคับ (ค่าเริ่มต้น: ทุกช่อง ยกเว้นสี/อายุ/โรคประจำตัว/ชัก/แพ้)
     const catProblem = (c: CatInput, n: string): string => {
       if (!c.name.trim()) return `กรอกชื่อน้องแมว${n}ด้วยนะคะ`;
-      if (!c.gender) return `เลือกเพศน้องแมว${n}ด้วยนะคะ 🐱`;
-      if (!c.breed || (c.breed === OTHER_BREED && !c.breedOther.trim()))
+      if (rf.gender.required && !c.gender) return `เลือกเพศน้องแมว${n}ด้วยนะคะ 🐱`;
+      if (rf.breed.required && (!c.breed || (c.breed === OTHER_BREED && !c.breedOther.trim())))
         return `เลือกสายพันธุ์น้องแมว${n}ด้วยนะคะ`;
-      if (!c.furLength) return `เลือกลักษณะขนน้องแมว${n}ด้วยนะคะ`;
-      if (!c.neutered) return `เลือกว่าน้องแมว${n}ทำหมันแล้วหรือยังด้วยนะคะ`;
-      if (!c.weightUnknown && !(Number(c.weightKg) > 0))
+      if (rf.furLength.required && !c.furLength) return `เลือกลักษณะขนน้องแมว${n}ด้วยนะคะ`;
+      if (rf.neutered.required && !c.neutered) return `เลือกว่าน้องแมว${n}ทำหมันแล้วหรือยังด้วยนะคะ`;
+      if (rf.color.required && !c.color.trim()) return `กรอกสี/ลักษณะเด่นน้องแมว${n}ด้วยนะคะ`;
+      if (rf.age.required && !c.ageUnknown && !(Number(c.ageValue) > 0))
+        return `กรอกอายุน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`;
+      if (rf.weight.required && !c.weightUnknown && !(Number(c.weightKg) > 0))
         return `กรอกน้ำหนักน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`;
+      if (rf.medical.required && !c.medical.trim() && !c.note.trim())
+        return `เลือกโรคประจำตัวน้องแมว${n} (ไม่มีก็เลือก/พิมพ์ว่า "ไม่มี") ด้วยนะคะ`;
+      if (rf.seizure.required && !c.seizureHistory.trim())
+        return `กรอกประวัติการชัก/ช็อคน้องแมว${n} (ไม่มีพิมพ์ว่า "ไม่มี") ด้วยนะคะ`;
+      if (rf.allergy.required && !c.allergy.trim())
+        return `กรอกประวัติการแพ้น้องแมว${n} (ไม่มีพิมพ์ว่า "ไม่มี") ด้วยนะคะ`;
       return "";
     };
     for (let i = 0; i < cats.length; i++) {
@@ -136,11 +151,19 @@ export default function RegisterPage() {
         return;
       }
     }
-    if (!/^\d{5}$/.test(postalCode)) {
+    if (rf.email.required && !email.trim()) {
+      setError("กรอกอีเมลด้วยนะคะ");
+      return;
+    }
+    if (rf.ownerBirthday.required && !birthday) {
+      setError("เลือกวันเกิดผู้ปกครองด้วยนะคะ");
+      return;
+    }
+    if (rf.postalCode.required ? !/^\d{5}$/.test(postalCode) : postalCode && !/^\d{5}$/.test(postalCode)) {
       setError("กรอกรหัสไปรษณีย์ 5 หลักด้วยนะคะ");
       return;
     }
-    if (!referral) {
+    if (rf.referral.enabled && rf.referral.required && !referral) {
       setError("เลือกช่องทางที่รู้จักเราด้วยนะคะ");
       return;
     }
@@ -242,7 +265,7 @@ export default function RegisterPage() {
         <div className="space-y-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
         <label className="block">
           <span className="mb-1 block text-xs font-bold text-brown">
-            ชื่อผู้ปกครอง{" "}
+            {rf.ownerName.label}{" "}
             <span className="font-normal text-brown-faint">
               (ชื่อเล่นหรือชื่อจริงก็ได้นะคะ)
             </span>
@@ -257,7 +280,7 @@ export default function RegisterPage() {
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-xs font-bold text-brown">เบอร์โทร</span>
+          <span className="mb-1 block text-xs font-bold text-brown">{rf.phone.label}</span>
           <input
             required
             type="tel"
@@ -269,11 +292,13 @@ export default function RegisterPage() {
         </label>
 
         {/* จอมือถือ: อีเมล/วันเกิดคนละแถว — วางคู่กันแล้วช่องวัน/เดือน/ปีแคบจนอ่านไม่ออก */}
+        {(rf.email.enabled || rf.ownerBirthday.enabled) && (
         <div className="grid gap-3 sm:grid-cols-2">
+          {rf.email.enabled && (
           <label className="block">
-            <span className="mb-1 block text-xs font-bold text-brown">อีเมล</span>
+            <span className="mb-1 block text-xs font-bold text-brown">{rf.email.label}{optTag(rf.email.required)}</span>
             <input
-              required
+              required={rf.email.required}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -281,25 +306,30 @@ export default function RegisterPage() {
               className={fieldClass}
             />
           </label>
+          )}
+          {rf.ownerBirthday.enabled && (
           <label className="block">
             <span className="mb-1 block text-xs font-bold text-brown">
-              วันเกิดผู้ปกครอง
+              {rf.ownerBirthday.label}{optTag(rf.ownerBirthday.required)}
             </span>
             <BirthdayPicker
-              required
+              required={rf.ownerBirthday.required}
               value={birthday}
               onChange={setBirthday}
               yearsBack={90}
             />
           </label>
+          )}
         </div>
+        )}
 
+        {rf.postalCode.enabled && (
         <label className="block">
           <span className="mb-1 block text-xs font-bold text-brown">
-            รหัสไปรษณีย์
+            {rf.postalCode.label}{optTag(rf.postalCode.required)}
           </span>
           <input
-            required
+            required={rf.postalCode.required}
             pattern="[0-9]{5}"
             value={postalCode}
             onChange={(e) =>
@@ -310,6 +340,7 @@ export default function RegisterPage() {
             className={fieldClass}
           />
         </label>
+        )}
         </div>
         </section>
 
@@ -332,10 +363,15 @@ export default function RegisterPage() {
                   required
                   value={cat.name}
                   onChange={(e) => updateCat(idx, { name: e.target.value })}
-                  placeholder="ชื่อน้องแมว"
+                  placeholder={rf.catName.label}
                   className={subFieldClass}
                 />
 
+                {rf.gender.enabled && (
+                <div>
+                <span className="mb-1 block text-[11px] font-bold text-brown-soft">
+                  {rf.gender.label}{optTag(rf.gender.required)}
+                </span>
                 <div className="flex gap-1 rounded-full bg-paper p-1">
                   {(
                     [
@@ -362,9 +398,16 @@ export default function RegisterPage() {
                     </button>
                   ))}
                 </div>
+                </div>
+                )}
 
+                {rf.breed.enabled && (
+                <div>
+                <span className="mb-1 block text-[11px] font-bold text-brown-soft">
+                  {rf.breed.label}{optTag(rf.breed.required)}
+                </span>
                 <select
-                  required
+                  required={rf.breed.required}
                   value={cat.breed}
                   onChange={(e) => updateCat(idx, { breed: e.target.value })}
                   className={`${subFieldClass} ${
@@ -387,12 +430,15 @@ export default function RegisterPage() {
                     value={cat.breedOther}
                     onChange={(e) => updateCat(idx, { breedOther: e.target.value })}
                     placeholder="ระบุสายพันธุ์"
-                    className={subFieldClass}
+                    className={`${subFieldClass} mt-2`}
                   />
                 )}
+                </div>
+                )}
+                {rf.furLength.enabled && (
                 <div>
                   <span className="mb-1 block text-[11px] font-bold text-brown-soft">
-                    ลักษณะขน
+                    {rf.furLength.label}{optTag(rf.furLength.required)}
                   </span>
                   <div className="flex gap-1 rounded-full bg-paper p-1">
                     {(
@@ -417,9 +463,11 @@ export default function RegisterPage() {
                     ))}
                   </div>
                 </div>
+                )}
+                {rf.neutered.enabled && (
                 <div>
                   <span className="mb-1 block text-[11px] font-bold text-brown-soft">
-                    ทำหมัน
+                    {rf.neutered.label}{optTag(rf.neutered.required)}
                   </span>
                   <div className="flex gap-1 rounded-full bg-paper p-1">
                     {(
@@ -444,14 +492,22 @@ export default function RegisterPage() {
                     ))}
                   </div>
                 </div>
+                )}
+                {rf.color.enabled && (
+                <div className="text-[11px] font-bold text-brown-soft">
+                  {rf.color.label}{optTag(rf.color.required)}
                 <input
                   value={cat.color}
                   onChange={(e) => updateCat(idx, { color: e.target.value })}
-                  placeholder="สี/ลักษณะเด่น (ไม่บังคับ) เช่น สีขาวสลับดำ"
-                  className={subFieldClass}
+                  placeholder="เช่น สีขาวสลับดำ"
+                  className={`${subFieldClass} mt-0.5 font-normal text-brown`}
                 />
+                </div>
+                )}
+                {rf.age.enabled && (
+                <>
                 <div className="text-[11px] font-bold text-brown-soft">
-                  อายุ <span className="font-normal text-brown-faint">(ไม่บังคับ)</span>
+                  {rf.age.label}{optTag(rf.age.required)}
                   <div className="mt-0.5 flex items-center gap-2">
                     <input
                       disabled={cat.ageUnknown}
@@ -510,11 +566,14 @@ export default function RegisterPage() {
                     </div>
                   </div>
                 )}
+                </>
+                )}
+                {rf.weight.enabled && (
                 <div className="text-[11px] font-bold text-brown-soft">
-                  น้ำหนัก <span className="font-normal text-brown-faint">(กก.)</span>
+                  {rf.weight.label}{optTag(rf.weight.required)}
                   <div className="mt-0.5 flex items-center gap-2">
                     <input
-                      required={!cat.weightUnknown}
+                      required={rf.weight.required && !cat.weightUnknown}
                       disabled={cat.weightUnknown}
                       type="number"
                       min="0"
@@ -538,15 +597,22 @@ export default function RegisterPage() {
                     </label>
                   </div>
                 </div>
+                )}
 
+                {rf.medical.enabled && (
                 <StaffNoteTagPicker
-                  label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
+                  label={rf.medical.required ? `${rf.medical.label} *` : rf.medical.label}
                   medicalValue={cat.medical}
                   noteValue={cat.note}
                   onChange={(medical, note) => updateCat(idx, { medical, note })}
                 />
+                )}
+                {rf.seizure.enabled && (
                 <label className="block text-[11px] font-bold text-brown-soft">
-                  ประวัติการชัก/ช็อค <span className="font-normal text-brown-faint">(ไม่มีเว้นว่างได้)</span>
+                  {rf.seizure.label}{" "}
+                  <span className="font-normal text-brown-faint">
+                    {rf.seizure.required ? "(ไม่มีพิมพ์ว่า ไม่มี)" : "(ไม่มีเว้นว่างได้)"}
+                  </span>
                   <input
                     value={cat.seizureHistory}
                     onChange={(e) => updateCat(idx, { seizureHistory: e.target.value })}
@@ -554,8 +620,13 @@ export default function RegisterPage() {
                     className={`${subFieldClass} mt-0.5 font-normal text-brown`}
                   />
                 </label>
+                )}
+                {rf.allergy.enabled && (
                 <label className="block text-[11px] font-bold text-brown-soft">
-                  ประวัติการแพ้ <span className="font-normal text-brown-faint">(อาหาร / ยา / แชมพู · ไม่มีเว้นว่างได้)</span>
+                  {rf.allergy.label}{" "}
+                  <span className="font-normal text-brown-faint">
+                    {rf.allergy.required ? "(ไม่มีพิมพ์ว่า ไม่มี)" : "(ไม่มีเว้นว่างได้)"}
+                  </span>
                   <input
                     value={cat.allergy}
                     onChange={(e) => updateCat(idx, { allergy: e.target.value })}
@@ -563,6 +634,7 @@ export default function RegisterPage() {
                     className={`${subFieldClass} mt-0.5 font-normal text-brown`}
                   />
                 </label>
+                )}
 
                 {cats.length > 1 && (
                   <button
@@ -595,9 +667,11 @@ export default function RegisterPage() {
         </section>
 
         {/* ── รู้จักเราจากทางไหน ── */}
+        {rf.referral.enabled && (
         <section>
           <SectionLabel>
-            Referral · รู้จักเราจากทางไหน? <span className="text-red-600">*</span>
+            Referral · {rf.referral.label}{" "}
+            {rf.referral.required && <span className="text-red-600">*</span>}
           </SectionLabel>
           <div className="flex flex-wrap gap-2 rounded-catcha border border-catcha-line bg-card p-3 shadow-catcha-sm">
             {referrals.map((opt) => (
@@ -617,6 +691,7 @@ export default function RegisterPage() {
             ))}
           </div>
         </section>
+        )}
 
         {/* ── โค้ดเพื่อนแนะนำ (ไม่บังคับ) · ร้านปิด "ชวนเพื่อนรับคูปอง" = ไม่ถาม ── */}
         {referralOn && (

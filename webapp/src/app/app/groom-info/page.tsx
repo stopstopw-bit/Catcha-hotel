@@ -66,7 +66,7 @@ function GroomInfoContent() {
 
   // คำถามทั้งหมด — ก่อนอาบน้ำ: ตามที่ร้านตั้งไว้ในหลังบ้าน · ก่อนเข้าพัก: ชุดการกิน/การดูแล (stay-form)
   const groomFields = useMemo(() => resolveGroomForm(config.groomForm), [config.groomForm]);
-  const stayFields = useMemo(() => resolveStayForm(), []);
+  const stayFields = useMemo(() => resolveStayForm(config.stayForm), [config.stayForm]);
 
   const [forms, setForms] = useState<CatForm[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,6 @@
 import type { RoomType } from "./business";
 import type { GroomFormConfig } from "./groom-form";
+import type { RegisterFormConfig } from "./register-form";
 import type { GroomProgram } from "./grooming-prices";
 import type { RoomClosure } from "./room-board";
 import type { LinePromo } from "./line-discount";
@@ -285,4 +286,8 @@ export type SiteConfig = {
   cards?: Record<string, CardStyleConfig>;
   /** คำถาม/ตัวเลือกในฟอร์มประวัติน้องก่อนอาบน้ำ — แก้เองได้ในหลังบ้าน */
   groomForm?: GroomFormConfig;
+  /** คำถามในฟอร์มข้อมูลน้องก่อนเข้าพัก — แก้เองได้ในหลังบ้าน */
+  stayForm?: GroomFormConfig;
+  /** ช่องในฟอร์มสมัครสมาชิก — เปิด/ปิด บังคับ แก้ชื่อช่องได้ในหลังบ้าน */
+  registerForm?: RegisterFormConfig;
 };

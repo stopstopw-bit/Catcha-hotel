@@ -112,7 +112,7 @@ async function postHandler(req: NextRequest) {
   if (!isFeatureOn(cfg, feature)) {
     return NextResponse.json({ error: "feature_disabled", feature }, { status: 403 });
   }
-  const fields = t.kind === "stay" ? resolveStayForm() : resolveGroomForm(cfg.groomForm);
+  const fields = t.kind === "stay" ? resolveStayForm(cfg.stayForm) : resolveGroomForm(cfg.groomForm);
   const payload = sanitizeInfo(fields, info);
   // ฟอร์มรวม เข้าพัก + อาบก่อนกลับ — ส่วนอาบน้ำเก็บเป็นประวัติอาบน้ำของน้องด้วย
   const groomFields = resolveGroomForm(cfg.groomForm);
