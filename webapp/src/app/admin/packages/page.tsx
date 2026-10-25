@@ -270,6 +270,7 @@ function OfferRow({
               rooms={rooms}
               nights={Math.round(Number(uses) || 0)}
               price={Math.round(Number(price) || 0)}
+              onPrice={(v) => setPrice(String(v))}
             />
           )}
           <div className="flex gap-2 pt-1">
@@ -705,6 +706,7 @@ export default function AdminPackagesPage() {
                 rooms={rooms}
                 nights={Math.round(Number(uses) || 0)}
                 price={Math.round(Number(price) || 0)}
+                onPrice={(v) => setPrice(String(v))}
               />
             )}
 
