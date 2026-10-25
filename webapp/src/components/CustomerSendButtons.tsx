@@ -24,7 +24,6 @@ type PendingSend = {
  * ปุ่มลัดบนการ์ดนัด — การ์ดรวมขอข้อมูล (ใบเดียว ปุ่มเฉพาะเรื่องที่ยังขาด) + เตรียมตัวเข้าพัก
  * แล้วตามด้วยปุ่มแจ้งยอดโอน · การ์ดเดี่ยวแต่ละเรื่องยังอยู่ครบในแผ่น "ทีละใบ"
  */
-const QUICK_STEP_KEYS = ["send_intake", "send_prestay"];
 
 /** หัวข้อขอข้อมูลในชุดการ์ด — เลือกหลายหัวข้อรวมเป็นการ์ดใบเดียวหลายปุ่ม (นับ 1 ใบ) */
 const INTAKE_PARTS = new Set(["stayInfo", "groomInfo", "vaccine", "idcard", "consent", "deposit"]);
@@ -35,26 +34,39 @@ const bundleCardCount = (parts: string[]) => {
 };
 
 /** เรื่องที่เลือกใส่ในการ์ดขอข้อมูลได้ (info = ประวัติ/ข้อมูลก่อนเข้าพักตามบริการ) — เรียงตามลำดับขั้น */
-const INTAKE_PICK_KEYS = ["info", "vaccine", "idcard", "consent"] as const;
+// payment = การ์ดแจ้งยอดชำระค่าบริการ (บิล) — ไม่ใช่เรื่องขอข้อมูล จึงส่งได้แค่แยกใบ
+const INTAKE_PICK_KEYS = ["info", "vaccine", "idcard", "consent", "deposit", "payment"] as const;
 type IntakePickKey = (typeof INTAKE_PICK_KEYS)[number];
-type IntakePick = { parts: IntakePickKey[]; separate: boolean; withDeposit: boolean; deposit: string };
+/** แต่ละเรื่อง: ไม่ส่ง · รวม (อยู่ในการ์ดใบเดียวปุ่มเดียว) · แยก (การ์ดของตัวเอง) — ส่งพร้อมกันในครั้งเดียวได้ */
+type IntakeMode = "off" | "combined" | "separate";
+type IntakePick = { modes: Record<IntakePickKey, IntakeMode>; deposit: string };
 const INTAKE_PICK_STORE = "catcha-intake-pick";
 
-/** ตัวเลือกล่าสุดที่ร้านใช้ (เก็บในเครื่อง) — ครั้งแรก = ทุกเรื่อง รวมใบเดียว */
+/** ตัวเลือกล่าสุดที่ร้านใช้ (เก็บในเครื่อง) — ครั้งแรก = ทุกเรื่องรวมใบเดียว ไม่ขอมัดจำ */
 function loadIntakePick(depositAllowed: boolean): IntakePick {
-  const pick: IntakePick = { parts: [...INTAKE_PICK_KEYS], separate: false, withDeposit: false, deposit: "" };
+  const modes = { info: "combined", vaccine: "combined", idcard: "combined", consent: "combined", deposit: "off", payment: "off" } as Record<
+    IntakePickKey,
+    IntakeMode
+  >;
+  let deposit = "";
   try {
     const saved = JSON.parse(localStorage.getItem(INTAKE_PICK_STORE) || "null");
-    if (saved && Array.isArray(saved.parts)) {
-      pick.parts = INTAKE_PICK_KEYS.filter((k) => saved.parts.includes(k));
-      pick.separate = saved.separate === true;
-      pick.withDeposit = depositAllowed && saved.withDeposit === true;
-      pick.deposit = pick.withDeposit ? String(saved.deposit || "") : "";
+    if (saved?.modes) {
+      for (const k of INTAKE_PICK_KEYS) {
+        const m = saved.modes[k];
+        if (m === "off" || m === "combined" || m === "separate") modes[k] = m;
+      }
+      deposit = String(saved.deposit || "");
     }
   } catch {
     /* ไม่มีที่เก็บ = ใช้ค่าเริ่มต้น */
   }
-  return pick;
+  if (modes.payment === "combined") modes.payment = "separate";
+  if (!depositAllowed) {
+    modes.deposit = "off";
+    deposit = "";
+  }
+  return { modes, deposit };
 }
 
 function saveIntakePick(pick: IntakePick) {
@@ -87,7 +99,6 @@ export function CustomerSendButtons({
   open,
   onOpenChange,
   hideTrigger,
-  quickSteps,
 }: {
   lineUserId?: string;
   customerId?: string;
@@ -107,8 +118,6 @@ export function CustomerSendButtons({
   onOpenChange?: (open: boolean) => void;
   /** ซ่อนปุ่ม "ส่ง LINE" ของตัวเอง (ใช้คู่กับ open/onOpenChange) */
   hideTrigger?: boolean;
-  /** โชว์ปุ่มลัดตามขั้นตอนรับงาน (ข้อมูลน้อง/สมุดวัคซีน/บัตร/กฎ/ยอดโอน) บนการ์ดนัดเลย ไม่ต้องเปิดแผ่นล่าง */
-  quickSteps?: boolean;
 }) {
   const { config } = useConfig();
   // การ์ดที่ร้านปิดในตั้งค่า › เปิด/ปิดฟีเจอร์ ไม่มีปุ่มให้ส่ง
@@ -140,8 +149,12 @@ export function CustomerSendButtons({
   }, [invoiceId, bookingId]);
 
   const invId = invoiceId || foundInvoiceId;
+  // เรียกเก็บมัดจำได้จากหน้าบิลเท่านั้น (ต้องออกบิลก่อน) — หน้านัดไม่มีปุ่มมัดจำ
+  const canAskDeposit = !bookingId || !!invoiceId;
   // บิลที่มีทั้งอาบน้ำและเข้าพัก (service = "both") ต้องเห็นการ์ดฝั่งเข้าพักด้วย
   const hasRoomStay = service === "room" || service === "both";
+  /** นัดอาบน้ำอย่างเดียวไม่มีเรื่องของการเข้าพัก (บัตร/เตรียมตัว/เวลาเข้า-ออก/มัดจำ) — สมุดวัคซีน + ข้อตกลงยังขอ */
+  const stayOk = service !== "groom";
   const depForBill = invoiceId ? invoiceDeposit : foundDeposit;
   const billPaid = (invoiceId ? invoiceStatus : foundStatus) === "paid";
 
@@ -230,19 +243,23 @@ export function CustomerSendButtons({
     );
   };
 
-  // 📋 การ์ดรวมขอข้อมูล — กดแล้วเปิดช่องให้ร้านติ๊กเลือกเองว่าจะขออะไรบ้าง (มัดจำด้วยไหม)
-  // และจะรวมเป็นใบเดียว (ปุ่มเดียวไล่ทีละหน้า) หรือแยกทีละใบ · จำตัวเลือกล่าสุดไว้ในเครื่อง
-  // เซิร์ฟเวอร์ยังข้ามเรื่องที่ลูกค้าส่งแล้วให้เองเหมือนเดิม
+  // 📋 การ์ดขอข้อมูล — กดแล้วเปิดช่องให้ร้านเลือกทีละเรื่องว่า ไม่ส่ง / รวม / แยก (มัดจำด้วย)
+  // เรื่องที่ "รวม" อยู่ในการ์ดใบเดียวปุ่มเดียวไล่ทีละหน้า · "แยก" ได้การ์ดของตัวเอง — ไปใน LINE ข้อความเดียวกัน
+  // จำตัวเลือกล่าสุดไว้ในเครื่อง · เซิร์ฟเวอร์ยังข้ามเรื่องที่ลูกค้าส่งแล้วให้เองเหมือนเดิม
   const [intakePick, setIntakePick] = useState<IntakePick | null>(null);
-  const sendIntake = () => setIntakePick(loadIntakePick(hasRoomStay && depForBill <= 0));
+  const sendIntake = () => setIntakePick(loadIntakePick(hasRoomStay));
   const confirmIntake = () => {
     if (!intakePick) return;
-    const depositAmount = intakePick.withDeposit ? Math.max(0, Math.round(Number(intakePick.deposit) || 0)) : 0;
-    if (intakePick.withDeposit && depositAmount <= 0) {
-      toast("ใส่ยอดมัดจำ หรือเอาติ๊กมัดจำออก", "error");
+    const { modes } = intakePick;
+    const withDeposit = canAskDeposit && hasRoomStay && modes.deposit !== "off";
+    const depositAmount = withDeposit ? Math.max(0, Math.round(Number(intakePick.deposit) || 0)) : 0;
+    if (withDeposit && depositAmount <= 0) {
+      toast("ใส่ยอดมัดจำ หรือเลือก \"ไม่ส่ง\" ที่มัดจำ", "error");
       return;
     }
-    if (intakePick.parts.length === 0 && depositAmount <= 0) {
+    const partOf = (k: IntakePickKey) => (k === "info" ? (hasRoomStay ? "stayInfo" : "groomInfo") : k);
+    const on = intakePickOptions.map((o) => o.key).filter((k) => k !== "deposit" && modes[k] !== "off");
+    if (on.length === 0 && !withDeposit) {
       toast("เลือกอย่างน้อย 1 เรื่อง", "error");
       return;
     }
@@ -255,19 +272,26 @@ export function CustomerSendButtons({
         action: "send_intake",
         lineUserId,
         ids: groomBookingIds,
-        parts: intakePick.parts.map((x) => (x === "info" ? (hasRoomStay ? "stayInfo" : "groomInfo") : x)),
-        separate: intakePick.separate,
+        parts: on.map(partOf),
+        separateParts: INTAKE_PICK_KEYS.filter((k) => modes[k] === "separate").map(partOf),
         depositAmount: depositAmount || undefined,
       },
-      intakePick.separate ? "ส่งการ์ดขอข้อมูลแล้ว 📋" : "ส่งการ์ดรวมขอข้อมูลแล้ว 📋",
+      "ส่งการ์ดขอข้อมูลแล้ว 📋",
       "send_intake"
     );
   };
   const intakePickOptions: { key: IntakePickKey; label: string }[] = [
     { key: "info", label: hasRoomStay ? INTAKE_LABEL.stayInfo : INTAKE_LABEL.groomInfo },
+    // นัดอาบน้ำก็ขอสมุดวัคซีน + ข้อตกลงอาบน้ำ · บัตรประชาชนเฉพาะนัดที่มีเข้าพัก
     { key: "vaccine", label: "สมุดวัคซีน" },
     ...(hasRoomStay ? [{ key: "idcard" as const, label: "บัตรประชาชน" }] : []),
-    { key: "consent", label: INTAKE_LABEL.consent },
+    { key: "consent", label: hasRoomStay ? INTAKE_LABEL.consent : "ข้อตกลงอาบน้ำ + กดยินยอม" },
+    ...(hasRoomStay && canAskDeposit
+      ? [{ key: "deposit" as const, label: depForBill > 0 ? `มัดจำ (ขอแล้ว ${depForBill.toLocaleString()}฿)` : "มัดจำ" }]
+      : []),
+    ...(invId && !billPaid
+      ? [{ key: "payment" as const, label: depForBill > 0 ? "ชำระค่าบริการ (ยอดคงเหลือ)" : "ชำระค่าบริการ" }]
+      : []),
   ];
 
   const invoiceSummary = (mode: string, okMsg: string) =>
@@ -414,6 +438,8 @@ export function CustomerSendButtons({
         id: bookingId,
         action: "send_bundle",
         parts: bundleParts,
+        // เปิดจากหน้าบิล — ให้เซิร์ฟเวอร์ใช้บิลนี้ตรงๆ (บิลที่ไม่ได้ผูก bookingId หาจากนัดไม่เจอ)
+        invoiceId: invId || undefined,
         depositAmount: depositAmount || undefined,
         lineUserId,
         // บ้านเดียวกัน จองพร้อมกันหลายตัว — ให้การ์ด "แจ้งเตือนนัด" ในชุดรวมชื่อทุกตัวด้วย
@@ -427,20 +453,20 @@ export function CustomerSendButtons({
   const hasRemaining = depForBill > 0;
 
   // ครบทุกหัวข้อเท่ากับปุ่มเดี่ยวด้านบน — เลือกผสมได้อิสระ ส่งใน 1 ข้อความ
-  // ครบทุกการ์ดเท่าที่ส่งได้ (ไม่จำกัดตามบริการ) — นัดอาบน้ำก็ส่งกฎ/เตรียมตัว/เลือกเวลาได้ถ้าร้านต้องการ
+  // การ์ดของการเข้าพัก (ข้อมูลก่อนเข้าพัก/บัตร/เตรียมตัว/เลือกเวลา) ไม่ขึ้นในนัดอาบน้ำอย่างเดียว
   // ใบที่ต้องมีบิล/จ่ายแล้วยังซ่อนไว้จนกว่าจะมีข้อมูลจริง (กันส่งการ์ดว่าง)
   // ชุดถามข้อมูลก่อนรับน้องขึ้นก่อน ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า
   const BUNDLE_OPTIONS: { key: string; label: string; when: boolean }[] = [
-    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && on("stayInfo") },
+    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && stayOk && on("stayInfo") },
     { key: "groomInfo", label: INTAKE_LABEL.groomInfo, when: !!bookingId && on("groomInfo") },
     { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId && on("vaccine") },
-    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && on("idcard") },
+    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && stayOk && on("idcard") },
     { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId && on("consent") },
-    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && on("prestay") },
+    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && stayOk && on("prestay") },
     { key: "reminder", label: "แจ้งเตือนนัด", when: !!bookingId },
-    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId && on("checkin") },
-    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId && on("checkout") },
-    { key: "deposit", label: "เรียกเก็บมัดจำ", when: true },
+    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId && stayOk && on("checkin") },
+    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId && stayOk && on("checkout") },
+    { key: "deposit", label: "เรียกเก็บมัดจำ", when: canAskDeposit },
     {
       key: "depositThanks",
       label: "ยืนยันรับมัดจำแล้ว",
@@ -491,8 +517,8 @@ export function CustomerSendButtons({
     {
       // ใบเดียวหลายปุ่ม — ระบบดูให้ว่ายังขาดอะไร ครบแล้วไม่ขอซ้ำ
       k: "send_intake",
-      label: "การ์ดขอข้อมูล (เลือกเรื่องได้)",
-      icon: "send",
+      label: "ขอข้อมูลลูกค้า (เลือกรวม/แยกการ์ด)",
+      icon: "inbox",
       when: !!bookingId,
       onClick: sendIntake,
     },
@@ -500,7 +526,7 @@ export function CustomerSendButtons({
       k: "send_stay_info",
       label: `${INTAKE_LABEL.stayInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
       icon: "edit",
-      when: !!bookingId && on("stayInfo"),
+      when: !!bookingId && stayOk && on("stayInfo"),
       onClick: () => void sendGroomInfoAll("stay"),
     },
     {
@@ -521,7 +547,7 @@ export function CustomerSendButtons({
       k: "send_idcard_request",
       label: INTAKE_LABEL.idcard,
       icon: "user",
-      when: !!bookingId && on("idcard"),
+      when: !!bookingId && stayOk && on("idcard"),
       onClick: () => bookingSend("send_idcard_request", "ส่งการ์ดขอบัตรประชาชนแล้ว 🪪"),
     },
     {
@@ -535,7 +561,7 @@ export function CustomerSendButtons({
       k: "send_prestay",
       label: INTAKE_LABEL.prestay,
       icon: "bed",
-      when: !!bookingId && on("prestay"),
+      when: !!bookingId && stayOk && on("prestay"),
       onClick: () => bookingSend("send_prestay", "ส่งการ์ดแจ้งเตรียมตัวเข้าพักแล้ว 🏠"),
     },
     {
@@ -564,7 +590,7 @@ export function CustomerSendButtons({
       label:
         depForBill > 0 ? `ขอมัดจำแล้ว (${depForBill.toLocaleString()}฿) · ส่งซ้ำ` : "เรียกเก็บมัดจำ",
       icon: "money",
-      when: !!customerId,
+      when: !!customerId && canAskDeposit,
       onClick: depositRequest,
     },
     {
@@ -577,6 +603,7 @@ export function CustomerSendButtons({
     },
     { k: "inv:review", label: "ขอรีวิว", icon: "star", when: !!invId, onClick: sendReview },
   ];
+  const intakeAction = singleActions.find((a) => a.k === "send_intake" && a.when);
 
   // แผ่นล่างเปิด/ปิด — ควบคุมจากข้างนอกได้ (หน้าบิลเปิดจากเมนู ⋯) หรือใช้ปุ่มของตัวเอง
   const [ownOpen, setOwnOpen] = useState(false);
@@ -620,44 +647,42 @@ export function CustomerSendButtons({
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Request info</p>
             <p className="mb-3 text-sm font-extrabold text-catcha-chocolate">ขอข้อมูลลูกค้า — เลือกว่าจะส่งอะไรบ้าง</p>
 
-            <div className="flex flex-wrap gap-2">
-              {intakePickOptions.map((o) => {
-                const on = intakePick.parts.includes(o.key);
-                return (
-                  <button
-                    key={o.key}
-                    type="button"
-                    onClick={() =>
-                      setIntakePick({
-                        ...intakePick,
-                        parts: on
-                          ? intakePick.parts.filter((x) => x !== o.key)
-                          : INTAKE_PICK_KEYS.filter((k) => k === o.key || intakePick.parts.includes(k)),
-                      })
-                    }
-                    className={`flex min-h-[40px] items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold ${
-                      on ? "bg-latte-deep text-white" : "bg-paper text-brown-soft"
-                    }`}
-                  >
-                    {on && <Icon name="check" size={14} strokeWidth={2.4} />}
-                    {o.label}
-                  </button>
-                );
-              })}
-              {hasRoomStay && (
-                <button
-                  type="button"
-                  onClick={() => setIntakePick({ ...intakePick, withDeposit: !intakePick.withDeposit })}
-                  className={`flex min-h-[40px] items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold ${
-                    intakePick.withDeposit ? "bg-latte-deep text-white" : "bg-paper text-brown-soft"
-                  }`}
-                >
-                  {intakePick.withDeposit && <Icon name="check" size={14} strokeWidth={2.4} />}
-                  มัดจำ{depForBill > 0 ? ` (ขอแล้ว ${depForBill.toLocaleString()}฿)` : ""}
-                </button>
-              )}
-            </div>
-            {intakePick.withDeposit && (
+            <ul className="divide-y divide-catcha-line rounded-catcha-sm border border-catcha-line">
+              {intakePickOptions.map((o) => (
+                <li key={o.key} className="flex items-center gap-2 px-3 py-2">
+                  <span className="min-w-0 flex-1 text-xs font-bold text-catcha-chocolate">{o.label}</span>
+                  <div className="flex shrink-0 gap-1 rounded-full bg-paper p-1">
+                    {(
+                      [
+                        ["off", "ไม่ส่ง"],
+                        ["combined", "รวม"],
+                        ["separate", "แยก"],
+                      ] as const
+                    )
+                      .filter(([m]) => !(o.key === "payment" && m === "combined"))
+                      .map(([m, label]) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() =>
+                          setIntakePick({ ...intakePick, modes: { ...intakePick.modes, [o.key]: m } })
+                        }
+                        className={`min-h-[34px] rounded-full px-3 text-[11px] font-bold ${
+                          intakePick.modes[o.key] === m
+                            ? m === "off"
+                              ? "bg-card text-brown shadow-catcha-sm"
+                              : "bg-latte-deep text-white"
+                            : "text-brown-soft"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {intakePick.modes.deposit !== "off" && (
               <label className="mt-3 flex items-center gap-2 text-xs font-bold text-catcha-chocolate">
                 ยอดมัดจำ
                 <input
@@ -670,21 +695,9 @@ export function CustomerSendButtons({
                 บาท
               </label>
             )}
-
-            <p className="mb-1.5 mt-4 text-[11px] font-bold text-brown-soft">ส่งแบบไหน</p>
-            <Segmented
-              value={intakePick.separate ? "separate" : "combined"}
-              onChange={(v) => setIntakePick({ ...intakePick, separate: v === "separate" })}
-              options={[
-                { id: "combined", label: "รวมใบเดียว" },
-                { id: "separate", label: "แยกทีละใบ" },
-              ]}
-            />
-            <p className="mt-1.5 text-[11px] text-brown-soft">
-              {intakePick.separate
-                ? "แต่ละเรื่องเป็นการ์ดของตัวเอง แต่ยังส่งรวมใน 1 ข้อความ LINE"
-                : "การ์ดใบเดียว ปุ่มเดียว ลูกค้ากดแล้วระบบพาไปทีละหน้า"}{" "}
-              · เรื่องที่ลูกค้าส่งแล้วระบบข้ามให้เอง
+            <p className="mt-2 text-[11px] text-brown-soft">
+              รวม = อยู่ในการ์ดใบเดียว ปุ่มเดียว ลูกค้ากดแล้วระบบพาไปทีละหน้า · แยก = การ์ดของตัวเอง ·
+              ทั้งหมดส่งไปใน LINE ข้อความเดียว · เรื่องที่ลูกค้าส่งแล้วระบบข้ามให้เอง
             </p>
 
             <div className="mt-4 flex gap-2">
@@ -726,31 +739,6 @@ export function CustomerSendButtons({
         </button>
       )}
 
-      {/* ปุ่มลัดตามขั้นตอน — กดแล้วขึ้นตัวอย่างการ์ดก่อนส่งเหมือนปุ่มอื่น */}
-      {quickSteps && bookingId && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {[
-            ...QUICK_STEP_KEYS,
-            invId && !billPaid ? (hasRemaining ? "inv:remaining" : "inv:full") : "dep",
-          ].map((k) => {
-            const a = singleActions.find((x) => x.k === k && x.when);
-            if (!a) return null;
-            return (
-              <button
-                key={k}
-                type="button"
-                disabled={noLine || busy !== ""}
-                onClick={a.onClick}
-                className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-catcha-line bg-card px-3 py-2 text-xs font-bold text-catcha-chocolate active:bg-paper disabled:opacity-40"
-              >
-                <Icon name={a.icon} size={15} />
-                {busy === k ? "กำลังโหลด…" : a.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {sheetOpen && (
         <div
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-3"
@@ -786,6 +774,28 @@ export function CustomerSendButtons({
               </p>
             )}
 
+            {/* ขอข้อมูลลูกค้า — เลือกทีละเรื่องว่า ไม่ส่ง / รวมการ์ด / แยกการ์ด แล้วส่งใน LINE ข้อความเดียว */}
+            {intakeAction && (
+              <button
+                type="button"
+                disabled={noLine || busy !== ""}
+                onClick={() => {
+                  setSheetOpen(false);
+                  intakeAction.onClick();
+                }}
+                className="mb-3 flex min-h-[56px] w-full items-center gap-3 rounded-catcha-sm bg-latte-deep px-3 py-2.5 text-left text-white active:opacity-90 disabled:opacity-40"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                  <Icon name={intakeAction.icon} size={18} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold">ขอข้อมูลลูกค้า</span>
+                  <span className="block text-[11px] font-bold text-white/80">เลือกเรื่อง · รวมการ์ด / แยกการ์ด</span>
+                </span>
+                <Icon name="chevron" size={16} />
+              </button>
+            )}
+
             {tabs.length > 0 && (
               <Segmented value={activeTab} onChange={setTab} options={tabs} className="mb-3" />
             )}
@@ -793,7 +803,7 @@ export function CustomerSendButtons({
             {activeTab === "single" && (
               <ul className="divide-y divide-catcha-line overflow-hidden rounded-catcha-sm border border-catcha-line bg-card">
                 {singleActions
-                  .filter((a) => a.when)
+                  .filter((a) => a.when && a.k !== "send_intake")
                   .map((a) => (
                     <li key={a.k}>
                       <button

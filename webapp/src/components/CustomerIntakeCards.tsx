@@ -18,10 +18,23 @@ type Part = "groomInfo" | "stayInfo" | "prestay" | "consent" | "vaccine" | "idca
  * แต่ละเรื่องมีปุ่มส่ง LINE ของตัวเอง + ติ๊กหลายเรื่องส่งรวมเป็น 1 ข้อความได้ (สูงสุด 5 ใบ)
  * สถานะข้างแต่ละแถว = ลูกค้าส่งกลับมาแล้วหรือยัง · สมุดวัคซีนรายตัว พนักงานแนบเองได้
  */
-export function CustomerIntakeCards({ customer, onDone }: { customer: CustomerRecord; onDone: () => void }) {
+export function CustomerIntakeCards({
+  customer,
+  onDone,
+  bookingKind,
+}: {
+  customer: CustomerRecord;
+  onDone: () => void;
+  /** มาจากฟอร์มจองใหม่: โชว์เฉพาะเรื่องที่นัดนี้ใช้ (เข้าพักไม่อาบน้ำ = ไม่ถามประวัติก่อนอาบน้ำ)
+   *  ไม่ใส่ = หน้าข้อมูลลูกค้า โชว์ทุกเรื่อง */
+  bookingKind?: "groom" | "room" | "room+groom";
+}) {
   const { config } = useConfig();
   // การ์ดที่ร้านปิดในตั้งค่า › เปิด/ปิดฟีเจอร์ ไม่โชว์ให้ส่ง
   const partOn = (part: Part) => cardOn(config, part);
+  // CatCha เปิดทั้งโรงแรมและอาบน้ำเสมอ
+  const hotelOn = bookingKind !== "groom";
+  const groomOn = bookingKind !== "room";
   const [catIds, setCatIds] = useState<string[]>(customer.cats.map((c) => c.id));
   const [picked, setPicked] = useState<Part[]>([]);
   const [busy, setBusy] = useState("");
@@ -34,8 +47,8 @@ export function CustomerIntakeCards({ customer, onDone }: { customer: CustomerRe
   const stayDone = cats.length > 0 && cats.every((c) => c.stayInfo);
   const vaccineDone = cats.length > 0 && cats.every((c) => splitVaccinePhotos(c.vaccinePhotos).length > 0);
   const rows: { part: Part; label: string; icon: string; when: boolean; status?: string; done?: boolean }[] = [
-    { part: "stayInfo", label: INTAKE_LABEL.stayInfo, icon: "edit", when: partOn("stayInfo"), done: stayDone, status: stayDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
-    { part: "groomInfo", label: INTAKE_LABEL.groomInfo, icon: "bath", when: partOn("groomInfo"), done: infoDone, status: infoDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
+    { part: "stayInfo", label: INTAKE_LABEL.stayInfo, icon: "edit", when: hotelOn && partOn("stayInfo"), done: stayDone, status: stayDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
+    { part: "groomInfo", label: INTAKE_LABEL.groomInfo, icon: "bath", when: groomOn && partOn("groomInfo"), done: infoDone, status: infoDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
     {
       part: "vaccine",
       label: INTAKE_LABEL.vaccine,
@@ -48,7 +61,7 @@ export function CustomerIntakeCards({ customer, onDone }: { customer: CustomerRe
       part: "idcard",
       label: INTAKE_LABEL.idcard,
       icon: "user",
-      when: partOn("idcard"),
+      when: hotelOn && partOn("idcard"),
       done: !!customer.idCardUrl,
       status: customer.idCardUrl ? "ได้รับแล้ว" : "ยังไม่ได้รับ",
     },
@@ -62,8 +75,11 @@ export function CustomerIntakeCards({ customer, onDone }: { customer: CustomerRe
         ? `ยอมรับล่าสุด ${customer.consentAcceptedAt.slice(0, 10)}`
         : "ยังไม่เคยกดยอมรับ",
     },
-    { part: "prestay", label: INTAKE_LABEL.prestay, icon: "bed", when: partOn("prestay") },
+    { part: "prestay", label: INTAKE_LABEL.prestay, icon: "bed", when: hotelOn && partOn("prestay") },
   ];
+
+  // สลับประเภทนัดแล้ว เรื่องที่ติ๊กไว้แต่ถูกซ่อน ไม่ส่งไปด้วย
+  const shownPicked = picked.filter((p) => rows.some((r) => r.part === p && r.when));
 
   const requestPreview = async (parts: Part[], key: string) => {
     if (parts.length === 0) return;
@@ -196,12 +212,12 @@ export function CustomerIntakeCards({ customer, onDone }: { customer: CustomerRe
 
       <button
         type="button"
-        disabled={noLine || picked.length === 0 || busy !== ""}
-        onClick={() => requestPreview(picked, "bundle")}
+        disabled={noLine || shownPicked.length === 0 || busy !== ""}
+        onClick={() => requestPreview(shownPicked, "bundle")}
         className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-catcha-sm bg-latte-deep py-2.5 text-sm font-extrabold text-white disabled:opacity-40"
       >
         <Icon name="send" size={16} />
-        {busy === "bundle" ? "กำลังโหลด…" : `ส่งที่ติ๊กไว้ ${picked.length} การ์ดใน 1 ข้อความ`}
+        {busy === "bundle" ? "กำลังโหลด…" : `ส่งที่ติ๊กไว้ ${shownPicked.length} การ์ดใน 1 ข้อความ`}
       </button>
 
       {/* สมุดวัคซีนรายตัว — ลูกค้าส่งมา หรือพนักงานแนบเองจากรูปที่ลูกค้าส่งในแชท */}

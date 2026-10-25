@@ -25,6 +25,7 @@ import {
   unlinkCustomerLine,
   addCatVaccinePhotos,
   setCatVaccinePhotos,
+  syncCustomerDocsFromBookings,
 } from "@/lib/customers-store";
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { parseCatInput, type CatInput } from "@/lib/cat-input";
@@ -57,6 +58,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (id) {
+    // สมุดวัคซีน/ข้อตกลงที่ลูกค้าส่งผ่านนัด (ข้อมูลก่อนมีการยกอัตโนมัติ) → ยกขึ้นตัวน้อง/ลูกค้าก่อนโชว์
+    await syncCustomerDocsFromBookings(id).catch(() => false);
     const activity = await customerActivityInfo(id);
     if (!activity) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json(activity);
@@ -219,6 +222,9 @@ export async function PATCH(req: NextRequest) {
         breed: body.breed ? String(body.breed) : undefined,
         furLength,
         color: body.color ? String(body.color) : undefined,
+        neutered: typeof body.neutered === "boolean" ? body.neutered : undefined,
+        seizureHistory: body.seizureHistory ? String(body.seizureHistory) : undefined,
+        allergy: body.allergy ? String(body.allergy) : undefined,
         ageValue: ageValue !== undefined && !isNaN(ageValue) ? ageValue : undefined,
         ageUnit: body.ageUnit === "month" ? "month" : "year",
         birthday: body.birthday ? String(body.birthday) : undefined,

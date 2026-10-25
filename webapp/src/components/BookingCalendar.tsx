@@ -13,11 +13,12 @@ import { InvoiceActionButtons } from "@/components/InvoiceActionButtons";
 import { bookingOnDate } from "@/lib/booking-customer-match";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
-import { groupBookings } from "@/lib/booking-group";
+import { groupBookings, stayForGroom } from "@/lib/booking-group";
 import {
   attachClosures,
   buildRoomBoard,
   roomCapacity,
+  roomPricing,
   freeUnitsForRange,
   compositionOf,
   nightsBetween,
@@ -72,9 +73,11 @@ function BillButton({
   /** แจ้งการ์ดแม่ว่าบิลของนัดนี้จ่ายจบแล้วหรือยัง — เอาไว้ติดป้าย "จบเคส" ทั้งใบ */
   onPaidState?: (paid: boolean) => void;
 }) {
-  const [inv, setInv] = useState<{ id: string; status: string; total: number } | null | undefined>(
-    undefined
-  );
+  const [inv, setInv] = useState<
+    | { id: string; status: string; total: number; deposit?: number; depositReceivedAt?: string }
+    | null
+    | undefined
+  >(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -112,14 +115,16 @@ function BillButton({
     );
   }
   if (inv) {
+    // รับมัดจำแล้ว → ป้ายบอกยอดที่ยังค้างจริง (เดิมโชว์ยอดเต็มทั้งที่จ่ายมาแล้วบางส่วน)
+    const due = Math.max(0, inv.total - (inv.depositReceivedAt ? inv.deposit || 0 : 0));
     return (
       <Link
         href={`/admin/billing?bookingId=${bookingId}`}
-        title={`แก้ไขบิล (${inv.total.toLocaleString()}฿ · ค้างอยู่)`}
+        title={`แก้ไขบิล (${inv.total.toLocaleString()}฿ · ค้างอยู่ ${due.toLocaleString()}฿)`}
         className={`${chip} border border-honey-deep/50 bg-honey/20 text-catcha-chocolate`}
       >
         <Icon name="receipt" size={16} />
-        บิลค้าง {inv.total.toLocaleString()}฿
+        บิลค้าง {due.toLocaleString()}฿
       </Link>
     );
   }
@@ -389,6 +394,7 @@ function RoomMonthAvailability({
         name: r.name,
         count: r.count || 0,
         maxCats: roomCapacity(r),
+        baseCats: roomPricing(r).base,
         closures: r.closures,
       })),
     [rooms]
@@ -1266,6 +1272,7 @@ export function BookingCalendar() {
       name: r.name,
       count: r.count,
       maxCats: roomCapacity(r),
+      baseCats: roomPricing(r).base,
       closures: r.closures,
     })),
     liveBookings,
@@ -1896,9 +1903,10 @@ export function BookingCalendar() {
                               {u.leaving.map((x) => x.catName).join(", ")} ออกวันนี้
                             </p>
                           )}
-                          {u.overCapacity && (
+                          {/* เลขในวงเล็บ = แมวที่เกินราคาห้อง (Cat Tower จุ 4 มา 5 = เกิน 1 ตัว +50) */}
+                          {(u.overCapacity || u.extraCats > 0) && (
                             <p className="mt-0.5 truncate text-[9px] font-bold text-red-600">
-                              เกินความจุ ({u.capacity})
+                              เกินความจุ ({Math.max(0, u.staying.length - u.baseCats)})
                             </p>
                           )}
                         </button>
@@ -2170,7 +2178,16 @@ export function BookingCalendar() {
           ) : (
             shownGroups.map((group) => {
               const b = group[0];
-              const allConfirmed = group.every((x) => x.status === "confirmed");
+              // นับแบบเดียวกับป้ายสถานะ — ออกบิลแล้ว/เลยเวลานัดแล้ว ถือว่ายืนยันแล้ว
+              // (เมื่อก่อนป้ายขึ้น "ยืนยันแล้ว" แต่ปุ่มหลักยังเป็น "ยืนยันนัด")
+              // บิลเดียวคลุมทั้งบ้าน (รวมอาบน้ำก่อนกลับ) → ตัวไหนมีบิล ถือว่าทั้งการ์ดคิดเงินแล้ว
+              const groupBilled = group.some((x) => billedIds.has(x.id));
+              const allConfirmed = group.every(
+                (x) =>
+                  x.status === "confirmed" ||
+                  (x.status === "pending" && groupBilled) ||
+                  effectiveBookingStatus(x, today, billedIds) === "confirmed"
+              );
               const stage = effectiveBookingStatus(group[0], today, billedIds);
               const catNames = group.map((x) => x.catName).join(", ");
               const caseDone = paidCases[b.id] === true;
@@ -2182,7 +2199,9 @@ export function BookingCalendar() {
 
               // ปุ่มหลักของการ์ด — ขั้นถัดไปของงาน (ยืนยัน → พร้อมรับกลับ → ปิดงาน) มีได้ทีละปุ่มเดียว
               const primary =
-                !allConfirmed && stage !== "ready" && stage !== "done"
+                stage === "no_show" || stage === "cancelled"
+                  ? null
+                  : !allConfirmed && stage !== "ready" && stage !== "done"
                   ? { label: "ยืนยันนัด", icon: "check", run: () => confirmGroup(group) }
                   : allConfirmed && stage !== "ready" && stage !== "done"
                     ? { label: "พร้อมกลับบ้าน", icon: "send", run: () => setStageFor(group, "set_ready") }
@@ -2294,6 +2313,32 @@ export function BookingCalendar() {
                         · {bookingWhen(b)}
                       </span>
                     </p>
+                    {/* อาบน้ำก่อนกลับ = ส่วนหนึ่งของการเข้าพัก (บิลเดียวกัน) — โชว์ทั้งสองฝั่งให้เห็นว่าเป็นนัดเดียวกัน */}
+                    {(() => {
+                      if (b.service === "room") {
+                        const ids = new Set(group.map((x) => x.id));
+                        const baths = liveBookings.filter((x) => {
+                          const st = stayForGroom(x, liveBookings);
+                          return !!st && ids.has(st.id);
+                        });
+                        if (baths.length === 0) return null;
+                        return (
+                          <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-catcha-chocolate">
+                            <Icon name="bath" size={13} />
+                            อาบน้ำก่อนกลับ {baths[0].date} · {baths[0].time || "ยังไม่ระบุเวลา"}
+                            {new Set(baths.map((x) => x.catName)).size < new Set(group.map((x) => x.catName)).size
+                              ? ` (${Array.from(new Set(baths.map((x) => x.catName))).join(", ")})`
+                              : ""}
+                          </p>
+                        );
+                      }
+                      return stayForGroom(b, liveBookings) ? (
+                        <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-latte-deep">
+                          <Icon name="bed" size={12} />
+                          อาบก่อนกลับ · อยู่ในการเข้าพัก (บิลรวมกับค่าห้อง)
+                        </p>
+                      ) : null;
+                    })()}
                     {moves.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {moves.map((x) => (
@@ -2318,7 +2363,8 @@ export function BookingCalendar() {
                   </div>
                 </div>
                 <CatTags group={group} />
-                {b.service === "room" &&
+                {/* อาบก่อนกลับระหว่างเข้าพัก ใช้ข้อตกลง/สมุดวัคซีนของการเข้าพัก — ไม่ซ้ำแถวที่นี่ */}
+                {(b.service === "room" || !stayForGroom(b, liveBookings)) &&
                   (b.consentAcceptedAt ? (
                     <div className="mt-2 flex items-center gap-2">
                       <p className="flex min-w-0 items-center gap-1 text-[11px] font-bold text-ok">
@@ -2349,9 +2395,10 @@ export function BookingCalendar() {
                       ยังไม่กดยอมรับข้อตกลง
                     </p>
                   ))}
-                {/* สมุดวัคซีนรายตัว — โชว์ทุกนัด พนักงานแนบเองได้ ไม่ต้องรอลูกค้ากดยอมรับข้อตกลงก่อน */}
+                {/* สมุดวัคซีนรายตัว — โชว์ทุกนัด (อาบน้ำก็ขอ) พนักงานแนบเองได้ ไม่ต้องรอลูกค้ากดยอมรับข้อตกลงก่อน
+                    อาบก่อนกลับระหว่างเข้าพักใช้สมุดของการเข้าพัก */}
                 <div className="mt-1 space-y-1">
-                  {group.map((x) => (
+                  {group.filter((x) => b.service !== "groom" || !stayForGroom(x, liveBookings)).map((x) => (
                     <div key={x.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
                       <span className="flex items-center gap-1 font-bold text-brown-soft">
                         <Icon name="paw" size={12} />
@@ -2468,7 +2515,6 @@ export function BookingCalendar() {
                     groomBookingIds={many ? group.map((x) => x.id) : undefined}
                     initialAutoOff={b.autoOff}
                     onDone={load}
-                    quickSteps
                   />
                   <InvoiceActionButtons bookingId={b.id} onDone={load} />
                 </div>

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
-import { acceptBookingConsent, getBooking } from "@/lib/bookings-store";
-import { splitVaccinePhotos } from "@/lib/vaccine-photos";
+import {
+  acceptBookingConsent,
+  getBooking,
+  listBookingsByCustomerName,
+} from "@/lib/bookings-store";
+import { bookingGroupKey } from "@/lib/booking-group";
+import { MAX_VACCINE_PHOTOS, splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { copyBookingDocsToCustomer } from "@/lib/customers-store";
 
 /** ลูกค้ากด "ยอมรับข้อตกลง" ก่อนเข้าพัก */
 export async function POST(req: NextRequest) {
@@ -21,6 +27,15 @@ export async function POST(req: NextRequest) {
   )
     .map((v: unknown) => String(v || "").trim())
     .filter(Boolean);
+  // บ้านหลายตัว: สมุดวัคซีนแนบแยกทีละตัว { [bookingId]: รูป[] }
+  const byBooking: Record<string, string[]> = {};
+  if (body.vaccinePhotosByBooking && typeof body.vaccinePhotosByBooking === "object") {
+    for (const [id, list] of Object.entries(body.vaccinePhotosByBooking as Record<string, unknown>)) {
+      if (!Array.isArray(list)) continue;
+      const urls = list.map((v) => String(v || "").trim()).filter(Boolean).slice(0, MAX_VACCINE_PHOTOS);
+      if (urls.length) byBooking[String(id)] = urls;
+    }
+  }
   const fleaTickTreated = Boolean(body.fleaTickTreated);
   if (!bookingId) {
     return NextResponse.json({ error: "bookingId required" }, { status: 400 });
@@ -43,14 +58,46 @@ export async function POST(req: NextRequest) {
 
   if (res.ok) {
     const b = await getBooking(bookingId);
+    // ลิงก์ข้อตกลงชี้นัดตัวแรกของบ้าน แต่ลูกค้ากดยอมรับครั้งเดียวสำหรับทั้งรอบเข้าพักนี้
+    // → ประทับให้น้องทุกตัวในนัดเดียวกัน ไม่งั้นระบบเห็นว่าตัวอื่น "ยังไม่กด" แล้วขอซ้ำทุกรอบ
+    // (สมุดวัคซีนเป็นของแต่ละตัว — ไม่คัดลอกข้ามตัว ใช้รูปที่แนบให้ตัวนั้นเอง)
     if (b) {
+      const key = bookingGroupKey(b);
+      const siblings = (await listBookingsByCustomerName(b.customerName)).filter(
+        (x) =>
+          x.id !== b.id &&
+          !x.consentAcceptedAt &&
+          x.status !== "cancelled" &&
+          bookingGroupKey(x) === key
+      );
+      // ข้อตกลง + สมุดวัคซีนที่แนบมา ยกขึ้นตัวน้อง/ลูกค้าด้วย — หน้าข้อมูลลูกค้าจะได้ขึ้น "ได้รับแล้ว"
+      await copyBookingDocsToCustomer(b, { newPhotos: res.vaccineAdded });
+      for (const x of siblings) {
+        const r = await acceptBookingConsent(
+          x.id,
+          lineUserId,
+          careNote,
+          b.consentSignature,
+          byBooking[x.id] || [],
+          fleaTickTreated
+        );
+        const fresh = r.ok ? await getBooking(x.id) : undefined;
+        if (fresh && r.ok) await copyBookingDocsToCustomer(fresh, { newPhotos: r.vaccineAdded });
+      }
+    }
+    if (b) {
+      const groom = b.service === "groom";
       await sendTelegram(
-        formatBookingTelegram("✅ ลูกค้ายอมรับข้อตกลงก่อนเข้าพักแล้ว", {
+        formatBookingTelegram(groom ? "✅ ลูกค้ายอมรับข้อตกลงก่อนอาบน้ำแล้ว" : "✅ ลูกค้ายอมรับข้อตกลงก่อนเข้าพักแล้ว", {
           น้องแมว: b.catName,
           ลูกค้า: b.customerName,
-          เข้าพัก: `${b.checkin || b.date || "-"}${b.checkout ? ` → ${b.checkout}` : ""}`,
+          ...(groom
+            ? { นัดอาบน้ำ: `${b.date || "-"}${b.time ? ` ${b.time}` : ""}` }
+            : { เข้าพัก: `${b.checkin || b.date || "-"}${b.checkout ? ` → ${b.checkout}` : ""}` }),
           ลายเซ็น: signature ? "มี ✍️" : "ไม่ได้เซ็น",
-          หยดยาเห็บหมัด: fleaTickTreated ? "✅ ลูกค้ายืนยันว่าหยดมาแล้ว" : "❌ ยังไม่ได้หยด/ไม่ระบุ",
+          ...(groom
+            ? {}
+            : { หยดยาเห็บหมัด: fleaTickTreated ? "✅ ลูกค้ายืนยันว่าหยดมาแล้ว" : "❌ ยังไม่ได้หยด/ไม่ระบุ" }),
           ...(b.vaccinePhotoUrl ? { สมุดวัคซีน: `แนบรูปมาแล้ว ${splitVaccinePhotos(b.vaccinePhotoUrl).length} รูป 📸` } : {}),
           ...(careNote ? { "การดูแลเพิ่มเติม": careNote } : {}),
         })

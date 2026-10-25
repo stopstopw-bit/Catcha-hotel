@@ -13,11 +13,13 @@ import { Icon } from "@/components/Icon";
 import { useConfig } from "@/components/ConfigProvider";
 import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/features";
 import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
+import { LINE_PROMO_KINDS, type LinePromo } from "@/lib/line-discount";
 
 type Tab =
   | "features"
   | "shop"
   | "payment"
+  | "linePromos"
   | "messages"
   | "automation"
   | "lists"
@@ -42,6 +44,7 @@ const TAB_GROUPS: { title: string; items: { id: Tab; icon: string; hint?: string
     items: [
       { id: "shop", icon: "home", hint: "ชื่อร้าน ช่องทางติดต่อ ที่อยู่" },
       { id: "payment", icon: "wallet", hint: "บัญชีรับโอน" },
+      { id: "linePromos", icon: "ticket", hint: "เช่น ลด 5% เฉพาะห้องพัก/อาบน้ำ" },
       { id: "lists", icon: "doc" },
       { id: "points", icon: "star", hint: "อัตราแต้มสะสม" },
       { id: "crm", icon: "users" },
@@ -77,6 +80,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "features", label: "เปิด/ปิดฟีเจอร์" },
   { id: "shop", label: "ร้าน" },
   { id: "payment", label: "บัญชี" },
+  { id: "linePromos", label: "โปรลดเฉพาะรายการ" },
   { id: "messages", label: "ข้อความ" },
   { id: "automation", label: "อัตโนมัติ" },
   { id: "lists", label: "รายการ" },
@@ -119,6 +123,12 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // เปิดหมวดตรงจากลิงก์ เช่น /admin/settings?tab=linePromos (ปุ่ม "ตั้งโปร" ในหน้าออกบิล)
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && TABS.some((x) => x.id === t)) setTab(t as Tab);
+  }, []);
 
   const save = async (patch: Partial<SiteConfig>) => {
     setSaving(true);
@@ -259,6 +269,9 @@ export default function SettingsPage() {
       )}
       {tab === "payment" && (
         <PaymentTab config={config} saving={saving} onSave={save} />
+      )}
+      {tab === "linePromos" && (
+        <LinePromosTab config={config} saving={saving} onSave={save} />
       )}
       {tab === "messages" && (
         <MessagesTab config={config} saving={saving} onSave={save} />
@@ -515,6 +528,113 @@ function PaymentTab({
   );
 }
 
+function LinePromosTab({
+  config,
+  saving,
+  onSave,
+}: {
+  config: SiteConfig;
+  saving: boolean;
+  onSave: (p: Partial<SiteConfig>) => void;
+}) {
+  const [list, setList] = useState<LinePromo[]>(config.linePromos || []);
+  useEffect(() => setList(config.linePromos || []), [config.linePromos]);
+  const update = (i: number, patch: Partial<LinePromo>) =>
+    setList((prev) => prev.map((p, k) => (k === i ? { ...p, ...patch } : p)));
+
+  return (
+    <form
+      className="space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({
+          linePromos: list
+            .map((p) => ({
+              ...p,
+              name: p.name.replace(/[()]/g, "").trim(),
+              percent: Math.min(100, Math.max(0, Math.round(Number(p.percent) || 0))),
+            }))
+            .filter((p) => p.name && p.percent > 0 && p.kinds.length > 0),
+        });
+      }}
+    >
+      <p className="rounded-catcha-sm bg-paper px-3 py-2 text-[11px] text-brown-soft">
+        ตั้งโปรไว้ แล้วตอนออกบิลกดเลือกได้เลย — ลดเฉพาะรายการประเภทที่ติ๊กไว้
+        (เช่น ลดห้องพักกับอาบน้ำ แต่ค่ารับ-ส่งไม่ลด) บิลจะเขียนบอกส่วนลดทีละรายการ
+      </p>
+      {list.map((p, i) => (
+        <div key={p.id} className="space-y-2 rounded-catcha-sm border border-catcha-line p-3">
+          <div className="flex gap-2">
+            <input
+              value={p.name}
+              onChange={(e) => update(i, { name: e.target.value })}
+              placeholder="ชื่อโปร เช่น ลูกค้าประจำ"
+              className="min-h-[40px] min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-3 text-sm"
+            />
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={1}
+                max={100}
+                inputMode="numeric"
+                value={p.percent || ""}
+                onChange={(e) => update(i, { percent: Number(e.target.value) })}
+                className="min-h-[40px] w-16 rounded-catcha-sm border border-catcha-line bg-paper px-2 text-right text-sm font-bold"
+              />
+              <span className="text-sm font-bold text-brown-soft">%</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {LINE_PROMO_KINDS.map((k) => {
+              const on = p.kinds.includes(k.id);
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() =>
+                    update(i, {
+                      kinds: on ? p.kinds.filter((x) => x !== k.id) : [...p.kinds, k.id],
+                    })
+                  }
+                  className={`min-h-[34px] rounded-full border px-3 text-xs font-bold ${
+                    on
+                      ? "border-catcha-chocolate bg-catcha-chocolate text-card"
+                      : "border-catcha-line bg-card text-brown-soft"
+                  }`}
+                >
+                  {on ? "✓ " : ""}
+                  {k.label}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setList((prev) => prev.filter((_, k) => k !== i))}
+            className="text-[11px] font-bold text-wait"
+          >
+            ลบโปรนี้
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() =>
+          setList((prev) => [
+            ...prev,
+            { id: `lp${Date.now().toString(36)}`, name: "", percent: 5, kinds: ["stay", "grooming"] },
+          ])
+        }
+        className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-full border border-dashed border-catcha-line text-xs font-bold text-brown"
+      >
+        <Icon name="plus" size={16} />
+        เพิ่มโปร
+      </button>
+      <SaveBtn saving={saving} />
+    </form>
+  );
+}
+
 function MessagesTab({
   config,
   saving,
@@ -567,13 +687,10 @@ function MessagesTab({
       <p className="text-xs font-extrabold text-catcha-chocolate">
         ⏰ เตือนอัตโนมัติก่อนเข้าพัก
       </p>
-      <TextAreaField
-        label="เตือนยอดคงเหลือ (7 วันก่อนเข้าพัก)"
-        hint="ใช้ได้: {shop} {cat} {checkin} {deposit} {remaining} {bank} {accountNumber} {accountName}"
-        value={msgs?.depositReminder || ""}
-        onChange={(v) => setMsgs({ ...msgs, depositReminder: v })}
-        rows={7}
-      />
+      <p className="text-[11px] font-bold text-brown-soft">
+        ยอดคงเหลือก่อนเข้าพักอยู่ในการ์ดเตรียมตัวก่อนเข้าพักใบเดียวกัน (ส่งแยกเฉพาะเมื่อปิดการ์ดเตรียมตัว) — แก้ข้อความการ์ดแยกได้ที่{" "}
+        <a href="/admin/cards" className="text-catcha-chocolate underline">ปรับแต่งการ์ด › แจ้งยอดก่อนเข้าพัก</a>
+      </p>
       <p className="text-[11px] font-bold text-brown-soft">
         การ์ดแจ้งเข้าพัก (จัดรูปแบบสวยงามอัตโนมัติ · ส่ง 3 วันก่อนเข้าพัก)
       </p>
@@ -720,6 +837,25 @@ function MessagesTab({
           })
         }
         rows={6}
+      />
+      <p className="text-xs font-extrabold text-catcha-chocolate">
+        ข้อตกลงก่อนอาบน้ำ (นัดอาบน้ำใช้ชุดนี้แทนกฎเข้าพัก)
+      </p>
+      <Field
+        label="หัวเรื่อง"
+        value={msgs?.groomConsentTitle || ""}
+        onChange={(v) => setMsgs({ ...msgs, groomConsentTitle: v })}
+      />
+      <TextAreaField
+        label="ข้อตกลงอาบน้ำ (1 บรรทัด = 1 ข้อ · ขึ้นต้นด้วย หัวข้อ — แล้วตามด้วยเนื้อหา หัวข้อจะเป็นตัวหนา)"
+        value={(msgs?.groomConsentTerms || []).join("\n")}
+        onChange={(v) =>
+          setMsgs({
+            ...msgs,
+            groomConsentTerms: v.split("\n").map((s) => s.trim()).filter(Boolean),
+          })
+        }
+        rows={8}
       />
       <TextAreaField
         label="ข้อความชวนกดยอมรับเงื่อนไข (แนบลิงก์ตอนแจ้งเข้าพัก + ปุ่ม 📋 เงื่อนไข)"

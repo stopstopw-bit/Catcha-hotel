@@ -58,16 +58,17 @@ import {
   getCatStayInfo,
   getCustomer,
   getIntakeStatus,
+  copyBookingDocsToCustomer,
 } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
 import { getLineCredentials } from "@/lib/line-config";
 import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
 import { cardOn, CARD_FEATURE, featureLabel } from "@/lib/features";
-import { DEFAULT_MESSAGES, renderTemplate } from "@/lib/messages";
-import { listInvoices, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
+import { consentDates, consentTextFor, renderTemplate } from "@/lib/messages";
+import { listInvoices, getInvoice, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import {
-  buildDepositReminderText,
+  buildDepositReminderCard,
   buildPrestayFlexData,
   buildCheckinBodyText,
   buildCheckoutBodyText,
@@ -322,7 +323,8 @@ export async function PATCH(req: NextRequest) {
       if (!admin && !(!!lineUserId && bk.lineUserId === lineUserId)) continue;
       await updateBooking(bk.id, {
         status: "confirmed",
-        ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+        // เวลามาส่งน้องเป็นของการเข้าพัก — อาบน้ำก่อนกลับที่ยืนยันมาพร้อมกันไม่ต้องได้เวลานี้
+        ...(checkinTime && bk.service !== "groom" ? { checkinTime, arrivalTime: checkinTime } : {}),
       });
       if (bk.calendarEventId) {
         await updateCalendarEventConfirmed(bk.calendarEventId, {
@@ -390,7 +392,7 @@ export async function PATCH(req: NextRequest) {
         notes: b.notes,
         groomProgram: b.groomProgram,
         transport: b.transport,
-      });
+      }, group);
 
       if (preview) return NextResponse.json({ ok: true, preview: [flex] });
       await pushLineMessage(to, [flex]);
@@ -589,6 +591,8 @@ function groomInfoCardFor(
         { status: res.error === "no_photo" ? 400 : 500 }
       );
     }
+    // เก็บที่ตัวน้องด้วย — หน้าข้อมูลลูกค้าขึ้น "ได้รับแล้ว" และรอบหน้าไม่ขอซ้ำ
+    await copyBookingDocsToCustomer(b, { newPhotos: res.addedUrls });
     return NextResponse.json({ ok: true, vaccinePhotoUrl: res.urls.join("\n") });
   }
   if (action === "remove_vaccine_photo") {
@@ -641,19 +645,36 @@ function groomInfoCardFor(
   // ── 📋 การ์ดรวมขอข้อมูล — ใบเดียวหลายปุ่ม เฉพาะเรื่องที่บ้านนี้ยังขาด (ประวัติ/สมุดวัคซีน/บัตร/กฎ + มัดจำถ้าใส่ยอดมา) ──
   // ใช้ทางเดียวกับชุดการ์ด แค่เลือกหัวข้อให้เองตามบริการ แล้วบังคับรวมเป็นใบเดียวแม้เหลือเรื่องเดียว
   const intakeAlways = action === "send_intake";
-  /** แยกเป็นการ์ดทีละใบ (ร้านเลือกตอนกดส่ง) — ไม่รวมเป็นใบเดียว */
-  const intakeSeparate = intakeAlways && body.separate === true;
+  /**
+   * เรื่องที่ร้านเลือกให้แยกเป็นการ์ดของตัวเอง (ที่เหลือรวมเป็นการ์ดใบเดียวปุ่มเดียว) —
+   * separateParts = รายชื่อเรื่อง · separate: true = แยกทุกเรื่อง
+   */
+  const separateKinds = new Set<string>(
+    !intakeAlways
+      ? []
+      : body.separate === true
+        ? ["stayInfo", "info", "vaccine", "idcard", "consent", "deposit"]
+        : (Array.isArray(body.separateParts) ? body.separateParts : [])
+            .map(String)
+            .map((x: string) => (x === "groomInfo" ? "info" : x))
+  );
   if (intakeAlways) {
     const room = b.service === "room";
     const hasDeposit = Number(body.depositAmount) > 0;
     // ร้านติ๊กเลือกเองว่าจะขออะไรบ้าง · ไม่ส่งมา = ทุกเรื่องตามบริการ (ระบบยังข้ามเรื่องที่ส่งแล้วให้)
-    const allowed = new Set(["stayInfo", "groomInfo", "vaccine", "idcard", "consent"]);
-    const picked: string[] | null = Array.isArray(body.parts)
-      ? body.parts.map(String).filter((x: string) => allowed.has(x))
-      : null;
+    // นัดอาบน้ำ = ประวัติ → สมุดวัคซีน → ข้อตกลงอาบน้ำ (บัตรประชาชนเป็นเรื่องของการเข้าพัก)
+    const allowed = new Set(
+      b.service === "groom"
+        ? ["groomInfo", "vaccine", "consent"]
+        : ["stayInfo", "groomInfo", "vaccine", "idcard", "consent"]
+    );
+    const raw: string[] = Array.isArray(body.parts) ? body.parts.map(String) : [];
+    const picked: string[] | null = Array.isArray(body.parts) ? raw.filter((x) => allowed.has(x)) : null;
     body.parts = [
-      ...(picked ?? [room ? "stayInfo" : "groomInfo", "vaccine", ...(room ? ["idcard"] : []), "consent"]),
+      ...(picked ?? (room ? ["stayInfo", "vaccine", "idcard", "consent"] : ["groomInfo", "vaccine", "consent"])),
       ...(hasDeposit ? ["deposit"] : []),
+      // แจ้งยอดชำระค่าบริการ (บิล) — การ์ดแยกของตัวเอง ส่งไปพร้อมกันในข้อความเดียว
+      ...(raw.includes("payment") ? ["payment"] : []),
     ];
   }
   if (action === "send_bundle" || intakeAlways) {
@@ -692,6 +713,18 @@ function groomInfoCardFor(
       if (intakeAt < 0) intakeAt = messages.length;
       intake.push(e);
     };
+    // เปิดจากหน้าบิล ส่ง invoiceId มาด้วย — บิลที่ไม่ได้ผูก bookingId (ออกบิลเอง แล้วหน้าบิลจับคู่นัดจากชื่อลูกค้า+น้อง)
+    // หาด้วย bookingId ไม่เจอ ใบเสร็จ/ขอรีวิว/สรุปบิลเลยไม่ออกสักใบ → ใช้บิลที่ส่งมาก่อน ไม่งั้นค่อยหาจากนัดทั้งบ้าน
+    const pinnedInv = body.invoiceId ? await getInvoice(String(body.invoiceId)) : null;
+    const invoiceFor = async (prefer: "paid" | "open") => {
+      if (pinnedInv) return pinnedInv;
+      const all = await listInvoices();
+      const ids = new Set([b.id, ...household.map((x) => x.id)]);
+      const mine = all.filter((i) => !!i.bookingId && ids.has(i.bookingId));
+      const direct = mine.filter((i) => i.bookingId === b.id);
+      const want = (i: (typeof all)[number]) => (prefer === "paid" ? i.status === "paid" : i.status !== "paid");
+      return direct.find(want) || mine.find(want) || direct[0] || mine[0];
+    };
 
     for (const part of parts) {
       if (part === "reminder") {
@@ -709,7 +742,7 @@ function groomInfoCardFor(
             notes: b.notes,
             groomProgram: b.groomProgram,
             transport: b.transport,
-          })
+          }, household)
         );
       } else if (part === "consent") {
         // กดยอมรับนัดนี้ครบทุกตัวแล้ว → ไม่ขอซ้ำ (ทุกนัดใหม่ยังต้องกดใหม่)
@@ -725,14 +758,9 @@ function groomInfoCardFor(
             ids: [b.id],
             card: buildConsentFlex({
               businessName: cfg.business.name,
-              title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
+              ...consentTextFor(cfg.messages, b.service),
               catName: String(gb.catName),
-              checkin: gb.checkin || gb.date,
-              checkout: gb.checkout,
-              room: gb.room,
-              terms: cfg.messages.consentTerms?.length
-                ? cfg.messages.consentTerms
-                : DEFAULT_MESSAGES.consentTerms,
+              ...consentDates(gb),
               url,
             }, cfg.cards?.consent),
           });
@@ -746,10 +774,9 @@ function groomInfoCardFor(
           }, cfg.cards?.prestay)
         );
       } else if (part === "receipt" || part === "depositThanks") {
-        const all = await listInvoices();
-        const inv =
-          all.find((i) => i.bookingId === b.id && i.status === "paid") ||
-          all.find((i) => i.bookingId === b.id);
+        const inv = await invoiceFor("paid");
+        if (!inv) skipped.push("หาบิลของนัดนี้ไม่เจอ — ข้าม" + (part === "receipt" ? "ใบเสร็จ" : "การ์ดขอบคุณมัดจำ"));
+        else if (part === "receipt" && inv.status !== "paid") skipped.push("บิลยังไม่ปิด — ข้ามใบเสร็จ");
         if (inv && part === "receipt" && inv.status === "paid") {
           const paidByCredit = inv.paymentMethod === "member_credit";
           // เครดิตปัจจุบัน = ยอดหลังหักบิลนี้ไปแล้ว (บิลถูกปิดไปก่อนถึงจะส่งใบเสร็จได้)
@@ -793,10 +820,8 @@ function groomInfoCardFor(
           );
         }
       } else if (part === "summary" || part === "review") {
-        const all = await listInvoices();
-        const inv =
-          all.find((i) => i.bookingId === b.id && i.status !== "paid") ||
-          all.find((i) => i.bookingId === b.id);
+        const inv = await invoiceFor("open");
+        if (!inv) skipped.push("หาบิลของนัดนี้ไม่เจอ — ข้าม" + (part === "review" ? "การ์ดขอรีวิว" : "สรุปการจอง"));
         if (inv && part === "summary") {
           const payment = await getPaymentConfig();
           messages.push(
@@ -838,7 +863,7 @@ function groomInfoCardFor(
                 reviewLabel: cfg.business.reviewButtonText,
               }, cfg.cards?.review)
             );
-          }
+          } else skipped.push("ยังไม่ได้ใส่ลิงก์รีวิว/Google Maps ในตั้งค่าร้าน — ข้ามการ์ดขอรีวิว");
         }
       } else if (part === "groomInfo" || part === "stayInfo") {
         // stayInfo = ฟอร์มข้อมูลก่อนเข้าพัก · groomInfo = ประวัติก่อนอาบน้ำ (ชุดเดียวกับหน้าข้อมูลลูกค้า)
@@ -891,12 +916,12 @@ function groomInfoCardFor(
       } else if (part === "checkout" && b.pickupTime) {
         skipped.push(`เลือกเวลารับน้องไว้แล้ว (${b.pickupTime}) ไม่ถามซ้ำ`);
       } else if (part === "vaccine" || part === "idcard") {
-        // ส่งไปแล้วไม่ขอซ้ำ: สมุดวัคซีนดูทีละตัว (ที่นัดหรือที่ตัวน้อง) · บัตรประชาชนครั้งเดียวต่อลูกค้า
+        // สมุดวัคซีนขอทุกรอบ ข้ามเฉพาะนัดที่แนบมาแล้ว · บัตรประชาชนครั้งเดียวต่อลูกค้า
         const status = await Promise.all(household.map((x) => getIntakeStatus(to, String(x.catName))));
         let ask = household;
         if (part === "vaccine") {
-          ask = household.filter((x, i) => !status[i].vaccine && !x.vaccinePhotoUrl);
-          for (const x of household) if (!ask.includes(x)) skipped.push(`${x.catName}: มีสมุดวัคซีนแล้ว ไม่ขอซ้ำ`);
+          ask = household.filter((x) => !x.vaccinePhotoUrl);
+          for (const x of household) if (!ask.includes(x)) skipped.push(`${x.catName}: นัดนี้แนบสมุดวัคซีนแล้ว ไม่ขอซ้ำ`);
         } else if (status[0]?.idCard) {
           ask = [];
           skipped.push("มีบัตรประชาชนแล้ว ไม่ขอซ้ำ");
@@ -977,10 +1002,8 @@ function groomInfoCardFor(
           });
         }
       } else if (part === "payment") {
-        const all = await listInvoices();
-        const inv =
-          all.find((i) => i.bookingId === b.id && i.status !== "paid") ||
-          all.find((i) => i.bookingId === b.id);
+        const inv = await invoiceFor("open");
+        if (!inv) skipped.push("หาบิลของนัดนี้ไม่เจอ — ข้ามการ์ดแจ้งยอด");
         if (inv) {
           const payment = await getPaymentConfig();
           const deposit = inv.deposit || 0;
@@ -1006,34 +1029,39 @@ function groomInfoCardFor(
               bankName: payment.bankName,
               accountNumber: payment.accountNumber,
               accountName: payment.accountName,
+              // ชุดเดียวกันมี "สรุปการจอง" แล้ว → การ์ดนี้บอกแค่ยอด ไม่ไล่รายการซ้ำอีกรอบ
+              hideItems: parts.includes("summary"),
             }, cfg.cards?.billSummary)
           );
         }
       }
     }
 
-    if (intake.length > 0 && intakeSeparate) {
-      messages.splice(intakeAt, 0, ...intake.map((e) => e.card));
-    } else if (intake.length > 0) {
-      const liffId = (await getLineCredentials())?.liffId;
+    const together = intake.filter((e) => !separateKinds.has(e.kind));
+    const apart = intake.filter((e) => separateKinds.has(e.kind)).map((e) => e.card);
+    if (intake.length > 0) {
+      const liffId = together.length > 0 ? (await getLineCredentials())?.liffId : undefined;
       messages.splice(
         intakeAt,
         0,
-        ...mergeIntakeCards(
-          intake,
-          {
-            service: b.service === "room" ? "stay" : "groom",
-            catName: String(gb.catName),
-            businessName: cfg.business.name,
-            dateText: bookingScheduleText(gb),
-            always: intakeAlways,
-            flow: liffId ? { liffId, by: "b" } : undefined,
-          },
-          cfg.cards?.intake
-        )
+        ...(together.length > 0
+          ? mergeIntakeCards(
+              together,
+              {
+                service: b.service === "room" ? "stay" : "groom",
+                catName: String(gb.catName),
+                businessName: cfg.business.name,
+                dateText: bookingScheduleText(gb),
+                always: intakeAlways,
+                flow: liffId ? { liffId, by: "b" } : undefined,
+              },
+              cfg.cards?.intake
+            )
+          : []),
+        ...apart
       );
     }
-    if (intakeAlways && intake.length === 0) {
+    if (intakeAlways && intake.length === 0 && messages.length === 0) {
       return NextResponse.json(
         { error: "บ้านนี้ส่งข้อมูลครบทุกอย่างแล้ว ไม่มีอะไรต้องขอเพิ่มค่ะ", skipped },
         { status: 400 }
@@ -1090,14 +1118,9 @@ function groomInfoCardFor(
       }
       const flex = buildConsentFlex({
         businessName: cfg.business.name,
-        title: cfg.messages.consentTitle || DEFAULT_MESSAGES.consentTitle,
+        ...consentTextFor(cfg.messages, b.service),
         catName: String(gb.catName),
-        checkin: gb.checkin || gb.date,
-        checkout: gb.checkout,
-        room: gb.room,
-        terms: cfg.messages.consentTerms?.length
-          ? cfg.messages.consentTerms
-          : DEFAULT_MESSAGES.consentTerms,
+        ...consentDates(gb),
         url,
       }, cfg.cards?.consent);
       try {
@@ -1128,7 +1151,7 @@ function groomInfoCardFor(
       }
     }
 
-    let text: string | null = null;
+    let card: object | null = null;
     {
       // send_deposit_reminder — หาใบแจ้งหนี้ที่มีมัดจำและยังค้างยอด
       const invoices = await listInvoices();
@@ -1141,8 +1164,8 @@ function groomInfoCardFor(
           { status: 400 }
         );
       }
-      text = buildDepositReminderText(gb, inv, cfg);
-      if (!text) {
+      card = buildDepositReminderCard(gb, inv, cfg);
+      if (!card) {
         return NextResponse.json(
           { error: "ไม่มียอดคงเหลือที่ต้องโอนแล้ว" },
           { status: 400 }
@@ -1151,9 +1174,9 @@ function groomInfoCardFor(
     }
 
     try {
-      const textMsg = [{ type: "text", text }];
-      if (preview) return NextResponse.json({ ok: true, preview: textMsg });
-      await pushLineMessage(to, textMsg);
+      // การ์ดแจ้งยอดคงเหลือ (เมื่อก่อนเป็นข้อความตัวหนังสือ) — แก้ข้อความได้ที่ /admin/cards
+      if (preview) return NextResponse.json({ ok: true, preview: [card] });
+      await pushLineMessage(to, [card]);
       return NextResponse.json({ ok: true });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

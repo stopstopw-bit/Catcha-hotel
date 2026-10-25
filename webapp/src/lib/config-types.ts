@@ -2,6 +2,7 @@ import type { RoomType } from "./business";
 import type { GroomFormConfig } from "./groom-form";
 import type { GroomProgram } from "./grooming-prices";
 import type { RoomClosure } from "./room-board";
+import type { LinePromo } from "./line-discount";
 
 /** บล็อกเนื้อหาหน้ากฎระเบียบการฝาก — ใส่ได้ทั้งรูปและ/หรือข้อความ เรียงตามลำดับที่ตั้งไว้ */
 export type BoardingRuleBlock = {
@@ -82,6 +83,10 @@ export type MessagesConfig = {
   consentTitle: string;
   /** ข้อตกลงก่อนเข้าพัก — บรรทัดละ 1 ข้อ */
   consentTerms: string[];
+  /** หัวเรื่องข้อตกลงก่อนอาบน้ำ (นัดอาบน้ำ) */
+  groomConsentTitle: string;
+  /** ข้อตกลงก่อนอาบน้ำ — บรรทัดละ 1 ข้อ ("หัวข้อ — เนื้อหา" ได้) */
+  groomConsentTerms: string[];
   /** การ์ดเรียกเก็บมัดจำ (ส่งก่อนลูกค้าโอน) — หัวเรื่อง */
   depositRequestTitle: string;
   /** การ์ดเรียกเก็บมัดจำ — ข้อความ ({name} {cat} {amount}) */
@@ -228,6 +233,8 @@ export type SiteConfig = {
     /** พร้อมเพย์ (เบอร์มือถือ 10 หลัก หรือเลขผู้เสียภาษี/บัตร 13 หลัก) — ใช้สร้าง QR ที่หน้าขาย POS */
     promptpayId?: string;
   };
+  /** โปรลดเฉพาะรายการ (เช่น ลด 5% เฉพาะห้องพัก/อาบน้ำ ไม่ลดค่ารับ-ส่ง) — เลือกตอนออกบิล */
+  linePromos?: LinePromo[];
   /** ข้อความหัวเรื่อง/ปิดท้าย ของสรุปที่ก๊อป/ส่งให้ลูกค้า (แก้ได้ในตั้งค่า) */
   billing: {
     summaryBookingTitle: string;

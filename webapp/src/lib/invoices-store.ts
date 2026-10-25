@@ -23,6 +23,7 @@ import { addPoints } from "./points-store";
 import { getSupabase, selectAllRows } from "./supabase/server";
 import { summarizeInvoiceItems } from "./invoice-item-label";
 import { bangkokToday } from "./bangkok-date";
+import { normalizeLineDiscount } from "./line-discount";
 
 export type InvoiceItem = {
   label: string;
@@ -38,12 +39,21 @@ export type InvoiceItem = {
   productId?: string;
   /** id โปรแกรมอาบน้ำ (kind==="grooming") — ใช้เช็คคอร์สที่ผูกโปรแกรม */
   program?: string;
+  /** ขน/พันธุ์ และไซส์ที่เลือก (kind==="grooming") — ไว้เลือกให้เองครั้งหน้าของน้องตัวเดิม */
+  breed?: string;
+  size?: string;
   /** น้องแมวตัวไหน — บิลบ้านที่มีหลายตัวจะได้รู้ว่าตัวไหนอาบโปรแกรมอะไร */
   catName?: string;
   /** จำนวนชิ้น (ไม่ใส่ = 1) — ซื้อหลายชิ้นไม่ต้องเพิ่มทีละบรรทัด */
   qty?: number;
   /** ราคาต่อหน่วย (ไม่ใส่ = เท่ากับ amount) — เก็บไว้ให้บิลย้อนหลังอ่านออก */
   unitAmount?: number;
+  /** ส่วนลดเฉพาะรายการนี้ (บาท) — amount หักแล้ว, unitAmount ยังเป็นราคาก่อนลด */
+  discount?: number;
+  /** ส่วนลดเฉพาะรายการนี้แบบ % — ใช้แทน discount */
+  discountPercent?: number;
+  /** ชื่อโปรลดเฉพาะรายการที่ให้ส่วนลดบรรทัดนี้ */
+  discountName?: string;
 };
 
 /**
@@ -307,19 +317,10 @@ export async function createInvoice(data: {
   // บังคับให้ทุกยอดเป็นตัวเลขจำนวนเต็มก่อนคิด — กันค่าที่ไม่ใช่ตัวเลขทำบิลพัง
   // (เมื่อก่อน amount ที่เป็น string จะถูกต่อสตริง เช่น 0 + "abc" = "0abc" แล้ว total กลายเป็น null
   //  ส่วนทศนิยมก็โผล่เป็น 0.30000000000000004 บนบิลลูกค้า)
-  const items = (data.items || []).map((i) => {
-    const qty = Math.max(1, Math.round(Number(i.qty) || 1));
-    // ราคาต่อหน่วย: ถ้าไม่ได้ส่งมา ให้ถอดจากยอดรวม เพื่อให้บิลเก่า (ที่ไม่มี qty) ยังถูกต้อง
-    const unit = Math.round(
-      Number(i.unitAmount ?? (Number(i.amount) || 0) / qty) || 0
-    );
-    return {
-      ...i,
-      qty,
-      unitAmount: unit,
-      amount: unit * qty,
-    };
-  });
+  // ราคาต่อหน่วย: ถ้าไม่ได้ส่งมา ให้ถอดจากยอดรวม เพื่อให้บิลเก่า (ที่ไม่มี qty) ยังถูกต้อง
+  // ส่วนลดเฉพาะรายการคิดจากฟิลด์ discount/discountPercent — เมื่อก่อนคิดแค่ unitAmount × จำนวน
+  // ส่วนลดรายการเลยหายตอนออกบิลครั้งแรก ต้องไปแก้บิลอีกรอบ
+  const items = (data.items || []).map((i) => normalizeLineDiscount(i));
   const subtotal = items.reduce((s, i) => s + i.amount, 0);
   const { discount: promoDiscount, label } = await calcPromoDiscount(
     data.promoId,
@@ -494,7 +495,7 @@ export async function updateInvoice(
   if (!inv) return { ok: false as const, error: "not_found" };
   if (inv.status === "paid") return { ok: false as const, error: "already_paid" };
 
-  const items = patch.items ?? inv.items;
+  const items = patch.items ? patch.items.map((i) => normalizeLineDiscount(i)) : inv.items;
   const before = inv.items || [];
   const { checkBillStock, syncBillStock } = await import("./pos-store");
   const stockCheck = await checkBillStock(before, items);
@@ -528,12 +529,14 @@ export async function updateInvoice(
   inv.discount = discount;
   inv.total = total;
   inv.deposit = deposit;
-  inv.promoId = promoId;
+  inv.promoId = promoId || undefined; // "" = เอาโปรออก
   inv.promoLabel = label;
 
   const sb = getSupabase();
   if (sb) {
-    await sb.from("invoices").update(invoiceToRow(inv)).eq("id", id);
+    // บันทึกไม่ลง ต้องบอกหน้าเว็บ — เมื่อก่อนเงียบแล้วขึ้น "แก้ไขบิลแล้ว" ทั้งที่บิลไม่เปลี่ยน
+    const { error } = await sb.from("invoices").update(invoiceToRow(inv)).eq("id", id);
+    if (error) return { ok: false as const, error: "save_failed", message: error.message };
   }
   await syncBillStock(id, before, items);
   return { ok: true as const, invoice: inv };
