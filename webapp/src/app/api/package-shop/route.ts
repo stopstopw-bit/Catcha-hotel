@@ -15,6 +15,7 @@ import {
   confirmPackageOrder,
   cancelPackageOrder,
   normalizeOfferItems,
+  copyNightsOfferToRooms,
   toOfferKind,
 } from "@/lib/package-shop-store";
 import { findCustomerByLine, getCustomer } from "@/lib/customers-store";
@@ -311,6 +312,11 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: res.error }, { status: 400 });
     }
     return NextResponse.json({ ok: true });
+  }
+
+  if (action === "copy_to_rooms") {
+    const res = await copyNightsOfferToRooms(String(body.offerId || ""));
+    return NextResponse.json(res, { status: res.ok ? 200 : 400 });
   }
 
   if (action === "delete_offer") {

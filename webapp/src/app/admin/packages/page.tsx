@@ -173,6 +173,8 @@ function OfferRow({
   const unitWord = isNights ? "คืน" : "ครั้ง";
   // คอร์สเดี่ยวที่มีของแถม เก็บเป็นรายการเดียว — จำนวนที่จ่าย/แถมอยู่ในนั้น
   const single = !isBundle && o.items?.length === 1 ? o.items[0] : undefined;
+  // คอร์สวันพักที่ผูกห้องและมีราคาเต็ม — ก๊อปไปห้องอื่นได้ (ลด % เท่ากัน)
+  const copyRoom = isNights ? rooms.find((r) => r.id === (o.roomType || single?.roomType) && r.price > 0) : undefined;
 
   const startEdit = () => {
     setName(o.name);
@@ -449,6 +451,34 @@ function OfferRow({
       <MoreMenu
         items={[
           { label: "แก้ไข", icon: "edit", onClick: startEdit },
+          ...(copyRoom
+            ? [
+                {
+                  label: "ทำคอร์สนี้ให้ทุกห้อง",
+                  icon: "plus",
+                  onClick: () => {
+                    const nights = single ? single.paid : o.totalUses;
+                    const ratio = o.price / (copyRoom.price * nights);
+                    const lines = rooms
+                      .filter((r) => r.id !== copyRoom.id && r.price > 0)
+                      .map((r) => `• ${r.name}: ${nights} คืน ${Math.round(r.price * nights * ratio).toLocaleString()}฿`);
+                    if (lines.length === 0) {
+                      toast("ยังไม่มีห้องอื่นในตั้งค่า", "error");
+                      return;
+                    }
+                    if (
+                      !confirm(
+                        `สร้างคอร์สแบบเดียวกัน (ลด ${Math.round((1 - ratio) * 100)}% จากราคาเต็ม) ให้ห้องอื่น:\n` +
+                          lines.join("\n") +
+                          `\n\nใช้รูปและคำอธิบายเดียวกัน · ห้องที่มีคอร์ส ${nights} คืนอยู่แล้วจะข้าม`
+                      )
+                    )
+                      return;
+                    patch({ action: "copy_to_rooms", offerId: o.id }, "สร้างคอร์สให้ทุกห้องแล้ว 🏠", o.id);
+                  },
+                },
+              ]
+            : []),
           {
             label: o.active ? "ปิดขาย" : "เปิดขาย",
             icon: o.active ? "eye" : "check",

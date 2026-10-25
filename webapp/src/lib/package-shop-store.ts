@@ -326,6 +326,62 @@ export async function listPackageOffers(activeOnly = false): Promise<PackageOffe
   return activeOnly ? list.filter((o) => o.active) : list;
 }
 
+/**
+ * ก๊อปคอร์สวันพักที่ผูกห้องไว้ ไปเป็นคอร์สของห้องอื่นทุกห้อง — ลด % เท่ากับคอร์สต้นแบบ
+ * (คิดจากราคาเต็มของห้องต้นแบบ) ชื่อที่มีชื่อห้องอยู่จะเปลี่ยนเป็นห้องใหม่ให้
+ * ห้องที่มีคอร์สจำนวนคืนเท่ากันอยู่แล้วจะข้าม กดซ้ำได้ไม่เกิดคอร์สซ้ำ
+ */
+export async function copyNightsOfferToRooms(offerId: string) {
+  const { getSiteConfig } = await import("./config-store");
+  const rooms = ((await getSiteConfig()).rooms || []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    price: Number(r.price) || 0,
+  }));
+  const offers = await listPackageOffers();
+  const src = offers.find((o) => o.id === offerId);
+  const single = src?.items?.length === 1 ? src.items[0] : undefined;
+  const srcRoomId = src?.roomType || (single?.unit === "night" ? single.roomType : undefined);
+  const srcRoom = rooms.find((r) => r.id === srcRoomId);
+  if (!src || src.kind !== "nights" || !srcRoom) return { ok: false as const, error: "not_room_course" };
+  const paid = single ? single.paid : src.totalUses;
+  const full = srcRoom.price * paid;
+  if (full <= 0) return { ok: false as const, error: "no_room_price" };
+  const ratio = src.price / full;
+  const sameNights = (o: PackageOffer) =>
+    o.kind === "nights" && (o.items?.length === 1 ? o.items[0].paid : o.totalUses) === paid;
+  const taken = new Set(
+    offers
+      .filter(sameNights)
+      .map((o) => o.roomType || (o.items?.length === 1 ? o.items[0].roomType : undefined))
+      .filter(Boolean) as string[]
+  );
+  const esc = srcRoom.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const nameRe = new RegExp(esc, "i");
+  const made: PackageOffer[] = [];
+  const skipped: string[] = [];
+  for (const room of rooms) {
+    if (room.id === srcRoom.id) continue;
+    if (taken.has(room.id) || room.price <= 0) {
+      skipped.push(room.name);
+      continue;
+    }
+    const name = nameRe.test(src.name) ? src.name.replace(nameRe, room.name) : `${src.name} (${room.name})`;
+    const offer = await createPackageOffer({
+      name,
+      kind: "nights",
+      totalUses: paid,
+      price: Math.round(room.price * paid * ratio),
+      description: src.description?.replace(new RegExp(esc, "gi"), room.name),
+      roomType: room.id,
+      items: single ? [{ ...single, roomType: room.id }] : undefined,
+      imageUrl: src.imageUrl,
+    });
+    if (offer) made.push(offer);
+  }
+  return { ok: true as const, made, skipped, percentOff: Math.round((1 - ratio) * 100) };
+}
+
 export async function createPackageOffer(data: {
   name: string;
   kind?: PackageOfferKind;
@@ -342,6 +398,8 @@ export async function createPackageOffer(data: {
   items?: OfferItem[];
   /** data URL จากช่องอัปโหลด — จะถูกเก็บขึ้น Storage ให้ ไม่ยัด base64 ลง DB */
   image?: string;
+  /** ใช้รูปที่อัปไว้แล้ว (ตอนก๊อปคอร์ส) */
+  imageUrl?: string;
 }): Promise<PackageOffer | null> {
   const name = data.name.trim();
   const kind = toOfferKind(data.kind);
@@ -363,7 +421,7 @@ export async function createPackageOffer(data: {
   const id = `POF${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
   // อัปรูปก่อน แต่ถ้าอัปไม่ขึ้นก็ยังต้องสร้างคอร์สให้ได้ — รูปเป็นของแถม ไม่ใช่เงื่อนไข
-  let imageUrl: string | undefined;
+  let imageUrl: string | undefined = data.imageUrl || undefined;
   if (data.image) {
     try {
       imageUrl = await uploadDataUrlToStorage(`package-offers/${id}.jpg`, data.image);
