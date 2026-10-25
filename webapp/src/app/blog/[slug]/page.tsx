@@ -99,18 +99,27 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
         publisher: { "@type": "Organization", name: "CatCha Hotel" },
         mainEntityOfPage: `${SITE_URL}/blog/${post.slug}`,
       },
-      {
-        "@type": "FAQPage",
-        mainEntity: post.faqs.map((f) => ({
-          "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
-        })),
-      },
+      ...(post.faqs.length > 0
+        ? [
+            {
+              "@type": "FAQPage",
+              mainEntity: post.faqs.map((f) => ({
+                "@type": "Question",
+                name: f.q,
+                acceptedAnswer: { "@type": "Answer", text: f.a },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 
-  const others = BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
+  // อ่านต่อ = 3 บทความถัดไป (วนกลับต้นรายการ) — กระจายลิงก์ภายในให้ทุกบทความ ไม่ใช่แค่ 3 อันแรก
+  const idx = BLOG_POSTS.findIndex((p) => p.slug === post.slug);
+  const linkedSlugs = new Set((post.related || []).map((r) => r.href.replace(/^\/blog\//, "")));
+  const others = Array.from({ length: BLOG_POSTS.length }, (_, i) => BLOG_POSTS[(idx + 1 + i) % BLOG_POSTS.length])
+    .filter((p) => p.slug !== post.slug && !linkedSlugs.has(p.slug))
+    .slice(0, 3);
 
   return (
     <main className="mx-auto max-w-2xl px-5 pb-16 pt-8">
@@ -196,6 +205,21 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
             ))}
           </div>
         </div>
+        )}
+
+        {post.related && post.related.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-base font-extrabold text-catcha-chocolate">🔗 เกี่ยวข้อง</h2>
+            <ul className="mt-2 space-y-1.5">
+              {post.related.map((r) => (
+                <li key={r.href}>
+                  <Link href={r.href} className="text-sm font-bold text-latte-deep underline">
+                    {r.label} →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* CTA */}
