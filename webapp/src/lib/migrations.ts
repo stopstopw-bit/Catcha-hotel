@@ -64,6 +64,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
   { table: "package_offers", column: "room_type", feature: "คอร์สวันพักในแอปแยกตามประเภทห้อง" },
+  { table: "package_offers", column: "items", feature: "คอร์สชุดรวม / แถมฟรี" },
   { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
   { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
   { table: "cats", column: "vaccine_photos", feature: "สมุดวัคซีนที่ตัวน้อง (ขอก่อนมีนัด)" },
@@ -463,6 +464,15 @@ where staff_note like '%🎁%';`,
     sql: `
       alter table package_offers add column if not exists room_type text;
       alter table package_orders add column if not exists room_type text;
+    `,
+  },
+  {
+    // คอร์สชุดรวม (พัก 5 คืน + อาบน้ำ 6 ครั้ง) และของแถม (อาบน้ำ 10 แถม 4) — ว่าง = คอร์สเดี่ยวแบบเดิม
+    // [{unit, paid, free, roomType, groomProgram}] ตอนยืนยันแตกเป็นคอร์สของลูกค้ารายการละใบ
+    name: "packages.offer_items",
+    sql: `
+      alter table package_offers add column if not exists items jsonb;
+      alter table package_orders add column if not exists items jsonb;
     `,
   },
   {
