@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { renameCatAfterUpdate } from "@/lib/cat-rename";
 import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer-session";
 import {
   findCustomerByLine,
@@ -129,7 +130,8 @@ export async function POST(req: NextRequest) {
         if (id) created.push({ index, id });
       } else {
         // หน้าเก่าที่ยังไม่มีช่องน้ำหนักจะไม่ส่ง weightKg มา — อย่าไปลบค่าที่ร้านกรอกไว้
-        await updateCat(
+        const oldName = c.cats.find((x) => x.id === String(cat.id))?.name;
+        const after = await updateCat(
           c.id,
           String(cat.id),
           {
@@ -140,6 +142,8 @@ export async function POST(req: NextRequest) {
           },
           { source: "customer" }
         );
+        // ลูกค้าเปลี่ยนชื่อน้องเอง → นัด/บิล/ประวัติเปลี่ยนตาม
+        await renameCatAfterUpdate(after, String(cat.id), oldName);
       }
     }
   }
