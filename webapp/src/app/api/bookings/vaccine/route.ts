@@ -37,7 +37,7 @@ async function postHandler(req: NextRequest) {
       { status: res.error === "no_photo" ? 400 : 500 }
     );
   }
-  // เก็บที่ตัวน้องด้วย — สมุดวัคซีนขอครั้งเดียว รอบหน้าไม่ต้องขอซ้ำ
+  // เก็บที่ตัวน้องด้วย — หน้าข้อมูลลูกค้าจะได้ขึ้น "ได้รับแล้ว"
   await copyBookingDocsToCustomer(b, { newPhotos: res.addedUrls });
   await sendTelegram(
     formatBookingTelegram("💉 ลูกค้าแนบสมุดวัคซีนแล้ว", {

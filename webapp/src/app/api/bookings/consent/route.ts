@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
           x.status !== "cancelled" &&
           bookingGroupKey(x) === key
       );
-      // ข้อตกลง + สมุดวัคซีนที่แนบมา ยกขึ้นตัวน้อง/ลูกค้าด้วย — หน้าข้อมูลลูกค้าจะได้ขึ้น "ได้รับแล้ว" และรอบหน้าไม่ขอซ้ำ
+      // ข้อตกลง + สมุดวัคซีนที่แนบมา ยกขึ้นตัวน้อง/ลูกค้าด้วย — หน้าข้อมูลลูกค้าจะได้ขึ้น "ได้รับแล้ว"
       await copyBookingDocsToCustomer(b, { newPhotos: res.vaccineAdded });
       for (const x of siblings) {
         const r = await acceptBookingConsent(
