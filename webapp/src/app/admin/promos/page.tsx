@@ -26,7 +26,7 @@ import type { SegmentId } from "@/lib/customer-segments";
 import { BROADCAST_DRAFT_KEY } from "@/components/SalesActions";
 import { Icon } from "@/components/Icon";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
-import { LinePromosEditor } from "@/components/LinePromosEditor";
+import { LINE_PROMO_KINDS, type LinePromoKind, type PromoBillRule } from "@/lib/line-discount";
 import { CheckBox, EmptyState, MoreMenu, SearchField, SectionLabel, Segmented } from "@/components/ui";
 
 /** กลุ่มลูกค้าสำเร็จรูป — ติ๊กได้หลายกลุ่ม ระบบเลือกคนที่ตรงทุกข้อ */
@@ -57,7 +57,25 @@ type Promo = {
   rewardType: PromoRewardType;
   pointsBonus?: number;
   pointsMultiplier?: number;
+  billRule?: PromoBillRule;
 };
+
+/** แบบของโปร — เลือกในฟอร์มเดียว */
+type PromoType = "bill" | "items" | "free" | "points";
+
+const PROMO_TYPES: { id: PromoType; label: string; sub: string }[] = [
+  { id: "bill", label: "ลดทั้งบิล", sub: "เช่น ลด 5% / ลด 100฿" },
+  { id: "items", label: "ลดเฉพาะรายการ", sub: "เช่น ห้องพัก 30% พัก 30 คืน+" },
+  { id: "free", label: "แถมคืนฟรี", sub: "เช่น จอง 10 คืน แถม 1" },
+  { id: "points", label: "ให้แต้ม", sub: "เช่น รีวิวรับ 5 แต้ม" },
+];
+
+function promoTypeOf(p: Promo): PromoType {
+  if (p.rewardType === "points") return "points";
+  if ((p.billRule?.freeEvery || 0) > 0) return "free";
+  if (p.billRule?.kinds?.length) return "items";
+  return "bill";
+}
 
 type BroadcastRecipient = {
   id: string;
@@ -105,7 +123,9 @@ function resetFormState() {
     showOnHome: false,
     restriction: "none" as PromoRestriction,
     tiers: ["all"] as CustomerTier[],
-    rewardType: "discount" as PromoRewardType,
+    promoType: "bill" as PromoType,
+    alsoPoints: false,
+    kinds: ["stay"] as LinePromoKind[],
   };
 }
 
@@ -119,20 +139,17 @@ export default function PromosAdminPage() {
   const [kindFilter, setKindFilter] = useState<"all" | PromoKind>("all");
   const [promoSortKey, setPromoSortKey] = useState<PromoSortKey>("start");
   const [promoSortDir, setPromoSortDir] = useState<"asc" | "desc">("desc");
-  const [view, setView] = useState<"list" | "bill" | "broadcast">("list");
-  /** กดเลือก "แถมคืนฟรี / ลดเฉพาะรายการ" ในฟอร์มเพิ่มโปร → เพิ่มแถวใหม่ในโปรตอนออกบิล */
-  const [billAdd, setBillAdd] = useState<{ mode: "percent" | "free"; seq: number }>();
-  // ลิงก์จากหน้าออกบิล "+ ตั้งโปร" → /admin/promos?bill=1
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("bill")) setView("bill");
-  }, []);
+  const [view, setView] = useState<"list" | "broadcast">("list");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Promo | null>(null);
   const [imageUrl, setImageUrl] = useState("");
   const [showOnHome, setShowOnHome] = useState(false);
   const [restriction, setRestriction] = useState<PromoRestriction>("none");
   const [tiers, setTiers] = useState<CustomerTier[]>(["all"]);
-  const [rewardType, setRewardType] = useState<PromoRewardType>("discount");
+  const [promoType, setPromoType] = useState<PromoType>("bill");
+  /** โปรส่วนลดที่ให้แต้มด้วย (rewardType "both") */
+  const [alsoPoints, setAlsoPoints] = useState(false);
+  const [kinds, setKinds] = useState<LinePromoKind[]>(["stay"]);
   const [broadcastTier, setBroadcastTier] = useState<StoreCustomerTier | "all">("all");
   const [broadcastBreed, setBroadcastBreed] = useState("");
   const [broadcastInactive, setBroadcastInactive] = useState(0);
@@ -313,7 +330,9 @@ export default function PromosAdminPage() {
     setShowOnHome(s.showOnHome);
     setRestriction(s.restriction);
     setTiers(s.tiers);
-    setRewardType(s.rewardType);
+    setPromoType(s.promoType);
+    setAlsoPoints(s.alsoPoints);
+    setKinds(s.kinds);
   };
 
   const openNew = () => {
@@ -323,7 +342,9 @@ export default function PromosAdminPage() {
     setShowOnHome(s.showOnHome);
     setRestriction(s.restriction);
     setTiers(s.tiers);
-    setRewardType(s.rewardType);
+    setPromoType(s.promoType);
+    setAlsoPoints(s.alsoPoints);
+    setKinds(s.kinds);
     setOpen(true);
   };
 
@@ -333,7 +354,9 @@ export default function PromosAdminPage() {
     setShowOnHome(p.kind === "customer");
     setRestriction(p.restriction);
     setTiers(p.tiers?.length ? p.tiers : ["all"]);
-    setRewardType(p.rewardType);
+    setPromoType(promoTypeOf(p));
+    setAlsoPoints(p.rewardType === "both");
+    setKinds(p.billRule?.kinds?.length ? p.billRule.kinds : ["stay"]);
     setOpen(true);
   };
 
@@ -358,11 +381,28 @@ export default function PromosAdminPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const kind: PromoKind = showOnHome ? "customer" : "display";
+    const num = (k: string) => Math.max(0, Math.round(Number(fd.get(k)) || 0)) || undefined;
+    const rewardType: PromoRewardType =
+      promoType === "points" ? "points" : alsoPoints ? "both" : "discount";
+    const billRule: PromoBillRule | null =
+      promoType === "items"
+        ? { kinds, minNights: num("minNights") }
+        : promoType === "free"
+          ? { freeEvery: num("freeEvery"), freeNights: num("freeNights") }
+          : null;
+    if (promoType === "items" && (!kinds.length || !num("discountPercent"))) {
+      alert("ใส่ % ที่ลด และเลือกรายการที่ลดอย่างน้อย 1 อย่าง");
+      return;
+    }
+    if (promoType === "free" && (!billRule?.freeEvery || !billRule?.freeNights)) {
+      alert("ใส่จำนวนคืนที่จอง และจำนวนคืนที่แถม");
+      return;
+    }
     const data = {
       title: { th: String(fd.get("titleTh")), en: String(fd.get("titleEn") || fd.get("titleTh")) },
       body: { th: String(fd.get("bodyTh")), en: String(fd.get("bodyEn") || fd.get("bodyTh")) },
-      discountPercent: Number(fd.get("discountPercent")) || undefined,
-      discountAmount: Number(fd.get("discountAmount")) || undefined,
+      discountPercent: promoType === "bill" || promoType === "items" ? num("discountPercent") : undefined,
+      discountAmount: promoType === "bill" ? num("discountAmount") : undefined,
       imageUrl: imageUrl || undefined,
       startDate: String(fd.get("startDate")),
       until: String(fd.get("until")),
@@ -374,19 +414,25 @@ export default function PromosAdminPage() {
       rewardType,
       pointsBonus: Number(fd.get("pointsBonus")) || undefined,
       pointsMultiplier: Number(fd.get("pointsMultiplier")) || undefined,
+      billRule,
     };
+    let res: Response;
     if (editing) {
-      await fetch("/api/promos", {
+      res = await fetch("/api/promos", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editing.id, patch: data }),
       });
     } else {
-      await fetch("/api/promos", {
+      res = await fetch("/api/promos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, active: true }),
       });
+    }
+    if (!res.ok) {
+      alert("บันทึกโปรไม่สำเร็จ ลองใหม่อีกครั้ง");
+      return;
     }
     closeModal();
     load();
@@ -423,8 +469,7 @@ export default function PromosAdminPage() {
 
   const hasImage = imageUrl.startsWith("data:") || imageUrl.startsWith("http") || imageUrl.startsWith("/");
   const claimsFor = (promoId: string) => claims.filter((c) => c.promoId === promoId);
-  const showDiscount = rewardType === "discount" || rewardType === "both";
-  const showPoints = rewardType === "points" || rewardType === "both";
+  const showPoints = promoType === "points" || alsoPoints;
 
   const togglePromoSort = (key: PromoSortKey) => {
     if (promoSortKey === key) {
@@ -488,22 +533,9 @@ export default function PromosAdminPage() {
         className="mb-4"
         options={[
           { id: "list", label: "รายการโปร", icon: "sparkle", badge: promos.length || undefined },
-          { id: "bill", label: "ตอนออกบิล", icon: "receipt" },
           { id: "broadcast", label: "ส่งทาง LINE", icon: "send" },
         ]}
       />
-
-      {view === "bill" && (
-        <div className="space-y-3">
-          <p className="rounded-catcha-sm bg-honey/15 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
-            โปรที่พนักงานกดเลือกตอนออกบิล
-            <span className="mt-0.5 block font-normal text-brown-soft">
-              ลด % เฉพาะบางรายการ (เช่น ห้องพัก 30% เมื่อพัก 30 คืน) หรือแถมคืนฟรี (จอง 10 คืน แถม 1)
-            </span>
-          </p>
-          <LinePromosEditor addRequest={billAdd} />
-        </div>
-      )}
 
       {view === "broadcast" && (
         <div className="space-y-4">
@@ -931,51 +963,92 @@ export default function PromosAdminPage() {
               </label>
 
               <div>
-                <p className="mb-1.5 text-[11px] font-bold text-brown-soft">ประเภทรางวัล</p>
-                <Segmented
-                  value={rewardType}
-                  onChange={setRewardType}
-                  options={[
-                    { id: "discount", label: "ส่วนลด" },
-                    { id: "points", label: "แต้ม" },
-                    { id: "both", label: "ทั้งคู่" },
-                  ]}
-                />
-                {!editing && (
-                  // โปรตอนออกบิลเก็บคนละที่ — กดแล้วพาไปตั้งในแท็บ "ตอนออกบิล" พร้อมแถวใหม่
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(
-                      [
-                        { mode: "free", label: "แถมคืนฟรี", sub: "จอง 10 คืน แถม 1" },
-                        { mode: "percent", label: "ลดเฉพาะรายการ", sub: "เช่น ห้องพัก 30%" },
-                      ] as const
-                    ).map((o) => (
+                <p className="mb-1.5 text-[11px] font-bold text-brown-soft">แบบของโปร</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PROMO_TYPES.map((o) => {
+                    const on = promoType === o.id;
+                    return (
                       <button
-                        key={o.mode}
+                        key={o.id}
                         type="button"
-                        onClick={() => {
-                          closeModal();
-                          setView("bill");
-                          setBillAdd({ mode: o.mode, seq: Date.now() });
-                        }}
-                        className="rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-left text-xs font-bold text-brown"
+                        onClick={() => setPromoType(o.id)}
+                        className={`rounded-catcha-sm border px-3 py-2 text-left text-xs font-bold ${
+                          on
+                            ? "border-catcha-chocolate bg-catcha-chocolate text-card"
+                            : "border-catcha-line bg-paper text-brown"
+                        }`}
                       >
-                        + {o.label}
-                        <span className="block text-[10px] font-normal text-brown-faint">{o.sub}</span>
+                        {o.label}
+                        <span className={`block text-[10px] font-normal ${on ? "text-card/80" : "text-brown-faint"}`}>
+                          {o.sub}
+                        </span>
                       </button>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </div>
 
               <input name="titleTh" required defaultValue={editing?.title.th} placeholder="หัวข้อ (ไทย)" className={FIELD} />
               <textarea name="bodyTh" required defaultValue={editing?.body.th} placeholder="รายละเอียด" rows={2} className={FIELD} />
 
-              {showDiscount && (
+              {promoType === "bill" && (
                 <div className="grid grid-cols-2 gap-2">
                   <input name="discountPercent" type="number" defaultValue={editing?.discountPercent ?? ""} placeholder="ส่วนลด %" className={`${FIELD} min-w-0`} />
                   <input name="discountAmount" type="number" defaultValue={editing?.discountAmount ?? ""} placeholder="ส่วนลด บาท" className={`${FIELD} min-w-0`} />
                 </div>
+              )}
+
+              {promoType === "items" && (
+                <div className="space-y-2 rounded-catcha-sm bg-paper p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-brown-soft">
+                    ลด
+                    <input name="discountPercent" type="number" min={1} max={100} defaultValue={editing?.discountPercent ?? ""} placeholder="30" className={NUM} />
+                    % เฉพาะ
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {LINE_PROMO_KINDS.map((k) => {
+                      const on = kinds.includes(k.id);
+                      return (
+                        <button
+                          key={k.id}
+                          type="button"
+                          onClick={() => setKinds((prev) => (on ? prev.filter((x) => x !== k.id) : [...prev, k.id]))}
+                          className={`flex h-9 items-center gap-1 rounded-full px-3 text-xs font-bold ${
+                            on ? "bg-catcha-chocolate text-card" : "bg-card text-brown-soft"
+                          }`}
+                        >
+                          {on && <Icon name="check" size={13} strokeWidth={2.4} />}
+                          {k.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-brown-soft">
+                    เมื่อพักตั้งแต่
+                    <input name="minNights" type="number" min={0} defaultValue={editing?.billRule?.minNights ?? ""} placeholder="0" className={NUM} />
+                    คืน (เว้นว่าง = ทุกบิล)
+                  </div>
+                </div>
+              )}
+
+              {promoType === "free" && (
+                <div className="space-y-1 rounded-catcha-sm bg-paper p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-brown-soft">
+                    จอง
+                    <input name="freeEvery" type="number" min={1} defaultValue={editing?.billRule?.freeEvery ?? 10} className={NUM} />
+                    คืน แถมฟรี
+                    <input name="freeNights" type="number" min={1} defaultValue={editing?.billRule?.freeNights ?? 1} className={NUM} />
+                    คืน
+                  </div>
+                  <p className="text-[10px] text-brown-faint">เช่น จอง 10 แถม 1 = พัก 11 คืน จ่าย 10 · ลดเฉพาะค่าห้องพัก</p>
+                </div>
+              )}
+
+              {promoType !== "points" && (
+                <label className="flex items-center gap-2 text-xs font-bold text-brown-soft">
+                  <input type="checkbox" checked={alsoPoints} onChange={(e) => setAlsoPoints(e.target.checked)} className="h-4 w-4" />
+                  ให้แต้มด้วย
+                </label>
               )}
 
               {showPoints && (
@@ -1222,5 +1295,8 @@ export default function PromosAdminPage() {
 
 const FIELD =
   "w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm text-brown";
+/** ช่องตัวเลขสั้นๆ ในประโยค เช่น "จอง [10] คืน แถมฟรี [1] คืน" */
+const NUM =
+  "w-20 rounded-catcha-sm border border-catcha-line bg-card px-2 py-2 text-right text-sm font-bold text-brown";
 const CHIP_SELECT =
   "h-10 w-full min-w-0 rounded-full border border-catcha-line bg-card px-3 text-xs font-bold text-brown";

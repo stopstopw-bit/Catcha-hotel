@@ -271,7 +271,7 @@ export default function SettingsPage() {
       {tab === "linePromos" && (
         // ย้ายไปรวมที่หน้าโปรโมชั่นแล้ว — ลิงก์เก่ายังพาไปถูกที่
         <Link
-          href="/admin/promos?bill=1"
+          href="/admin/promos"
           className="block rounded-catcha bg-card p-4 text-sm font-bold text-catcha-chocolate shadow-catcha-sm"
         >
           โปรลดเฉพาะรายการ / แถมคืนฟรี ย้ายไปอยู่หน้าโปรโมชั่นแล้ว →
