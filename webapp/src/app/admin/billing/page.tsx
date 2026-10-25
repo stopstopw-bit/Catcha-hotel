@@ -1088,7 +1088,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       // ลูกค้าใหม่ → ใส่โปรลูกค้าใหม่ให้เลย (เช่น ลด 5%) พร้อมป้ายบอกใต้ช่องโปร
       // ลูกค้าเก่า → "ไม่ใช้โปร" แล้วแค่เสนอโปรที่มีสิทธิ์ให้กดใช้เอง
       if (newCustomer && newCustomerPromo) {
-        setPromoId(newCustomerPromo.id);
+        { setPromoId(newCustomerPromo.id); setLinePromoId(""); }
         setNewCustomerInfo({ isNew: true, promoLabel: newCustomerPromo.label });
       } else {
         setNewCustomerInfo({ isNew: Boolean(newCustomer) });
@@ -2759,84 +2759,73 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         {/* ── โปร + ส่วนลด ── */}
         <section>
         <SectionLabel>Discount · โปร / ส่วนลด</SectionLabel>
-        {/* โปรลดเฉพาะรายการ — ลดแค่ประเภทที่ตั้งไว้ (เช่น ห้องพัก/อาบน้ำ) ค่ารับ-ส่งไม่ลด */}
-        <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-paper/60 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-brown-soft">โปรลดเฉพาะรายการ</span>
-            <Link
-              href="/admin/promos?bill=1"
-              className="text-[11px] font-bold text-latte-deep underline-offset-2 hover:underline"
-            >
-              {linePromos.length ? "แก้โปร" : "+ ตั้งโปร"}
-            </Link>
-          </div>
-          {linePromos.length === 0 ? (
-            <p className="mt-1 text-[11px] text-brown-faint">
-              ตั้งไว้ครั้งเดียว เช่น &quot;ลด 5% เฉพาะห้องพัก + อาบน้ำ&quot; แล้วกดเลือกตอนออกบิล
-            </p>
-          ) : (
-            <>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {[{ id: "", name: "ไม่ใช้", percent: 0, kinds: [] } as LinePromo, ...linePromos].map(
-                  (p) => {
-                    const on = linePromoId === p.id;
-                    return (
-                      <button
-                        key={p.id || "none"}
-                        type="button"
-                        onClick={() => setLinePromoId(p.id)}
-                        className={`min-h-[36px] rounded-full border px-3 text-xs font-bold ${
-                          on
-                            ? "border-catcha-chocolate bg-catcha-chocolate text-card"
-                            : "border-catcha-line bg-card text-brown"
-                        }`}
-                      >
-                        {p.id
-                          ? `${p.name} ${linePromoShortLabel(p)}${!isFreeNightsPromo(p) && p.minNights ? ` · ${p.minNights} คืน+` : ""}`
-                          : p.name}
-                      </button>
-                    );
-                  }
-                )}
-              </div>
-              {linePromo && (
-                <p className="mt-2 text-[11px] font-bold text-ok">
-                  {isFreeNightsPromo(linePromo)
-                    ? `จอง ${linePromo.freeEvery} คืน แถมฟรี ${linePromo.freeNights} คืน · ห้องพัก`
-                    : `ลด ${linePromo.percent}% เฉพาะ ${
-                        LINE_PROMO_KINDS.filter((k) => linePromo.kinds.includes(k.id))
-                          .map((k) => k.label)
-                          .join(" · ") || "—"
-                      }`}
-                  {linePromoOff > 0
-                    ? ` = -${linePromoOff.toLocaleString()} บาท`
-                    : !linePromoOk
-                      ? isFreeNightsPromo(linePromo)
-                        ? ` (ต้องพักครบ ${linePromo.freeEvery! + linePromo.freeNights!} คืน จ่าย ${linePromo.freeEvery} บิลนี้ยังไม่ถึง)`
-                        : ` (ต้องพักตั้งแต่ ${linePromo.minNights} คืน บิลนี้ยังไม่ถึง)`
-                      : " (บิลนี้ยังไม่มีรายการที่เข้าโปร)"}
-                </p>
-              )}
-            </>
-          )}
-        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block text-xs font-bold text-brown-soft">
-            โปรโมชั่น
+            <span className="flex items-center justify-between gap-2">
+              โปรโมชั่น
+              <Link
+                href="/admin/promos"
+                className="text-[11px] font-bold text-latte-deep underline-offset-2 hover:underline"
+              >
+                + ตั้งโปร
+              </Link>
+            </span>
+            {/* โปรทุกแบบอยู่ในช่องเดียว: โปรทั้งบิล (ตาราง promos) + โปรลดเฉพาะรายการ/แถมคืนฟรี (config.linePromos) — เลือกได้ทีละ 1 */}
             <select
-              value={promoId}
-              onChange={(e) => setPromoId(e.target.value)}
+              value={linePromoId ? `line:${linePromoId}` : promoId}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith("line:")) {
+                  setLinePromoId(v.slice(5));
+                  setPromoId("");
+                } else {
+                  setPromoId(v);
+                  setLinePromoId("");
+                }
+              }}
               className={`mt-1 min-h-[40px] ${field}`}
             >
               <option value="">ไม่ใช้โปร</option>
-              {promos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title.th}
-                  {p.discountPercent ? ` (${p.discountPercent}%)` : ""}
-                  {p.discountAmount ? ` (-${p.discountAmount}฿)` : ""}
-                </option>
-              ))}
+              {linePromos.length > 0 && (
+                <optgroup label="ลดเฉพาะรายการ / แถมคืนฟรี">
+                  {linePromos.map((p) => (
+                    <option key={p.id} value={`line:${p.id}`}>
+                      {p.name} {linePromoShortLabel(p)}
+                      {!isFreeNightsPromo(p) && p.minNights ? ` · ${p.minNights} คืน+` : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {promos.length > 0 && (
+                <optgroup label="ลดทั้งบิล / แต้ม">
+                  {promos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title.th}
+                      {p.discountPercent ? ` (${p.discountPercent}%)` : ""}
+                      {p.discountAmount ? ` (-${p.discountAmount}฿)` : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+            {linePromo && (
+              <span className={`mt-1 block text-[11px] font-bold ${linePromoOff > 0 ? "text-ok" : "text-wait"}`}>
+                {isFreeNightsPromo(linePromo)
+                  ? `จอง ${linePromo.freeEvery} คืน แถมฟรี ${linePromo.freeNights} คืน · ห้องพัก`
+                  : `ลด ${linePromo.percent}% เฉพาะ ${
+                      LINE_PROMO_KINDS.filter((k) => linePromo.kinds.includes(k.id))
+                        .map((k) => k.label)
+                        .join(" · ") || "—"
+                    }`}
+                {linePromoOff > 0
+                  ? ` = -${linePromoOff.toLocaleString()} บาท`
+                  : !linePromoOk
+                    ? isFreeNightsPromo(linePromo)
+                      ? ` (ต้องพักครบ ${linePromo.freeEvery! + linePromo.freeNights!} คืน บิลนี้ยังไม่ถึง)`
+                      : ` (ต้องพักตั้งแต่ ${linePromo.minNights} คืน บิลนี้ยังไม่ถึง)`
+                    : " (บิลนี้ยังไม่มีรายการที่เข้าโปร)"}
+              </span>
+            )}
             {promoWarning && (
               <span className="mt-1 flex items-start gap-1 text-[11px] font-bold text-wait">
                 <Icon name="alert" size={13} className="mt-px shrink-0" />
@@ -2989,7 +2978,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         {suggestedPromo && promoId !== suggestedPromo.id && !editingId && (
           <button
             type="button"
-            onClick={() => setPromoId(suggestedPromo.id)}
+            onClick={() => { setPromoId(suggestedPromo.id); setLinePromoId(""); }}
             className="flex w-full items-center gap-1.5 rounded-catcha-sm bg-sage/15 px-3 py-2 text-left text-[11px] font-bold text-ok"
           >
             <Icon name="sparkle" size={14} />

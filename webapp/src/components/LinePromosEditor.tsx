@@ -77,7 +77,13 @@ export function LinePromosEditor({
             }))
             // แบบแถมคืนฟรีใช้กับห้องพักเท่านั้น ไม่ต้องมี % / ประเภท
             .map((p) => (isFreeNightsPromo(p) ? { ...p, percent: 0, kinds: ["stay" as const] } : p))
-            .filter((p) => p.name && (isFreeNightsPromo(p) || (p.percent > 0 && p.kinds.length > 0))),
+            // ไม่ได้ใส่ชื่อ → ตั้งชื่อจากเงื่อนไขให้เอง (เมื่อก่อนแถวไม่มีชื่อหายไปเงียบๆ ตอนบันทึก)
+            .map((p) =>
+              p.name
+                ? p
+                : { ...p, name: isFreeNightsPromo(p) ? `จอง ${p.freeEvery} แถม ${p.freeNights}` : `ลด ${p.percent}%` }
+            )
+            .filter((p) => isFreeNightsPromo(p) || (p.percent > 0 && p.kinds.length > 0)),
         });
       }}
     >
@@ -115,7 +121,7 @@ export function LinePromosEditor({
               <input
                 value={p.name}
                 onChange={(e) => update(i, { name: e.target.value })}
-                placeholder={free ? "ชื่อโปร เช่น พักยาวแถมฟรี" : "ชื่อโปร เช่น ลูกค้าประจำ"}
+                placeholder={free ? "ชื่อโปร (ไม่ใส่ก็ได้)" : "ชื่อโปร เช่น ลูกค้าประจำ (ไม่ใส่ก็ได้)"}
                 className="min-h-[40px] min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-3 text-sm"
               />
               {!free && (
