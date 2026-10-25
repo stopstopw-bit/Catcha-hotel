@@ -4,6 +4,7 @@ import { ConfigProvider } from "@/components/ConfigProvider";
 import { CustomerNav } from "@/components/CustomerNav";
 import { LiffStuckBanner } from "@/components/LiffStuckBanner";
 import { AppFeatureGate } from "@/components/AppFeatureGate";
+import { Toaster } from "@/components/Toast";
 
 export default function CustomerLayout({
   children,
@@ -20,6 +21,7 @@ export default function CustomerLayout({
               <AppFeatureGate>{children}</AppFeatureGate>
             </div>
             <CustomerNav />
+            <Toaster />
           </div>
         </LiffProvider>
       </ConfigProvider>
