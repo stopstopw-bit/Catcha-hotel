@@ -254,6 +254,18 @@ function linePromoKindOf(it: Item): LinePromoKind | null {
  * ใส่ส่วนลดจากโปรที่เลือกให้รายการที่ตรงประเภท — รายการที่ใส่ส่วนลดเองไว้แล้วใช้ของเดิม
  * (ไม่ได้เขียนทับลง state เพิ่มรายการทีหลังก็ได้ส่วนลดเอง เปลี่ยน/เลิกโปรก็กลับเป็นราคาเต็ม)
  */
+/** จำนวนคืนของรายการห้องพัก (บรรทัดค่าห้องจากบิลเดิมเก็บคืนไว้ใน qty) */
+function stayNightsOf(it: Item): number {
+  if (it.roomLine) return Math.max(1, Math.round(it.qty || 1));
+  return it.kind === "room" ? it.nights || 0 : 0;
+}
+
+/** บิลนี้พักถึงจำนวนคืนที่โปรกำหนดไหม (โปรที่ไม่ได้ตั้งขั้นต่ำ = ใช้ได้ทุกบิล) */
+function linePromoQualifies(items: Item[], promo?: LinePromo): boolean {
+  if (!promo?.minNights) return true;
+  return items.some((it) => linePromoKindOf(it) === "stay" && stayNightsOf(it) >= promo.minNights!);
+}
+
 function withLinePromo(it: Item, promo?: LinePromo): Item {
   if (!promo || (it.discount || 0) > 0) return it;
   const kind = linePromoKindOf(it);
@@ -728,7 +740,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       return aDue ? kb.localeCompare(ka) : ka.localeCompare(kb);
     });
   const linePromo = linePromos.find((p) => p.id === linePromoId);
-  const lines = items.map((it) => computeLine(withLinePromo(it, linePromo), groomPrograms));
+  // โปรที่ตั้งขั้นต่ำไว้ (เช่น พัก 30 คืนขึ้นไป) ลดให้เฉพาะบิลที่พักถึง
+  const linePromoOk = linePromoQualifies(items, linePromo);
+  const lines = items.map((it) =>
+    computeLine(withLinePromo(it, linePromoOk ? linePromo : undefined), groomPrograms)
+  );
   /** ยอดที่โปรลดเฉพาะรายการลดให้ในบิลนี้ (ไม่นับรายการที่ใส่ส่วนลดเองไว้) */
   const linePromoOff = lines.reduce(
     (sum, l, i) =>
@@ -2728,7 +2744,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                             : "border-catcha-line bg-card text-brown"
                         }`}
                       >
-                        {p.id ? `${p.name} ${p.percent}%` : p.name}
+                        {p.id
+                          ? `${p.name} ${p.percent}%${p.minNights ? ` · ${p.minNights} คืน+` : ""}`
+                          : p.name}
                       </button>
                     );
                   }
@@ -2742,7 +2760,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                     .join(" · ") || "—"}
                   {linePromoOff > 0
                     ? ` = -${linePromoOff.toLocaleString()} บาท`
-                    : " (บิลนี้ยังไม่มีรายการที่เข้าโปร)"}
+                    : !linePromoOk
+                      ? ` (ต้องพักตั้งแต่ ${linePromo.minNights} คืน บิลนี้ยังไม่ถึง)`
+                      : " (บิลนี้ยังไม่มีรายการที่เข้าโปร)"}
                 </p>
               )}
             </>
