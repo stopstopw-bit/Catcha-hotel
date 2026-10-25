@@ -2764,7 +2764,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-brown-soft">โปรลดเฉพาะรายการ</span>
             <Link
-              href="/admin/settings?tab=linePromos"
+              href="/admin/promos?bill=1"
               className="text-[11px] font-bold text-latte-deep underline-offset-2 hover:underline"
             >
               {linePromos.length ? "แก้โปร" : "+ ตั้งโปร"}

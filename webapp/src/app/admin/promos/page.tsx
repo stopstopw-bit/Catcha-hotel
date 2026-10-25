@@ -26,6 +26,7 @@ import type { SegmentId } from "@/lib/customer-segments";
 import { BROADCAST_DRAFT_KEY } from "@/components/SalesActions";
 import { Icon } from "@/components/Icon";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
+import { LinePromosEditor } from "@/components/LinePromosEditor";
 import { CheckBox, EmptyState, MoreMenu, SearchField, SectionLabel, Segmented } from "@/components/ui";
 
 /** กลุ่มลูกค้าสำเร็จรูป — ติ๊กได้หลายกลุ่ม ระบบเลือกคนที่ตรงทุกข้อ */
@@ -118,7 +119,13 @@ export default function PromosAdminPage() {
   const [kindFilter, setKindFilter] = useState<"all" | PromoKind>("all");
   const [promoSortKey, setPromoSortKey] = useState<PromoSortKey>("start");
   const [promoSortDir, setPromoSortDir] = useState<"asc" | "desc">("desc");
-  const [view, setView] = useState<"list" | "broadcast">("list");
+  const [view, setView] = useState<"list" | "bill" | "broadcast">("list");
+  /** กดเลือก "แถมคืนฟรี / ลดเฉพาะรายการ" ในฟอร์มเพิ่มโปร → เพิ่มแถวใหม่ในโปรตอนออกบิล */
+  const [billAdd, setBillAdd] = useState<{ mode: "percent" | "free"; seq: number }>();
+  // ลิงก์จากหน้าออกบิล "+ ตั้งโปร" → /admin/promos?bill=1
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("bill")) setView("bill");
+  }, []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Promo | null>(null);
   const [imageUrl, setImageUrl] = useState("");
@@ -481,9 +488,22 @@ export default function PromosAdminPage() {
         className="mb-4"
         options={[
           { id: "list", label: "รายการโปร", icon: "sparkle", badge: promos.length || undefined },
+          { id: "bill", label: "ตอนออกบิล", icon: "receipt" },
           { id: "broadcast", label: "ส่งทาง LINE", icon: "send" },
         ]}
       />
+
+      {view === "bill" && (
+        <div className="space-y-3">
+          <p className="rounded-catcha-sm bg-honey/15 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
+            โปรที่พนักงานกดเลือกตอนออกบิล
+            <span className="mt-0.5 block font-normal text-brown-soft">
+              ลด % เฉพาะบางรายการ (เช่น ห้องพัก 30% เมื่อพัก 30 คืน) หรือแถมคืนฟรี (จอง 10 คืน แถม 1)
+            </span>
+          </p>
+          <LinePromosEditor addRequest={billAdd} />
+        </div>
+      )}
 
       {view === "broadcast" && (
         <div className="space-y-4">
@@ -921,6 +941,31 @@ export default function PromosAdminPage() {
                     { id: "both", label: "ทั้งคู่" },
                   ]}
                 />
+                {!editing && (
+                  // โปรตอนออกบิลเก็บคนละที่ — กดแล้วพาไปตั้งในแท็บ "ตอนออกบิล" พร้อมแถวใหม่
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { mode: "free", label: "แถมคืนฟรี", sub: "จอง 10 คืน แถม 1" },
+                        { mode: "percent", label: "ลดเฉพาะรายการ", sub: "เช่น ห้องพัก 30%" },
+                      ] as const
+                    ).map((o) => (
+                      <button
+                        key={o.mode}
+                        type="button"
+                        onClick={() => {
+                          closeModal();
+                          setView("bill");
+                          setBillAdd({ mode: o.mode, seq: Date.now() });
+                        }}
+                        className="rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-left text-xs font-bold text-brown"
+                      >
+                        + {o.label}
+                        <span className="block text-[10px] font-normal text-brown-faint">{o.sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <input name="titleTh" required defaultValue={editing?.title.th} placeholder="หัวข้อ (ไทย)" className={FIELD} />

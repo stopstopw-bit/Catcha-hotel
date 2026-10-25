@@ -13,7 +13,6 @@ import { Icon } from "@/components/Icon";
 import { useConfig } from "@/components/ConfigProvider";
 import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/features";
 import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
-import { LINE_PROMO_KINDS, isFreeNightsPromo, type LinePromo } from "@/lib/line-discount";
 
 type Tab =
   | "features"
@@ -44,7 +43,6 @@ const TAB_GROUPS: { title: string; items: { id: Tab; icon: string; hint?: string
     items: [
       { id: "shop", icon: "home", hint: "ชื่อร้าน ช่องทางติดต่อ ที่อยู่" },
       { id: "payment", icon: "wallet", hint: "บัญชีรับโอน" },
-      { id: "linePromos", icon: "ticket", hint: "เช่น ลด 5% เฉพาะห้องพัก/อาบน้ำ" },
       { id: "lists", icon: "doc" },
       { id: "points", icon: "star", hint: "อัตราแต้มสะสม" },
       { id: "crm", icon: "users" },
@@ -271,7 +269,13 @@ export default function SettingsPage() {
         <PaymentTab config={config} saving={saving} onSave={save} />
       )}
       {tab === "linePromos" && (
-        <LinePromosTab config={config} saving={saving} onSave={save} />
+        // ย้ายไปรวมที่หน้าโปรโมชั่นแล้ว — ลิงก์เก่ายังพาไปถูกที่
+        <Link
+          href="/admin/promos?bill=1"
+          className="block rounded-catcha bg-card p-4 text-sm font-bold text-catcha-chocolate shadow-catcha-sm"
+        >
+          โปรลดเฉพาะรายการ / แถมคืนฟรี ย้ายไปอยู่หน้าโปรโมชั่นแล้ว →
+        </Link>
       )}
       {tab === "messages" && (
         <MessagesTab config={config} saving={saving} onSave={save} />
@@ -523,193 +527,6 @@ function PaymentTab({
         ข้อความสรุป/แจ้งมัดจำ/เก็บเงิน และข้อความอื่นๆ ที่ส่งให้ลูกค้า
         ย้ายไปแก้ที่แท็บ <b>ข้อความ</b> แล้ว
       </p>
-      <SaveBtn saving={saving} />
-    </form>
-  );
-}
-
-function LinePromosTab({
-  config,
-  saving,
-  onSave,
-}: {
-  config: SiteConfig;
-  saving: boolean;
-  onSave: (p: Partial<SiteConfig>) => void;
-}) {
-  const [list, setList] = useState<LinePromo[]>(config.linePromos || []);
-  useEffect(() => setList(config.linePromos || []), [config.linePromos]);
-  const update = (i: number, patch: Partial<LinePromo>) =>
-    setList((prev) => prev.map((p, k) => (k === i ? { ...p, ...patch } : p)));
-
-  return (
-    <form
-      className="space-y-3 rounded-catcha bg-card p-4 shadow-catcha-sm"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave({
-          linePromos: list
-            .map((p) => ({
-              ...p,
-              name: p.name.replace(/[()]/g, "").trim(),
-              percent: Math.min(100, Math.max(0, Math.round(Number(p.percent) || 0))),
-              minNights: Math.max(0, Math.round(Number(p.minNights) || 0)) || undefined,
-              freeEvery: Math.max(0, Math.round(Number(p.freeEvery) || 0)) || undefined,
-              freeNights: Math.max(0, Math.round(Number(p.freeNights) || 0)) || undefined,
-            }))
-            // แบบแถมคืนฟรีใช้กับห้องพักเท่านั้น ไม่ต้องมี % / ประเภท
-            .map((p) => (isFreeNightsPromo(p) ? { ...p, percent: 0, kinds: ["stay" as const] } : p))
-            .filter((p) => p.name && (isFreeNightsPromo(p) || (p.percent > 0 && p.kinds.length > 0))),
-        });
-      }}
-    >
-      <p className="rounded-catcha-sm bg-paper px-3 py-2 text-[11px] text-brown-soft">
-        ตั้งโปรไว้ แล้วตอนออกบิลกดเลือกได้เลย — ลดเฉพาะรายการประเภทที่ติ๊กไว้
-        (เช่น ลดห้องพักกับอาบน้ำ แต่ค่ารับ-ส่งไม่ลด) บิลจะเขียนบอกส่วนลดทีละรายการ
-      </p>
-      {list.map((p, i) => {
-        const free = p.freeEvery !== undefined;
-        const modeChip = (on: boolean) =>
-          `min-h-[32px] rounded-full px-3 text-[11px] font-bold ${
-            on ? "bg-catcha-chocolate text-card" : "bg-paper text-brown-soft"
-          }`;
-        const num =
-          "min-h-[36px] w-14 rounded-catcha-sm border border-catcha-line bg-paper px-2 text-right text-sm font-bold";
-        return (
-          <div key={p.id} className="space-y-2 rounded-catcha-sm border border-catcha-line p-3">
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => update(i, { freeEvery: undefined, freeNights: undefined })}
-                className={modeChip(!free)}
-              >
-                ลด %
-              </button>
-              <button
-                type="button"
-                onClick={() => update(i, { freeEvery: p.freeEvery || 10, freeNights: p.freeNights || 1 })}
-                className={modeChip(free)}
-              >
-                แถมคืนฟรี
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={p.name}
-                onChange={(e) => update(i, { name: e.target.value })}
-                placeholder={free ? "ชื่อโปร เช่น พักยาวแถมฟรี" : "ชื่อโปร เช่น ลูกค้าประจำ"}
-                className="min-h-[40px] min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-3 text-sm"
-              />
-              {!free && (
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    inputMode="numeric"
-                    value={p.percent || ""}
-                    onChange={(e) => update(i, { percent: Number(e.target.value) })}
-                    className="min-h-[40px] w-16 rounded-catcha-sm border border-catcha-line bg-paper px-2 text-right text-sm font-bold"
-                  />
-                  <span className="text-sm font-bold text-brown-soft">%</span>
-                </div>
-              )}
-            </div>
-            {free ? (
-              <div className="space-y-1">
-                <label className="flex flex-wrap items-center gap-2 text-xs font-bold text-brown-soft">
-                  จอง
-                  <input
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={p.freeEvery || ""}
-                    onChange={(e) => update(i, { freeEvery: Number(e.target.value) || 0 })}
-                    className={num}
-                  />
-                  คืน แถมฟรี
-                  <input
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={p.freeNights || ""}
-                    onChange={(e) => update(i, { freeNights: Number(e.target.value) || 0 })}
-                    className={num}
-                  />
-                  คืน
-                </label>
-                {isFreeNightsPromo(p) && (
-                  <p className="text-[11px] text-brown-faint">
-                    พักครบ {p.freeEvery! + p.freeNights!} คืน จ่าย {p.freeEvery} คืน · พัก{" "}
-                    {(p.freeEvery! + p.freeNights!) * 2} คืน แถม {p.freeNights! * 2} · ลดเฉพาะค่าห้องพัก
-                  </p>
-                )}
-              </div>
-            ) : (
-              <>
-              <div className="flex flex-wrap gap-1.5">
-                {LINE_PROMO_KINDS.map((k) => {
-                  const on = p.kinds.includes(k.id);
-                  return (
-                    <button
-                      key={k.id}
-                      type="button"
-                      onClick={() =>
-                        update(i, {
-                          kinds: on ? p.kinds.filter((x) => x !== k.id) : [...p.kinds, k.id],
-                        })
-                      }
-                      className={`min-h-[34px] rounded-full border px-3 text-xs font-bold ${
-                        on
-                          ? "border-catcha-chocolate bg-catcha-chocolate text-card"
-                          : "border-catcha-line bg-card text-brown-soft"
-                      }`}
-                    >
-                      {on ? "✓ " : ""}
-                      {k.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <label className="flex items-center gap-2 text-xs font-bold text-brown-soft">
-                ใช้ได้เมื่อพักตั้งแต่
-                <input
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  value={p.minNights || ""}
-                  onChange={(e) => update(i, { minNights: Number(e.target.value) || undefined })}
-                  placeholder="—"
-                  className="min-h-[36px] w-16 rounded-catcha-sm border border-catcha-line bg-paper px-2 text-right text-sm font-bold"
-                />
-                คืน
-                <span className="font-normal text-brown-faint">(เว้นว่าง = ทุกบิล)</span>
-              </label>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => setList((prev) => prev.filter((_, k) => k !== i))}
-              className="text-[11px] font-bold text-wait"
-            >
-              ลบโปรนี้
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        onClick={() =>
-          setList((prev) => [
-            ...prev,
-            { id: `lp${Date.now().toString(36)}`, name: "", percent: 5, kinds: ["stay", "grooming"] },
-          ])
-        }
-        className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-full border border-dashed border-catcha-line text-xs font-bold text-brown"
-      >
-        <Icon name="plus" size={16} />
-        เพิ่มโปร
-      </button>
       <SaveBtn saving={saving} />
     </form>
   );
