@@ -312,7 +312,8 @@ export async function PATCH(req: NextRequest) {
       if (!admin && !(!!lineUserId && bk.lineUserId === lineUserId)) continue;
       await updateBooking(bk.id, {
         status: "confirmed",
-        ...(checkinTime ? { checkinTime, arrivalTime: checkinTime } : {}),
+        // เวลามาส่งน้องเป็นของการเข้าพัก — อาบน้ำก่อนกลับที่ยืนยันมาพร้อมกันไม่ต้องได้เวลานี้
+        ...(checkinTime && bk.service !== "groom" ? { checkinTime, arrivalTime: checkinTime } : {}),
       });
       if (bk.calendarEventId) {
         await updateCalendarEventConfirmed(bk.calendarEventId, {

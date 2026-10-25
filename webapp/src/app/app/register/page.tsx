@@ -265,7 +265,8 @@ export default function RegisterPage() {
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* จอมือถือ: อีเมล/วันเกิดคนละแถว — วางคู่กันแล้วช่องวัน/เดือน/ปีแคบจนอ่านไม่ออก */}
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-xs font-bold text-brown">อีเมล</span>
             <input
