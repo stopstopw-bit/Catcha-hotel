@@ -8,7 +8,7 @@ import type { RoomType } from "@/lib/business";
 import type { CustomerRecord } from "@/lib/customers-store";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { CustomerIntakeCards } from "@/components/CustomerIntakeCards";
-import { toast } from "@/components/Toast";
+import { savedPopup, toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { TransportPicker } from "@/components/TransportPicker";
 import { PastPricesHint } from "@/components/PastPrices";
@@ -729,6 +729,13 @@ export default function NewBookingPage() {
     }
 
     if (created.length > 0) {
+      // ปุ่มบันทึกอยู่ล่างสุด แผง "จองแล้ว" อยู่บนสุด → เด้งป๊อปอัปกลางจอ แล้วเลื่อนขึ้นไปหาแผงทำต่อ
+      const savedCats = Array.from(new Set(created.map((x) => x.catName)));
+      savedPopup(
+        failed > 0 ? `บันทึกแล้ว ${savedCats.length} ตัว` : "บันทึกการจองแล้ว",
+        [savedCats.join(", "), "ออกบิล / ส่ง LINE ต่อได้ที่ด้านบน"]
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setSaved(true);
       setLastBookings(created);
       setLastBath(
@@ -908,7 +915,12 @@ export default function NewBookingPage() {
         />
 
         {/* ถามข้อมูลก่อนรับน้องได้เลยตั้งแต่ตอนเลือกลูกค้า — ยังไม่ต้องกดบันทึกนัด */}
-        {pickedCustomer && <CustomerIntakeCards key={pickedCustomer.id} customer={pickedCustomer} onDone={() => {}} />}
+        {pickedCustomer && <CustomerIntakeCards
+            key={pickedCustomer.id}
+            customer={pickedCustomer}
+            onDone={() => {}}
+            bookingKind={service === "groom" ? "groom" : withGroom ? "room+groom" : "room"}
+          />}
 
         <PastPricesHint prices={pastPrices} />
 
