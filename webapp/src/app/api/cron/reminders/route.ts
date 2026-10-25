@@ -105,9 +105,8 @@ async function intakeCardsFor(
     }
   }
 
-  const needVaccine = group.filter(
-    (x, i) => !autoMuted(x, "vaccine") && !status[i].vaccine && !x.vaccinePhotoUrl
-  );
+  // สมุดวัคซีนขอทุกรอบเข้าพัก (วัคซีนหมดอายุได้) — ข้ามเฉพาะนัดที่แนบมาแล้ว
+  const needVaccine = group.filter((x) => !autoMuted(x, "vaccine") && !x.vaccinePhotoUrl);
   if (needVaccine.length > 0) {
     const url = await getPetDocsUrl(needVaccine.map((x) => x.id), "vaccine");
     if (url) {

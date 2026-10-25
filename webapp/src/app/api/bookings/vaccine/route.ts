@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addBookingVaccinePhotos, getBooking } from "@/lib/bookings-store";
-import { findCustomerByLine } from "@/lib/customers-store";
+import { copyBookingDocsToCustomer, findCustomerByLine } from "@/lib/customers-store";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
@@ -37,6 +37,8 @@ async function postHandler(req: NextRequest) {
       { status: res.error === "no_photo" ? 400 : 500 }
     );
   }
+  // เก็บที่ตัวน้องด้วย — สมุดวัคซีนขอครั้งเดียว รอบหน้าไม่ต้องขอซ้ำ
+  await copyBookingDocsToCustomer(b, { newPhotos: res.addedUrls });
   await sendTelegram(
     formatBookingTelegram("💉 ลูกค้าแนบสมุดวัคซีนแล้ว", {
       น้อง: b.catName,
