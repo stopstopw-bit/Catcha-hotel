@@ -33,6 +33,9 @@ import { roomPricing, roomNightPrice } from "@/lib/room-board";
 import { isRoomLine, roomLineLabel, splitRoomLabel } from "@/lib/stay-line";
 import {
   LINE_PROMO_KINDS,
+  freeNightsFor,
+  isFreeNightsPromo,
+  linePromoShortLabel,
   normalizeLineDiscount,
   stripDiscountTag,
   type LinePromo,
@@ -262,6 +265,8 @@ function stayNightsOf(it: Item): number {
 
 /** บิลนี้พักถึงจำนวนคืนที่โปรกำหนดไหม (โปรที่ไม่ได้ตั้งขั้นต่ำ = ใช้ได้ทุกบิล) */
 function linePromoQualifies(items: Item[], promo?: LinePromo): boolean {
+  if (promo && isFreeNightsPromo(promo))
+    return items.some((it) => linePromoKindOf(it) === "stay" && freeNightsFor(promo, stayNightsOf(it)) > 0);
   if (!promo?.minNights) return true;
   return items.some((it) => linePromoKindOf(it) === "stay" && stayNightsOf(it) >= promo.minNights!);
 }
@@ -269,6 +274,14 @@ function linePromoQualifies(items: Item[], promo?: LinePromo): boolean {
 function withLinePromo(it: Item, promo?: LinePromo): Item {
   if (!promo || (it.discount || 0) > 0) return it;
   const kind = linePromoKindOf(it);
+  // แถมคืนฟรี — ลดเป็นบาทเท่าค่าห้องของคืนที่แถม เฉพาะห้องพัก (ไม่ใช่ Day Care)
+  if (isFreeNightsPromo(promo)) {
+    if (kind !== "stay") return it;
+    const free = freeNightsFor(promo, stayNightsOf(it));
+    const unit = it.priceOverride ?? (it.roomLine ? it.amount || 0 : it.roomPrice || 0);
+    if (free <= 0 || unit <= 0) return it;
+    return { ...it, discount: free * unit, discountMode: "baht", discountName: `${promo.name} แถม ${free} คืน` };
+  }
   if (!kind || !promo.kinds.includes(kind)) return it;
   return { ...it, discount: promo.percent, discountMode: "percent", discountName: promo.name };
 }
@@ -2745,7 +2758,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                         }`}
                       >
                         {p.id
-                          ? `${p.name} ${p.percent}%${p.minNights ? ` · ${p.minNights} คืน+` : ""}`
+                          ? `${p.name} ${linePromoShortLabel(p)}${!isFreeNightsPromo(p) && p.minNights ? ` · ${p.minNights} คืน+` : ""}`
                           : p.name}
                       </button>
                     );
@@ -2754,14 +2767,19 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
               </div>
               {linePromo && (
                 <p className="mt-2 text-[11px] font-bold text-ok">
-                  ลด {linePromo.percent}% เฉพาะ{" "}
-                  {LINE_PROMO_KINDS.filter((k) => linePromo.kinds.includes(k.id))
-                    .map((k) => k.label)
-                    .join(" · ") || "—"}
+                  {isFreeNightsPromo(linePromo)
+                    ? `จอง ${linePromo.freeEvery} คืน แถมฟรี ${linePromo.freeNights} คืน · ห้องพัก`
+                    : `ลด ${linePromo.percent}% เฉพาะ ${
+                        LINE_PROMO_KINDS.filter((k) => linePromo.kinds.includes(k.id))
+                          .map((k) => k.label)
+                          .join(" · ") || "—"
+                      }`}
                   {linePromoOff > 0
                     ? ` = -${linePromoOff.toLocaleString()} บาท`
                     : !linePromoOk
-                      ? ` (ต้องพักตั้งแต่ ${linePromo.minNights} คืน บิลนี้ยังไม่ถึง)`
+                      ? isFreeNightsPromo(linePromo)
+                        ? ` (ต้องพักครบ ${linePromo.freeEvery! + linePromo.freeNights!} คืน จ่าย ${linePromo.freeEvery} บิลนี้ยังไม่ถึง)`
+                        : ` (ต้องพักตั้งแต่ ${linePromo.minNights} คืน บิลนี้ยังไม่ถึง)`
                       : " (บิลนี้ยังไม่มีรายการที่เข้าโปร)"}
                 </p>
               )}
