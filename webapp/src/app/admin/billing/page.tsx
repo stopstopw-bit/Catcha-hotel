@@ -71,6 +71,7 @@ type Invoice = {
   subtotal?: number;
   discount?: number;
   deposit?: number;
+  promoId?: string;
   promoLabel?: string;
   status: string;
   customerName: string;
@@ -471,9 +472,10 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   const [, setShowList] = useState(false);
 
   const [promoId, setPromoId] = useState("");
+  /** โปรที่ลูกค้าคนนี้มีสิทธิ์ — แค่เสนอให้กดใช้ ไม่เลือกให้เอง (เริ่มต้นเป็น "ไม่ใช้โปร" เสมอ) */
+  const [suggestedPromo, setSuggestedPromo] = useState<{ id: string; label: string } | null>(null);
   /** โปรที่ลูกค้าคนนี้ใช้ไม่ได้ (เหตุผล) — เตือนตอนเลือกโปรเอง */
   const [promoBlocked, setPromoBlocked] = useState<Record<string, string>>({});
-  const [autoPromoLabel, setAutoPromoLabel] = useState("");
   useEffect(() => {
     setPromoBlocked({});
     if (!customerId) return;
@@ -1007,7 +1009,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setSearch(c.name);
     setShowList(false);
     setPromoId("");
-    setAutoPromoLabel("");
+    setSuggestedPromo(null);
     // บ้านมีแมวตัวเดียว — ไม่มีตัวเลือก "ของน้องตัวไหน" ให้กด (โผล่เฉพาะบ้านที่มีหลายตัว)
     // จึงเดาราคาให้ทันทีสำหรับรายการอาบน้ำที่ยังไม่ได้ระบุน้อง แทนรอให้พนักงานกดเลือกเอง
     // เคยอาบแล้ว → ใช้ขน/ไซส์ (และโปรแกรม) ของครั้งล่าสุด · ยังไม่เคย → เดาจากพันธุ์/ลักษณะขน
@@ -1034,10 +1036,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     try {
       const res = await fetch(`/api/promos?autoFor=${c.id}&subtotal=${subtotal}`);
       const { promo } = await res.json();
-      if (promo) {
-        setPromoId(promo.id);
-        setAutoPromoLabel(promo.label);
-      }
+      // ไม่เลือกโปรให้เอง — เมื่อก่อนเลือกให้อัตโนมัติ แล้วพนักงานไม่ทันเห็น บิลเลยลดผิดทุกรอบ
+      if (promo) setSuggestedPromo({ id: promo.id, label: promo.label });
     } catch {
       /* ไม่มีโปรก็ข้าม */
     }
@@ -1047,7 +1047,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setCustomerId("");
     setSearch("");
     setPromoId("");
-    setAutoPromoLabel("");
+    setSuggestedPromo(null);
     setBookingId(undefined);
     setBookingCats([]);
     setShowList(true);
@@ -1277,10 +1277,10 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
 
   const resetForm = () => {
     setItems([newGrooming(groomPrograms)]);
-    setPromoId("");
-    setAutoPromoLabel("");
     setDiscount("");
     setDiscountMode("baht");
+    setPromoId("");
+    setSuggestedPromo(null);
     setLinePromoId("");
     setBillDeposit("");
     setBillDepPct(null);
@@ -1327,9 +1327,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
           id: editingId,
           action: "update",
           items: payloadItems,
-          extraDiscount: manualDiscount || undefined,
+          // ส่งค่าจริงเสมอ ("" = ไม่ใช้โปร, 0 = ไม่มีส่วนลดเพิ่ม) — เมื่อก่อนส่ง undefined
+          // เซิร์ฟเวอร์เลยคงโปร/ส่วนลดเดิมไว้ กดแก้บิลแล้วยอดไม่เปลี่ยน
+          extraDiscount: manualDiscount,
           deposit: depositAmount || 0,
-          promoId: promoId || undefined,
+          promoId,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1512,7 +1514,24 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     );
     setBillDeposit(inv.deposit ? String(inv.deposit) : "");
     setBillDepPct(null);
-    setDiscount("");
+    // โหลดโปร/ส่วนลดท้ายบิลที่บิลใช้อยู่จริงกลับมาให้เห็น — เมื่อก่อนฟอร์มขึ้น "ไม่ใช้โปร"
+    // ทั้งที่บิลยังลดอยู่ (คิดแบบเดียวกับ calcPromoDiscount ฝั่งเซิร์ฟเวอร์)
+    const oldPromo = promos.find((p) => p.id === inv.promoId);
+    const oldSubtotal = inv.subtotal ?? 0;
+    const oldPromoOff = oldPromo
+      ? Math.min(
+          oldSubtotal,
+          Math.max(
+            oldPromo.discountPercent ? Math.round((oldSubtotal * oldPromo.discountPercent) / 100) : 0,
+            oldPromo.discountAmount || 0
+          )
+        )
+      : 0;
+    const keptExtra = Math.max(0, (inv.discount || 0) - oldPromoOff);
+    setPromoId(oldPromo ? oldPromo.id : "");
+    setSuggestedPromo(null);
+    setDiscount(keptExtra ? String(keptExtra) : "");
+    setDiscountMode("baht");
     setLinePromoId(""); // ส่วนลดจากโปรเดิมโหลดกลับมาเป็นส่วนลดของแต่ละรายการแล้ว
     setEditingId(inv.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2883,11 +2902,15 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
           </p>
         )}
 
-        {autoPromoLabel && promoId && (
-          <p className="flex items-center gap-1.5 rounded-catcha-sm bg-sage/15 px-3 py-2 text-[11px] font-bold text-ok">
+        {suggestedPromo && promoId !== suggestedPromo.id && !editingId && (
+          <button
+            type="button"
+            onClick={() => setPromoId(suggestedPromo.id)}
+            className="flex w-full items-center gap-1.5 rounded-catcha-sm bg-sage/15 px-3 py-2 text-left text-[11px] font-bold text-ok"
+          >
             <Icon name="sparkle" size={14} />
-            ใช้โปร &quot;{autoPromoLabel}&quot; อัตโนมัติ (ลูกค้าคนนี้มีสิทธิ์)
-          </p>
+            ลูกค้าคนนี้มีสิทธิ์โปร &quot;{suggestedPromo.label}&quot; · กดเพื่อใช้
+          </button>
         )}
 
         {/* ── สรุปยอด ── */}
