@@ -2189,6 +2189,7 @@ function CustomerSummaryCard({
                     rooms={rooms}
                     nights={Number(pkgUses) || undefined}
                     price={Number(pkgPrice) || undefined}
+                    onPrice={(v) => setPkgPrice(String(v))}
                   />
                 ) : (
                   <GroomProgramPicker value={pkgProgram} onChange={setPkgProgram} programs={groomPrograms} />
