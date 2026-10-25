@@ -29,10 +29,11 @@ type HomeBooking = Booking & { checkin?: string; checkout?: string };
 export default function CustomerHome() {
   const { locale } = useLocale();
   const { profile, ready, customer } = useLiff();
-  const { config } = useConfig();
+  const { config, loading: configLoading } = useConfig();
   const m = t(locale).home;
   // ส่วนของฟีเจอร์ที่ร้านปิดไว้ในตั้งค่า ไม่โชว์ในหน้าแรก
-  const on = (key: FeatureKey) => isFeatureOn(config, key);
+  // รอโหลดตั้งค่าร้านก่อน — ค่าเริ่มต้นคือ "เปิดทุกอย่าง" ถ้าไม่รอ ส่วนที่ร้านปิดไว้จะแวบขึ้นมาก่อน
+  const on = (key: FeatureKey) => !configLoading && isFeatureOn(config, key);
   const [nextBooking, setNextBooking] = useState<(HomeBooking & { cats: string }) | null>(null);
   const [hasPromos, setHasPromos] = useState(false);
   const [couponCount, setCouponCount] = useState(0);

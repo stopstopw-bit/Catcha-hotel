@@ -3,7 +3,8 @@ import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { getBooking, listBookings, setBookingTime } from "@/lib/bookings-store";
 import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /** นัดของบ้านเดียวกันที่เข้าพักรอบเดียวกัน (รวมตัวที่กดลิงก์มาด้วย) */
 async function householdSiblings(b: Awaited<ReturnType<typeof getBooking>>) {
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   const b = res.booking;
   if (b) {
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram(
         type === "checkin" ? "🕒 ลูกค้าเลือกเวลาส่งน้อง" : "🕒 ลูกค้าเลือกเวลารับน้อง",
         {

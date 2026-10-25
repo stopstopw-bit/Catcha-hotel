@@ -27,7 +27,8 @@ import { rescheduleGroup, type DatePatch } from "@/lib/stay-sync";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { listCustomers, resolveCustomerForBooking } from "@/lib/customers-store";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import {
   pushLineMessage,
   buildConsentFlex,
@@ -227,7 +228,7 @@ export async function POST(req: NextRequest) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "";
   const icsUrl = `${base}/api/calendar/${booking.id}`;
 
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("📌 จองใหม่", {
       ลูกค้า: customer.name,
       น้องแมว: body.catName,
@@ -296,7 +297,7 @@ export async function PATCH(req: NextRequest) {
         checkinTime,
       });
     }
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram("✅ ลูกค้ายืนยันแล้ว", {
         ลูกค้า: String(b.customerName),
         น้องแมว: String(b.catName),
@@ -344,7 +345,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     const first = confirmed[0]!;
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram("✅ ลูกค้ายืนยันแล้ว", {
         ลูกค้า: String(first.customerName),
         น้องแมว: confirmed.map((x) => x!.catName).join(", "),
@@ -1208,7 +1209,7 @@ function groomInfoCardFor(
     }
     const h = res.updated[0];
     const inv = res.invoice;
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram(h?.service === "room" ? "📅 เลื่อนวัน/ต่อคืน" : "📅 เลื่อนนัด", {
         ลูกค้า: String(h?.customerName || ""),
         น้องแมว: res.updated.map((u) => u.catName).join(", "),
@@ -1274,7 +1275,7 @@ function groomInfoCardFor(
       await updateCalendarEvent(updated.calendarEventId, bookingCalendarPayload(updated));
     }
 
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram("✏️ แก้ไขนัด", {
         ลูกค้า: String(updated.customerName),
         น้องแมว: String(updated.catName),
@@ -1332,7 +1333,7 @@ function groomInfoCardFor(
       }
     }
 
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram(
         status === "ready"
           ? "🎉 น้องพร้อมกลับบ้าน"
@@ -1364,7 +1365,7 @@ function groomInfoCardFor(
       }
     }
 
-    await sendTelegram(
+    sendTelegramLater(
       formatBookingTelegram("❌ ยกเลิกนัด", {
         ลูกค้า: String(b.customerName),
         น้องแมว: String(b.catName),

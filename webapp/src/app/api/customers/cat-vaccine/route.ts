@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { addCatVaccinePhotos, findCustomerByLine } from "@/lib/customers-store";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /**
  * ลูกค้าแนบสมุดวัคซีนให้น้องของตัวเอง จากลิงก์ที่ร้านส่งจากหน้าข้อมูลลูกค้า (ยังไม่ต้องมีนัด)
@@ -30,7 +31,7 @@ async function postHandler(req: NextRequest) {
       { status: res.error === "no_photo" ? 400 : 500 }
     );
   }
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("💉 ลูกค้าแนบสมุดวัคซีนแล้ว", {
       น้อง: res.cat.name,
       ลูกค้า: me.name,

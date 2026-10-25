@@ -8,7 +8,8 @@ import {
   addCat,
   normalizeWeightKg,
 } from "@/lib/customers-store";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /** ลูกค้าดึงข้อมูลตัวเอง (สำหรับหน้าแก้ไขโปรไฟล์ใน LINE) — ครบทุกฟิลด์ที่กรอกตอนสมัคร */
 export async function GET(req: NextRequest) {
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("✏️ ลูกค้าแก้ไขข้อมูลตัวเอง", {
       ลูกค้า: patch.name || c.name,
       เบอร์: patch.phone ?? c.phone ?? "-",

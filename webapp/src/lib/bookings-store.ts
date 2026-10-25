@@ -159,6 +159,18 @@ export async function listBookings(lineUserId?: string) {
   return mem.filter((b) => b.lineUserId === lineUserId);
 }
 
+/** นัดที่ยังไม่ผูก LINE ลูกค้า — ใช้ตอนผูกนัดเก่าเข้าบัญชี LINE (ไม่ต้องดึงนัดทั้งร้าน) */
+export async function listBookingsWithoutLine() {
+  const sb = getSupabase();
+  if (sb) {
+    const data = await selectAllRows<BookingRow>((from, to) =>
+      sb.from("bookings").select("*").is("line_user_id", null).order("id").range(from, to)
+    );
+    return data.map(rowToStored);
+  }
+  return mem.filter((b) => !b.lineUserId);
+}
+
 /** นัดทั้งหมดของลูกค้าชื่อนี้ — ใช้หาน้องตัวอื่นในบ้านที่มานัดเดียวกัน (ไม่ต้องดึงนัดทั้งร้าน) */
 export async function listBookingsByCustomerName(customerName: string) {
   const sb = getSupabase();

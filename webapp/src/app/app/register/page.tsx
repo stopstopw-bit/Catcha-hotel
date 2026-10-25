@@ -220,8 +220,8 @@ export default function RegisterPage() {
         return;
       }
 
-      await refreshCustomer();
-      await refreshAccount();
+      // ข้อมูลลูกค้ากับแต้มไม่ขึ้นต่อกัน — โหลดพร้อมกัน
+      await Promise.all([refreshCustomer(), refreshAccount()]);
       const petNames = cats.map((c) => c.name.trim()).filter(Boolean);
       savedPopup(
         "สมัครสมาชิกสำเร็จ 🎉",
