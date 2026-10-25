@@ -137,3 +137,42 @@ export function splitDiscountTag(label: string): { label: string; tag: string } 
   if (!m) return { label: label || "", tag: "" };
   return { label: stripDiscountTag(label), tag: m[0].trim().replace(/^\(|\)$/g, "") };
 }
+
+/**
+ * เงื่อนไขโปรที่ลดตอนออกบิลแบบเฉพาะรายการ — เก็บในตารางโปร (promos.bill_rule)
+ * ไม่มี = โปรลดทั้งบิลแบบเดิม · kinds = ลด % เฉพาะประเภทนั้น · freeEvery/freeNights = แถมคืนฟรี
+ */
+export type PromoBillRule = {
+  kinds?: LinePromoKind[];
+  minNights?: number;
+  freeEvery?: number;
+  freeNights?: number;
+};
+
+/** โปรในตารางโปร → โปรลดเฉพาะรายการ (คืน undefined = โปรลดทั้งบิล) */
+export function promoAsLinePromo(
+  p?: { id: string; title: { th: string }; discountPercent?: number; billRule?: PromoBillRule | null } | null
+): LinePromo | undefined {
+  const r = p?.billRule;
+  if (!p || !r) return undefined;
+  const lp: LinePromo = {
+    id: p.id,
+    name: p.title.th.replace(/[()]/g, "").trim(),
+    percent: Math.max(0, Number(p.discountPercent) || 0),
+    kinds: r.kinds || [],
+    minNights: r.minNights || undefined,
+    freeEvery: r.freeEvery || undefined,
+    freeNights: r.freeNights || undefined,
+  };
+  if (isFreeNightsPromo(lp)) return { ...lp, percent: 0, kinds: ["stay"] };
+  return lp.percent > 0 && lp.kinds.length > 0 ? lp : undefined;
+}
+
+/** ข้อความรางวัลของโปรเฉพาะรายการ เช่น "จอง 10 คืน แถม 1" / "ลด 30% ห้องพัก · 30 คืน+" */
+export function billRuleLabel(lp: LinePromo): string {
+  if (isFreeNightsPromo(lp)) return `จอง ${lp.freeEvery} คืน แถม ${lp.freeNights}`;
+  const kinds = LINE_PROMO_KINDS.filter((k) => lp.kinds.includes(k.id))
+    .map((k) => k.label)
+    .join(" + ");
+  return `ลด ${lp.percent}% ${kinds}${lp.minNights ? ` · ${lp.minNights} คืน+` : ""}`;
+}

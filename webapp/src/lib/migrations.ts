@@ -71,6 +71,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "customers", column: "consent_accepted_at", feature: "ยอมรับข้อตกลงจากหน้าลูกค้า" },
   { table: "cats", column: "neutered", feature: "ทำหมันแล้ว/ยังไม่ทำ" },
   { table: "cats", column: "seizure_history", feature: "ประวัติการชัก/ช็อค และการแพ้" },
+  { table: "promos", column: "bill_rule", feature: "โปรลดเฉพาะรายการ / แถมคืนฟรี ในรายการโปร" },
 ];
 
 export type SchemaCheckRow = {
@@ -527,6 +528,12 @@ where staff_note like '%🎁%';`,
     // ประวัติการชัก/ช็อค + ประวัติการแพ้ — ถามตอนสมัครสมาชิก (ไม่บังคับ) · เพิ่มคอลัมน์อย่างเดียว
     name: "cats.seizure_allergy",
     sql: "alter table cats add column if not exists seizure_history text, add column if not exists allergy text;",
+  },
+  {
+    // โปรลดเฉพาะรายการ / แถมคืนฟรี อยู่ในตารางโปรเดียวกับโปรอื่น {kinds, minNights, freeEvery, freeNights}
+    // ว่าง = โปรลดทั้งบิลแบบเดิม · เพิ่มคอลัมน์อย่างเดียว
+    name: "promos.bill_rule",
+    sql: "alter table promos add column if not exists bill_rule jsonb;",
   },
 ];
 

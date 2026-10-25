@@ -35,11 +35,13 @@ import {
   LINE_PROMO_KINDS,
   freeNightsFor,
   isFreeNightsPromo,
-  linePromoShortLabel,
   normalizeLineDiscount,
   stripDiscountTag,
   type LinePromo,
   type LinePromoKind,
+  type PromoBillRule,
+  promoAsLinePromo,
+  billRuleLabel,
 } from "@/lib/line-discount";
 import { dayCareLabel, dayCarePrice, isDayCareLabel, isDayCareStay } from "@/lib/day-care";
 import {
@@ -68,6 +70,7 @@ type Promo = {
   title: { th: string };
   discountPercent?: number;
   discountAmount?: number;
+  billRule?: PromoBillRule;
 };
 
 type Invoice = {
@@ -576,9 +579,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   const [items, setItems] = useState<Item[]>([newGrooming()]);
   // ส่วนลดกรอกได้ทั้งบาทและเปอร์เซ็นต์ — ร้านคิดโปรเป็น % บ่อย จะได้ไม่ต้องกดเครื่องคิดเลขเอง
   const [discountMode, setDiscountMode] = useState<"baht" | "percent">("baht");
-  /** โปรลดเฉพาะรายการ (ตั้งในตั้งค่า) + ตัวที่เลือกใช้กับบิลนี้ */
-  const [linePromos, setLinePromos] = useState<LinePromo[]>([]);
-  const [linePromoId, setLinePromoId] = useState("");
+  /**
+   * แก้บิลเก่าที่ใช้โปรลดเฉพาะรายการ — ส่วนลดโหลดกลับมาอยู่ในแต่ละรายการแล้ว
+   * ยังไม่คิดโปรซ้ำจนกว่าจะเปลี่ยนโปร
+   */
+  const [lineFromEdit, setLineFromEdit] = useState(false);
   const [creating, setCreating] = useState(false);
   const [pay, setPay] = useState({ bankName: "", accountNumber: "", accountName: "" });
   const [shopName, setShopName] = useState("CatCha Hotel");
@@ -641,7 +646,6 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     if (config?.business?.name) setShopName(config.business.name);
     if (config?.billing) setBillMsg(config.billing);
     if (config?.options?.servicePresets?.length) setServicePresets(config.options.servicePresets);
-    setLinePromos(config?.linePromos || []);
     if (config?.options?.freebies?.length) setFreebiePresets(config.options.freebies);
     // ดึงจากนัดเฉพาะที่ยังไม่จบ — เสร็จสิ้น/ยกเลิก/ไม่มา ไม่ควรโผล่ให้ออกบิลซ้ำอีก
     // (บิลที่ออกไปแล้วตัดออกด้วย paidForGroup ด้านล่าง)
@@ -765,7 +769,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       if (aDue !== bDue) return aDue ? -1 : 1;
       return aDue ? kb.localeCompare(ka) : ka.localeCompare(kb);
     });
-  const linePromo = linePromos.find((p) => p.id === linePromoId);
+  // โปรลดเฉพาะรายการ / แถมคืนฟรี = โปรในรายการโปรที่มี billRule — ลดทีละรายการ ไม่ลดทั้งบิล
+  const linePromo = lineFromEdit ? undefined : promoAsLinePromo(promos.find((p) => p.id === promoId));
   // โปรที่ตั้งขั้นต่ำไว้ (เช่น พัก 30 คืนขึ้นไป) ลดให้เฉพาะบิลที่พักถึง
   const linePromoOk = linePromoQualifies(items, linePromo);
   const lines = items.map((it) =>
@@ -799,7 +804,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       : promoMinNights > 0 && billNights < promoMinNights
         ? `บิลนี้พัก ${billNights} คืน — โปรนี้ต้องพัก ${promoMinNights} คืนขึ้นไป`
         : "";
-  const promoDiscount = selectedPromo
+  const promoDiscount = selectedPromo && !promoAsLinePromo(selectedPromo)
     ? Math.min(
         subtotal,
         Math.max(
@@ -1088,7 +1093,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       // ลูกค้าใหม่ → ใส่โปรลูกค้าใหม่ให้เลย (เช่น ลด 5%) พร้อมป้ายบอกใต้ช่องโปร
       // ลูกค้าเก่า → "ไม่ใช้โปร" แล้วแค่เสนอโปรที่มีสิทธิ์ให้กดใช้เอง
       if (newCustomer && newCustomerPromo) {
-        { setPromoId(newCustomerPromo.id); setLinePromoId(""); }
+        setPromoId(newCustomerPromo.id);
         setNewCustomerInfo({ isNew: true, promoLabel: newCustomerPromo.label });
       } else {
         setNewCustomerInfo({ isNew: Boolean(newCustomer) });
@@ -1343,7 +1348,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     promoPickSeq.current++;
     setNewCustomerInfo(null);
     setBillBookingIds([]);
-    setLinePromoId("");
+    setLineFromEdit(false);
     setBillDeposit("");
     setBillDepPct(null);
     setBookingId(undefined);
@@ -1580,7 +1585,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     // ทั้งที่บิลยังลดอยู่ (คิดแบบเดียวกับ calcPromoDiscount ฝั่งเซิร์ฟเวอร์)
     const oldPromo = promos.find((p) => p.id === inv.promoId);
     const oldSubtotal = inv.subtotal ?? 0;
-    const oldPromoOff = oldPromo
+    const oldPromoOff = oldPromo && !promoAsLinePromo(oldPromo)
       ? Math.min(
           oldSubtotal,
           Math.max(
@@ -1597,7 +1602,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setSuggestedPromo(null);
     setDiscount(keptExtra ? String(keptExtra) : "");
     setDiscountMode("baht");
-    setLinePromoId(""); // ส่วนลดจากโปรเดิมโหลดกลับมาเป็นส่วนลดของแต่ละรายการแล้ว
+    setLineFromEdit(true); // ส่วนลดจากโปรเดิมโหลดกลับมาเป็นส่วนลดของแต่ละรายการแล้ว
     setEditingId(inv.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -2770,43 +2775,27 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                 + ตั้งโปร
               </Link>
             </span>
-            {/* โปรทุกแบบอยู่ในช่องเดียว: โปรทั้งบิล (ตาราง promos) + โปรลดเฉพาะรายการ/แถมคืนฟรี (config.linePromos) — เลือกได้ทีละ 1 */}
+            {/* โปรทุกแบบอยู่ในรายการโปรเดียว: ลดทั้งบิล / ลดเฉพาะรายการ / แถมคืนฟรี / แต้ม */}
             <select
-              value={linePromoId ? `line:${linePromoId}` : promoId}
+              value={promoId}
               onChange={(e) => {
-                const v = e.target.value;
-                if (v.startsWith("line:")) {
-                  setLinePromoId(v.slice(5));
-                  setPromoId("");
-                } else {
-                  setPromoId(v);
-                  setLinePromoId("");
-                }
+                setPromoId(e.target.value);
+                setLineFromEdit(false);
               }}
               className={`mt-1 min-h-[40px] ${field}`}
             >
               <option value="">ไม่ใช้โปร</option>
-              {linePromos.length > 0 && (
-                <optgroup label="ลดเฉพาะรายการ / แถมคืนฟรี">
-                  {linePromos.map((p) => (
-                    <option key={p.id} value={`line:${p.id}`}>
-                      {p.name} {linePromoShortLabel(p)}
-                      {!isFreeNightsPromo(p) && p.minNights ? ` · ${p.minNights} คืน+` : ""}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {promos.length > 0 && (
-                <optgroup label="ลดทั้งบิล / แต้ม">
-                  {promos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title.th}
-                      {p.discountPercent ? ` (${p.discountPercent}%)` : ""}
-                      {p.discountAmount ? ` (-${p.discountAmount}฿)` : ""}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              {promos.map((p) => {
+                const lp = promoAsLinePromo(p);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.title.th}
+                    {lp
+                      ? ` (${billRuleLabel(lp)})`
+                      : `${p.discountPercent ? ` (${p.discountPercent}%)` : ""}${p.discountAmount ? ` (-${p.discountAmount}฿)` : ""}`}
+                  </option>
+                );
+              })}
             </select>
             {linePromo && (
               <span className={`mt-1 block text-[11px] font-bold ${linePromoOff > 0 ? "text-ok" : "text-wait"}`}>
@@ -2978,7 +2967,10 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         {suggestedPromo && promoId !== suggestedPromo.id && !editingId && (
           <button
             type="button"
-            onClick={() => { setPromoId(suggestedPromo.id); setLinePromoId(""); }}
+            onClick={() => {
+              setPromoId(suggestedPromo.id);
+              setLineFromEdit(false);
+            }}
             className="flex w-full items-center gap-1.5 rounded-catcha-sm bg-sage/15 px-3 py-2 text-left text-[11px] font-bold text-ok"
           >
             <Icon name="sparkle" size={14} />

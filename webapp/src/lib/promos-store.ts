@@ -8,6 +8,7 @@ import {
 import { addPoints } from "./points-store";
 import { getSupabase } from "./supabase/server";
 import { seedEnabled } from "./demo-seed";
+import { billRuleLabel, promoAsLinePromo, type PromoBillRule } from "./line-discount";
 
 export type PromoKind = "display" | "customer";
 export type PromoRestriction = "none" | "first_visit" | "calendar_month";
@@ -33,6 +34,8 @@ export type PromoRecord = {
   rewardType: PromoRewardType;
   pointsBonus?: number;
   pointsMultiplier?: number;
+  /** ลดเฉพาะรายการ / แถมคืนฟรี ตอนออกบิล — ไม่มี = ลดทั้งบิล */
+  billRule?: PromoBillRule;
 };
 
 export type PromoClaimRecord = {
@@ -74,6 +77,7 @@ type PromoRow = {
   reward_type?: string | null;
   points_bonus?: number | null;
   points_multiplier?: number | null;
+  bill_rule?: PromoBillRule | null;
 };
 
 type PromoClaimRow = {
@@ -168,6 +172,7 @@ function rowToPromo(r: PromoRow): PromoRecord {
     rewardType: (r.reward_type as PromoRewardType) || "discount",
     pointsBonus: r.points_bonus ?? undefined,
     pointsMultiplier: r.points_multiplier != null ? Number(r.points_multiplier) : undefined,
+    billRule: r.bill_rule || undefined,
   };
 }
 
@@ -192,7 +197,29 @@ function promoToRow(p: PromoRecord) {
     reward_type: p.rewardType,
     points_bonus: p.pointsBonus ?? null,
     points_multiplier: p.pointsMultiplier ?? null,
+    bill_rule: p.billRule ?? null,
   };
+}
+
+/**
+ * เขียนแถวโปร — ฐานข้อมูลที่ยังไม่มีคอลัมน์ bill_rule: เพิ่มคอลัมน์ให้แล้วลองใหม่
+ * ถ้ายังไม่ได้ (ยังไม่ได้ตั้ง exec_sql) และโปรนี้ไม่ได้ใช้ bill_rule ก็บันทึกแบบเดิมไปก่อน
+ */
+async function writePromoRow(
+  write: (row: Record<string, unknown>) => PromiseLike<{ error: { message?: string } | null }>,
+  p: PromoRecord
+) {
+  const row: Record<string, unknown> = promoToRow(p);
+  let { error } = await write(row);
+  if (error && /bill_rule/.test(error.message || "")) {
+    const { ensureMigration } = await import("./migrations");
+    if (await ensureMigration("promos.bill_rule")) ({ error } = await write(row));
+    if (error && !p.billRule) {
+      delete row.bill_rule;
+      ({ error } = await write(row));
+    }
+  }
+  return !error;
 }
 
 function rowToClaim(r: PromoClaimRow): PromoClaimRecord {
@@ -223,9 +250,15 @@ function claimToRow(c: PromoClaimRecord) {
   };
 }
 
-export function promoRewardLabel(p: Pick<PromoRecord, "rewardType" | "discountPercent" | "discountAmount" | "pointsBonus" | "pointsMultiplier">) {
+export function promoRewardLabel(
+  p: Pick<PromoRecord, "rewardType" | "discountPercent" | "discountAmount" | "pointsBonus" | "pointsMultiplier"> & {
+    billRule?: PromoBillRule;
+  }
+) {
   const parts: string[] = [];
-  if (p.rewardType === "discount" || p.rewardType === "both") {
+  const lp = promoAsLinePromo({ id: "", title: { th: "" }, ...p });
+  if (lp && (p.rewardType === "discount" || p.rewardType === "both")) parts.push(billRuleLabel(lp));
+  else if (p.rewardType === "discount" || p.rewardType === "both") {
     if (p.discountPercent) parts.push(`${p.discountPercent}%`);
     if (p.discountAmount) parts.push(`-${p.discountAmount}฿`);
   }
@@ -358,6 +391,8 @@ export async function getBestPromoForCustomer(
 
   for (const promo of promos) {
     if (!promo.discountPercent && !promo.discountAmount) continue;
+    // ลดเฉพาะรายการ / แถมคืนฟรี — คิดทีละรายการตอนออกบิล ไม่เลือกให้อัตโนมัติ
+    if (promoAsLinePromo(promo)) continue;
     const claim = await getClaimForCustomer(promo.id, customerId);
     const { eligible } = checkPromoEligibility(
       promo,
@@ -614,8 +649,8 @@ export async function addPromo(data: Omit<PromoRecord, "id">) {
   };
   const sb = getSupabase();
   if (sb) {
-    await sb.from("promos").insert(promoToRow(promo));
-    return promo;
+    const ok = await writePromoRow((row) => sb.from("promos").insert(row), promo);
+    return ok ? promo : null;
   }
   mem.unshift(promo);
   return promo;
@@ -630,8 +665,8 @@ export async function updatePromo(id: string, patch: Partial<Omit<PromoRecord, "
 
   const sb = getSupabase();
   if (sb) {
-    await sb.from("promos").update(promoToRow(updated)).eq("id", id);
-    return updated;
+    const ok = await writePromoRow((row) => sb.from("promos").update(row).eq("id", id), updated);
+    return ok ? updated : null;
   }
 
   const i = mem.findIndex((x) => x.id === id);
@@ -661,9 +696,53 @@ export async function calcPromoDiscount(
   if (!p || !p.active) return { discount: 0 };
   const today = new Date().toISOString().slice(0, 10);
   if (p.startDate > today || (p.until && p.until < today)) return { discount: 0 };
+  // ลดเฉพาะรายการ / แถมคืนฟรี — ส่วนลดอยู่ในแต่ละรายการแล้ว ไม่ลดทั้งบิลซ้ำ
+  if (promoAsLinePromo(p)) return { discount: 0, label: p.title.th };
 
   let discount = 0;
   if (p.discountPercent) discount = Math.round((subtotal * p.discountPercent) / 100);
   if (p.discountAmount) discount = Math.max(discount, p.discountAmount);
   return { discount: Math.min(discount, subtotal), label: p.title.th };
+}
+
+/**
+ * ย้ายโปรตอนออกบิลที่เคยตั้งในตั้งค่า (config.linePromos) มาเป็นโปรในรายการโปร
+ * ทำครั้งเดียว: ย้ายสำเร็จทุกอันแล้วค่อยล้าง config.linePromos (ไม่สำเร็จ = เก็บไว้ ลองใหม่รอบหน้า)
+ */
+export async function importConfigLinePromos() {
+  const { getSiteConfig, updateSiteConfig } = await import("./config-store");
+  const config = await getSiteConfig();
+  const list = config.linePromos || [];
+  if (!list.length) return 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const existing = new Set((await listPromos()).map((p) => p.id));
+  for (const lp of list) {
+    const id = `LP-${lp.id}`;
+    if (existing.has(id)) continue;
+    const free = (lp.freeEvery || 0) > 0 && (lp.freeNights || 0) > 0;
+    const billRule: PromoBillRule = free
+      ? { freeEvery: lp.freeEvery, freeNights: lp.freeNights }
+      : { kinds: lp.kinds, minNights: lp.minNights || undefined };
+    const text = billRuleLabel({ ...lp, kinds: free ? ["stay"] : lp.kinds });
+    const promo: PromoRecord = {
+      id,
+      title: { th: lp.name, en: lp.name },
+      body: { th: text, en: text },
+      discountPercent: free ? undefined : lp.percent || undefined,
+      startDate: today,
+      until: "",
+      active: true,
+      kind: "display",
+      restriction: "none",
+      tiers: ["all"],
+      rewardType: "discount",
+      billRule,
+    };
+    const sb = getSupabase();
+    if (sb) {
+      if (!(await writePromoRow((row) => sb.from("promos").insert(row), promo))) return 0;
+    } else mem.unshift(promo);
+  }
+  await updateSiteConfig({ linePromos: [] });
+  return list.length;
 }
