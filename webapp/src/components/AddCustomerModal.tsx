@@ -394,6 +394,7 @@ export function AddCustomerModal({
                         value={pet.birthday}
                         onChange={(iso) => updatePet(idx, { birthday: iso })}
                         yearsBack={25}
+                        allowUnknown
                       />
                     </div>
                   </div>
