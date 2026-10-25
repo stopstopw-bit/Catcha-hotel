@@ -3,7 +3,7 @@ import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { findCustomerByLine } from "@/lib/customers-store";
 import { getOffer, claimOffer } from "@/lib/coupons-store";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
 
 /** ข้อมูลแคมเปญคูปอง (สำหรับหน้ากดรับ) */
 export async function GET(req: NextRequest) {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     );
   }
   const offer = await getOffer(offerId);
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("🎟️ ลูกค้ากดรับคูปองแล้ว", {
       ลูกค้า: cust.name,
       แคมเปญ: offer?.title || offerId,

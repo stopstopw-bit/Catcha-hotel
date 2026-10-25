@@ -4,7 +4,7 @@ import {
   getCustomerLinkPreview,
   linkCustomerToLine,
 } from "@/lib/customers-store";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
 
 /** ดูข้อมูลลูกค้าก่อนผูก LINE (จากลิงก์เชิญ) */
 export async function GET(req: NextRequest) {
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("🔗 ลูกค้าผูก LINE กับบัญชีสำเร็จ", {
       ลูกค้า: result.customer.name,
       ชื่อไลน์: displayName || "-",

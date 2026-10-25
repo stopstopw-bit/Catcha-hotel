@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { claimCustomerPromo } from "@/lib/promos-store";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
 
 /** ลูกค้ากดใช้โปรจากหน้าแอป */
 export async function POST(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("🎁 ลูกค้ากดใช้โปรโมชั่นแล้ว", {
       ลูกค้า: result.claim.customerName,
       โปรโมชั่น: result.claim.promoTitle,

@@ -15,7 +15,7 @@ import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer
 import { buildLiffUrl } from "@/lib/liff-urls";
 import { getSiteConfig } from "@/lib/config-store";
 import { isFeatureOn } from "@/lib/features";
-import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
 
 /** กระเป๋าคูปองของลูกค้า + รหัสชวนเพื่อน (แอปลูกค้า: คุกกี้เซสชันลูกค้า · หลังบ้าน: customerId) */
 export async function GET(req: NextRequest) {
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   if (!cust) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const coupon = await issueCoupon({ customerId, amount, reason, expiresInDays });
-  await sendTelegram(
+  sendTelegramLater(
     formatBookingTelegram("🎁 ออกคูปองให้ลูกค้า (มือ)", {
       ลูกค้า: cust.name,
       มูลค่า: `${amount} บาท`,
