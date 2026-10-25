@@ -5,6 +5,7 @@ import { hasTransport, type BookingTransport } from "./transport";
 import { getLineCredentials } from "./line-config";
 import { buildAppointmentConfirmFlex } from "./line";
 import { groomProgramName, resolveGroomPrograms } from "./grooming-prices";
+import { roomName } from "./booking-reminders";
 
 export async function bookingConfirmUrl(bookingId: string) {
   const creds = await getLineCredentials();
@@ -47,6 +48,7 @@ export async function buildBookingConfirmFlex(
   const creds = await getLineCredentials();
   return buildAppointmentConfirmFlex({
     ...booking,
+    room: booking.room ? roomName(booking.room, config) : undefined,
     programText,
     confirmUrl: await bookingConfirmUrl(booking.id),
     transportUrl: hasTransport(booking.transport)
