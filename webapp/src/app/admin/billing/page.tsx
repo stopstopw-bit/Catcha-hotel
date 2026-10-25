@@ -499,22 +499,35 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   const [, setShowList] = useState(false);
 
   const [promoId, setPromoId] = useState("");
-  /** โปรที่ลูกค้าคนนี้มีสิทธิ์ — แค่เสนอให้กดใช้ ไม่เลือกให้เอง (เริ่มต้นเป็น "ไม่ใช้โปร" เสมอ) */
+  /**
+   * โปรตอนเลือกลูกค้า — ลูกค้าใหม่: เลือกโปรลูกค้าใหม่ให้เอง · ลูกค้าเก่า: เริ่มที่ "ไม่ใช้โปร"
+   * แล้วแค่เสนอโปรที่มีสิทธิ์ให้กดใช้
+   */
   const [suggestedPromo, setSuggestedPromo] = useState<{ id: string; label: string } | null>(null);
+  /** ลูกค้าใหม่ไหม (null = ยังไม่รู้) + โปรลูกค้าใหม่ที่เลือกให้อัตโนมัติ */
+  const [newCustomerInfo, setNewCustomerInfo] = useState<{
+    isNew: boolean;
+    promoLabel?: string;
+  } | null>(null);
+  /** นัดที่กำลังออกบิล — ไม่นับเป็น "เคยมาแล้ว" ตอนดูว่าลูกค้าใหม่ไหม */
+  const [billBookingIds, setBillBookingIds] = useState<string[]>([]);
+  /** กันผลโปรที่โหลดช้ามาทับ หลังเปลี่ยนลูกค้า/เปิดบิลเดิมไปแล้ว */
+  const promoPickSeq = useRef(0);
   /** โปรที่ลูกค้าคนนี้ใช้ไม่ได้ (เหตุผล) — เตือนตอนเลือกโปรเอง */
   const [promoBlocked, setPromoBlocked] = useState<Record<string, string>>({});
   useEffect(() => {
     setPromoBlocked({});
     if (!customerId) return;
     let alive = true;
-    fetch(`/api/promos?blockedFor=${encodeURIComponent(customerId)}`)
+    const ex = billBookingIds.length ? `&exclude=${encodeURIComponent(billBookingIds.join(","))}` : "";
+    fetch(`/api/promos?blockedFor=${encodeURIComponent(customerId)}${ex}`)
       .then((r) => r.json())
       .then((d) => alive && setPromoBlocked(d.blocked || {}))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [customerId]);
+  }, [customerId, billBookingIds]);
   const [discount, setDiscount] = useState("");
   const [couponId, setCouponId] = useState("");
   const [customerCoupons, setCustomerCoupons] = useState<
@@ -1035,12 +1048,15 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
           })
           .slice(0, 8);
 
-  const pickCustomer = async (c: Customer) => {
+  const pickCustomer = async (c: Customer, bookingIds: string[] = []) => {
     setCustomerId(c.id);
     setSearch(c.name);
     setShowList(false);
     setPromoId("");
     setSuggestedPromo(null);
+    setNewCustomerInfo(null);
+    setBillBookingIds(bookingIds);
+    const seq = ++promoPickSeq.current;
     // บ้านมีแมวตัวเดียว — ไม่มีตัวเลือก "ของน้องตัวไหน" ให้กด (โผล่เฉพาะบ้านที่มีหลายตัว)
     // จึงเดาราคาให้ทันทีสำหรับรายการอาบน้ำที่ยังไม่ได้ระบุน้อง แทนรอให้พนักงานกดเลือกเอง
     // เคยอาบแล้ว → ใช้ขน/ไซส์ (และโปรแกรม) ของครั้งล่าสุด · ยังไม่เคย → เดาจากพันธุ์/ลักษณะขน
@@ -1065,10 +1081,19 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       );
     }
     try {
-      const res = await fetch(`/api/promos?autoFor=${c.id}&subtotal=${subtotal}`);
-      const { promo } = await res.json();
-      // ไม่เลือกโปรให้เอง — เมื่อก่อนเลือกให้อัตโนมัติ แล้วพนักงานไม่ทันเห็น บิลเลยลดผิดทุกรอบ
-      if (promo) setSuggestedPromo({ id: promo.id, label: promo.label });
+      const ex = bookingIds.length ? `&exclude=${encodeURIComponent(bookingIds.join(","))}` : "";
+      const res = await fetch(`/api/promos?autoFor=${c.id}&subtotal=${subtotal}${ex}`);
+      const { promo, newCustomer, newCustomerPromo } = await res.json();
+      if (seq !== promoPickSeq.current) return;
+      // ลูกค้าใหม่ → ใส่โปรลูกค้าใหม่ให้เลย (เช่น ลด 5%) พร้อมป้ายบอกใต้ช่องโปร
+      // ลูกค้าเก่า → "ไม่ใช้โปร" แล้วแค่เสนอโปรที่มีสิทธิ์ให้กดใช้เอง
+      if (newCustomer && newCustomerPromo) {
+        setPromoId(newCustomerPromo.id);
+        setNewCustomerInfo({ isNew: true, promoLabel: newCustomerPromo.label });
+      } else {
+        setNewCustomerInfo({ isNew: Boolean(newCustomer) });
+        if (promo) setSuggestedPromo({ id: promo.id, label: promo.label });
+      }
     } catch {
       /* ไม่มีโปรก็ข้าม */
     }
@@ -1079,6 +1104,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setSearch("");
     setPromoId("");
     setSuggestedPromo(null);
+    promoPickSeq.current++;
+    setNewCustomerInfo(null);
+    setBillBookingIds([]);
     setBookingId(undefined);
     setBookingCats([]);
     setShowList(true);
@@ -1102,7 +1130,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setBookingCats(Array.from(new Set(group.map((g) => g.catName).filter(Boolean))));
     setShowBookings(false);
     const cust = customers.find((c) => c.id === bk.customerId);
-    if (cust) await pickCustomer(cust);
+    if (cust) await pickCustomer(cust, group.map((g) => g.id));
     else setSearch(bk.customerName);
 
     // นัดนี้เคยออกบิลไปแล้วหรือยัง — 1 นัดออกได้แค่ 1 บิลเท่านั้น
@@ -1312,6 +1340,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setDiscountMode("baht");
     setPromoId("");
     setSuggestedPromo(null);
+    promoPickSeq.current++;
+    setNewCustomerInfo(null);
+    setBillBookingIds([]);
     setLinePromoId("");
     setBillDeposit("");
     setBillDepPct(null);
@@ -1559,6 +1590,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         )
       : 0;
     const keptExtra = Math.max(0, (inv.discount || 0) - oldPromoOff);
+    // บิลเดิม = ใช้โปรที่บันทึกไว้ ไม่ใส่โปรลูกค้าใหม่ให้ซ้ำ
+    promoPickSeq.current++;
+    setNewCustomerInfo(null);
     setPromoId(oldPromo ? oldPromo.id : "");
     setSuggestedPromo(null);
     setDiscount(keptExtra ? String(keptExtra) : "");
@@ -2807,6 +2841,16 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
               <span className="mt-1 flex items-start gap-1 text-[11px] font-bold text-wait">
                 <Icon name="alert" size={13} className="mt-px shrink-0" />
                 {promoWarning}
+              </span>
+            )}
+            {newCustomerInfo?.isNew && !editingId && (
+              <span className="mt-1 flex items-start gap-1 text-[11px] font-bold text-ok">
+                <Icon name="sparkle" size={13} className="mt-px shrink-0" />
+                {newCustomerInfo.promoLabel
+                  ? promoId
+                    ? `ลูกค้าใหม่ — ใส่โปร "${newCustomerInfo.promoLabel}" ให้แล้ว`
+                    : "ลูกค้าใหม่ — เอาโปรลูกค้าใหม่ออกแล้ว"
+                  : "ลูกค้าใหม่ — ยังไม่มีโปรลูกค้าใหม่ (ตั้งได้ที่หน้าโปรโมชั่น)"}
               </span>
             )}
           </label>
