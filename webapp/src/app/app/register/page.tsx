@@ -505,6 +505,7 @@ export default function RegisterPage() {
                         value={cat.birthday}
                         onChange={(iso) => updateCat(idx, { birthday: iso })}
                         yearsBack={25}
+                        allowUnknown
                       />
                     </div>
                   </div>
