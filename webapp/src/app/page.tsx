@@ -6,15 +6,19 @@ import Link from "next/link";
 import { BUSINESS, ROOMS } from "@/lib/business";
 import { BLOG_POSTS } from "@/lib/blog-posts";
 import SiteFooter, { SocialLinks } from "@/components/SiteFooter";
+import PublicPromosCourses from "@/components/PublicPromosCourses";
 
 /**
  * หน้าเว็บหลัก (SEO Landing Page) — โรงแรมแมว บางนา เทพารักษ์ สมุทรปราการ
  * เป้าหมาย: ติดอันดับ Google คำค้นท้องถิ่น เช่น "โรงแรมแมว บางนา", "รับฝากแมว เทพารักษ์"
- * หน้านี้เป็น Server Component ล้วน (static) — บอทอ่านเนื้อหาได้ครบ
+ * หน้านี้เป็น Server Component ล้วน — บอทอ่านเนื้อหาได้ครบ
+ * โปร/คอร์สดึงจากหลังบ้าน → revalidate ทุก ~5 นาที
  * หมายเหตุ: ร้านมีบริการ "อาบน้ำแมว" เท่านั้น ไม่มีบริการตัดขน
  */
 
 import { getAppUrl } from "@/lib/app-url";
+
+export const revalidate = 300;
 
 const SITE_URL = getAppUrl();
 const PHONE_MAIN = BUSINESS.phones[0];
@@ -187,7 +191,7 @@ function InfoCard({
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
   if (!isMarketingSite()) redirect("/app");
   return (
     <main className="overflow-x-hidden">
@@ -333,6 +337,9 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── โปรโมชั่น + คอร์ส (จากหลังบ้าน) ── */}
+        <PublicPromosCourses />
+
         {/* ── จองยังไง + เวลาทำการ ── */}
         <section className="mt-14">
           <h2 className="text-center text-xl font-extrabold text-catcha-chocolate">
@@ -408,7 +415,7 @@ export default function HomePage() {
           <h2 className="text-center text-xl font-extrabold text-catcha-chocolate">
             🧳 เตรียมตัวก่อนพาน้องเข้าพัก
           </h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <InfoCard
               src="/info/prepare-checkin.jpg"
               alt="สิ่งที่ต้องเตรียมมาวันเข้าพักโรงแรมแมว สมุดวัคซีน อาหาร ทรายแมว ของใช้ประจำตัว กระเป๋าหรือกรง"
@@ -418,6 +425,11 @@ export default function HomePage() {
               src="/info/before-stay.jpg"
               alt="ก่อนเข้าพักโรงแรมแมว วัคซีนครบตามกำหนด หยดยาเห็บหมัดภายใน 1 เดือน ส่งหลักฐานก่อนเข้าพัก"
               caption="วัคซีน + ยาเห็บหมัด ก่อนเข้าพัก"
+            />
+            <InfoCard
+              src="/info/flea-drops.jpg"
+              alt="ทำไมต้องหยดยาหยดหลังป้องกันเห็บหมัดก่อนฝากแมว หมัดติดง่าย พาโรค แมวในบ้านก็ติดได้ วิธีหยดยาที่หลังคอ ขนาดตามน้ำหนัก ห้ามใช้ยาของสุนัข"
+              caption="ทำไมต้องหยดยาหยดหลัง?"
             />
             <InfoCard
               src="/info/stay-rules.jpg"
