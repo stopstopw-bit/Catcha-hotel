@@ -56,7 +56,8 @@ export const STAY_FORM_DEFAULTS: GroomField[] = [
     type: "single",
     label: "อยู่กับน้องตัวอื่นได้ไหมคะ",
     required: true,
-    enabled: true,
+    // ปิดไว้เป็นค่าเริ่มต้น — ร้านเปิดกลับได้ในหลังบ้าน
+    enabled: false,
     options: [
       { key: "ok", label: "😺 เข้ากับตัวอื่นได้" },
       { key: "alone", label: "🙀 ชอบอยู่ตัวเดียว" },
@@ -69,8 +70,19 @@ export const STAY_FORM_DEFAULTS: GroomField[] = [
     label: "ทรายที่ใช้ / การขับถ่ายที่ควรรู้",
     placeholder: "เช่น ทรายเต้าหู้ ขับถ่ายปกติ",
     required: false,
-    enabled: true,
+    enabled: false,
     options: [],
+  },
+  {
+    key: "vaccinated",
+    type: "single",
+    label: "ได้รับวัคซีนครบหรือยังคะ",
+    required: true,
+    enabled: true,
+    options: [
+      { key: "yes", label: "✅ ครบแล้ว" },
+      { key: "no", label: "❌ ยังไม่ครบ" },
+    ],
   },
   {
     key: "medical",
@@ -98,9 +110,10 @@ export const STAY_FORM_DEFAULTS: GroomField[] = [
  */
 export const BATH_SHARED_WITH_STAY: Record<string, string> = {
   note: "note",
+  vaccinated: "vaccinated",
 };
 
-/** รวมค่าเริ่มต้นกับที่ร้านแก้เอง (ถ้ามีในอนาคต) — คืนรายการคำถามที่ใช้แสดงจริง */
+/** รวมค่าเริ่มต้นกับที่ร้านแก้เอง (หลังบ้าน › การ์ด › ฟอร์มก่อนเข้าพัก) — คืนรายการคำถามที่ใช้แสดงจริง */
 export function resolveStayForm(config?: GroomFormConfig): GroomField[] {
   return STAY_FORM_DEFAULTS.map((def) => {
     const c = config?.[def.key];

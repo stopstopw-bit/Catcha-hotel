@@ -107,7 +107,8 @@ export const GROOM_FORM_DEFAULTS: GroomField[] = [
     label: "น้ำหนักตัวน้อง (กก.) — บอกคร่าวๆ ได้",
     placeholder: "เช่น 4.5",
     required: false,
-    enabled: true,
+    // ปิดไว้เป็นค่าเริ่มต้น (ถามแล้วตอนสมัครสมาชิก) — ร้านเปิดกลับได้ในหลังบ้าน
+    enabled: false,
     options: [],
     hasUnknownToggle: true,
   },

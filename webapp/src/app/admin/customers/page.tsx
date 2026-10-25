@@ -26,7 +26,7 @@ import { CustomerIntakeCards } from "@/components/CustomerIntakeCards";
 import { CustomerLinkSection } from "@/components/CustomerLinkSection";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
-import { resolveStayForm } from "@/lib/stay-form";
+import { STAY_FORM_DEFAULTS } from "@/lib/stay-form";
 import type { Booking } from "@/lib/business";
 import { bookingGroupKey, groupBookings } from "@/lib/booking-group";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
@@ -3492,7 +3492,11 @@ export default function CustomersPage() {
                   {(() => {
                     const si = parseGroomInfo(cat.stayInfo);
                     if (!si) return null;
-                    const s = groomInfoSummary(si, resolveStayForm());
+                    // ทุกข้อที่ลูกค้าเคยตอบ (รวมข้อที่ร้านปิดไปทีหลัง) — คำตอบเก่าไม่หาย
+                    const s = groomInfoSummary(
+                      si,
+                      STAY_FORM_DEFAULTS.filter((f) => f.key in si)
+                    );
                     return (
                       <div className="rounded-catcha-sm border border-sage/40 bg-sage/10 px-3 py-2.5">
                         <p className="flex items-center gap-1.5 text-[11px] font-extrabold text-ok">
