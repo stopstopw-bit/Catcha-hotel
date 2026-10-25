@@ -152,7 +152,7 @@ export async function renameCatInBirthdayQueue(
   oldName: string,
   newName: string
 ): Promise<void> {
-  const { replaceCatInList } = await import("./cat-rename");
+  const { replaceCatInList } = await import("./cat-name-replace");
   const sb = getSupabase();
   const rows: BirthdayGreetingRow[] = sb
     ? (

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { renameCatAfterUpdate } from "@/lib/cat-rename";
 import {
   listCustomersWithAppointmentCounts,
   searchCustomers,
@@ -171,8 +172,11 @@ export async function PATCH(req: NextRequest) {
         );
       }
     }
+    const oldName = (await getCustomer(id))?.cats.find((x) => x.id === body.catId)?.name;
     const c = await updateCat(id, body.catId, body.patch, { source: "staff" });
     if (!c) return NextResponse.json({ error: "not found" }, { status: 404 });
+    // เปลี่ยนชื่อน้อง → นัด/บิล/ประวัติที่ผูกด้วยชื่อเดิม เปลี่ยนตามให้ครบ
+    await renameCatAfterUpdate(c, body.catId, oldName);
     return NextResponse.json({ ok: true, customer: c });
   }
 
