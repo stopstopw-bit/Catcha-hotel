@@ -8,6 +8,7 @@ import {
   deletePromo,
   listPromoClaims,
   getBestPromoForCustomer,
+  promoBlockReasons,
   type PromoKind,
   claimCustomerPromo,
   getPromo,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/promos-store";
 import { findCustomerByLine } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
+import { getSessionFrom } from "@/lib/auth";
 import { pushLineMessage, buildPointsAwardFlex } from "@/lib/line";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -31,6 +33,12 @@ export async function GET(req: NextRequest) {
 
   if (forCustomer && lineUserId) {
     return NextResponse.json({ promos: await getCustomerPromos(lineUserId) });
+  }
+
+  const blockedFor = req.nextUrl.searchParams.get("blockedFor");
+  // ข้อมูลลูกค้า (ลูกค้าใหม่/ใช้โปรแล้ว) — เฉพาะหลังบ้าน
+  if (blockedFor && (await getSessionFrom(req))) {
+    return NextResponse.json({ blocked: await promoBlockReasons(blockedFor) });
   }
 
   const autoFor = req.nextUrl.searchParams.get("autoFor");

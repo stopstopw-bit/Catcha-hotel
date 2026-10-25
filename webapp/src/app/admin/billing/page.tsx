@@ -85,6 +85,9 @@ type Invoice = {
     amount: number;
     kind?: string;
     productId?: string;
+    program?: string;
+    breed?: string;
+    size?: string;
     catName?: string;
     qty?: number;
     unitAmount?: number;
@@ -468,7 +471,21 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   const [, setShowList] = useState(false);
 
   const [promoId, setPromoId] = useState("");
+  /** โปรที่ลูกค้าคนนี้ใช้ไม่ได้ (เหตุผล) — เตือนตอนเลือกโปรเอง */
+  const [promoBlocked, setPromoBlocked] = useState<Record<string, string>>({});
   const [autoPromoLabel, setAutoPromoLabel] = useState("");
+  useEffect(() => {
+    setPromoBlocked({});
+    if (!customerId) return;
+    let alive = true;
+    fetch(`/api/promos?blockedFor=${encodeURIComponent(customerId)}`)
+      .then((r) => r.json())
+      .then((d) => alive && setPromoBlocked(d.blocked || {}))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [customerId]);
   const [discount, setDiscount] = useState("");
   const [couponId, setCouponId] = useState("");
   const [customerCoupons, setCustomerCoupons] = useState<
@@ -534,6 +551,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   // UI ล้วน: สรุปแบบไหนที่จะก๊อป/ส่ง · บิลที่เปิดแผ่นรับชำระ · บิลที่เปิดแผ่นส่ง LINE
   const [summaryMode, setSummaryMode] = useState<"booking" | "deposit" | "full">("booking");
   const [payFor, setPayFor] = useState<Invoice | null>(null);
+  // แผ่นรับมัดจำ/บางส่วน — ใส่ยอด แล้วเลือก โอน/เงินสด แยกปุ่ม (เดิมใช้ prompt+confirm ที่ "ยกเลิก" = โอน)
+  const [partialFor, setPartialFor] = useState<Invoice | null>(null);
+  const [partialAmt, setPartialAmt] = useState("");
   const [sendFor, setSendFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -713,6 +733,26 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   );
   const subtotal = lines.reduce((s, l) => s + l.amount, 0);
   const selectedPromo = promos.find((p) => p.id === promoId);
+  // เลือกโปรเองได้ทุกตัว แต่เตือนถ้าลูกค้าไม่เข้าเงื่อนไข (ระบบเช็คจากกลุ่มลูกค้า/ลูกค้าใหม่/ใช้ไปแล้ว
+  // ส่วนเงื่อนไขที่เขียนในชื่อโปร เช่น "พัก 7 คืนขึ้นไป" เทียบกับจำนวนคืนในบิล)
+  const promoMinNights = Number(selectedPromo?.title.th.match(/(\d+)\s*คืนขึ้นไป/)?.[1] || 0);
+  const billNights = items.reduce(
+    (n, it) =>
+      n +
+      (it.kind === "room" && !isDayCareLabel(it.roomLabel)
+        ? Math.max(1, it.nights || 1)
+        : it.roomLine
+          ? Math.max(1, it.qty || 1)
+          : 0),
+    0
+  );
+  const promoWarning = !selectedPromo
+    ? ""
+    : promoBlocked[selectedPromo.id]
+      ? promoBlocked[selectedPromo.id]
+      : promoMinNights > 0 && billNights < promoMinNights
+        ? `บิลนี้พัก ${billNights} คืน — โปรนี้ต้องพัก ${promoMinNights} คืนขึ้นไป`
+        : "";
   const promoDiscount = selectedPromo
     ? Math.min(
         subtotal,
@@ -1237,6 +1277,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
 
   const resetForm = () => {
     setItems([newGrooming(groomPrograms)]);
+    setPromoId("");
+    setAutoPromoLabel("");
     setDiscount("");
     setDiscountMode("baht");
     setLinePromoId("");
@@ -1369,6 +1411,23 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         const qty = Math.max(1, Math.round(it.qty || 1));
         if (it.amount > 0 && isRoomLine(it)) {
           const { base, note } = splitRoomLabel(it.label.replace(/^🐱 .+? · /, ""));
+          const unit = it.unitAmount ?? Math.round(it.amount / qty);
+          // ห้องที่ยังมีในร้าน → กลับมาเป็น "ห้องพัก" เปลี่ยนห้อง/จำนวนคืนได้ ติ๊กน้องเพิ่มแล้วค่าแมวเกินคิดใหม่
+          // (บรรทัดพักต่อที่มีหมายเหตุ หรือห้องที่ลบไปแล้ว ยังเป็น "พิมพ์เอง" แบบเดิม)
+          const r = !note ? rooms.find((x) => x.label === base && !x.dayCare) : undefined;
+          if (r) {
+            const n = Math.max(1, parseCatNames(it.catName).length);
+            const std = roomNightPrice(r.amount, r.pricing, n);
+            return {
+              ...newGrooming(groomPrograms),
+              kind: "room" as const,
+              roomLabel: r.label,
+              roomPrice: std,
+              nights: qty,
+              catName: it.catName,
+              priceOverride: unit === std ? undefined : unit,
+            };
+          }
           return {
             ...newGrooming(groomPrograms),
             kind: "custom" as const,
@@ -1388,6 +1447,24 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
             catName: it.catName,
             qty,
             amount: it.unitAmount ?? Math.round(it.amount / qty),
+          };
+        }
+        // อาบน้ำ → กลับมาเป็นโปรแกรมอาบน้ำ (บิลบันทึกโปรแกรม/ขน/ไซส์ไว้) เปลี่ยนโปรแกรมได้
+        const prog = it.kind === "grooming" && it.program ? groomProgram(it.program, groomPrograms) : undefined;
+        if (prog && it.amount > 0) {
+          const breed = prog.breeds.some((b) => b.breed === it.breed) ? it.breed! : prog.breeds[0].breed;
+          const size = (["kitten", "m", "l"].includes(it.size || "") ? it.size : "m") as GroomSize;
+          const unit = it.unitAmount ?? Math.round(it.amount / qty);
+          const std = groomPrice(prog.id, breed, size, groomPrograms);
+          return {
+            ...newGrooming(groomPrograms),
+            kind: "grooming" as const,
+            program: prog.id,
+            breed,
+            size,
+            catName: it.catName,
+            qty,
+            priceOverride: unit === std ? undefined : unit,
           };
         }
         if (it.kind === "product" && it.productId) {
@@ -1613,22 +1690,20 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
    * รับเงินบางส่วน — ลูกค้าพักยาว/ต่อคืน จ่ายเป็นงวด ลงรายรับตามวันที่รับจริง บิลยังเปิดอยู่
    * งวดที่ทำให้จ่ายครบ จะปิดบิลต่อให้เลย (ตอนปิดเก็บแค่ยอดที่ยังค้าง = 0 ไม่ลงบัญชีซ้ำ)
    */
-  const receivePartial = async (inv: Invoice) => {
+  const receivePartial = (inv: Invoice) => {
     if (invoiceBusy) return;
-    const remaining = Math.max(0, inv.total - receivedOf(inv));
-    const raw = prompt(
-      `รับมัดจำ / บางส่วน — ${inv.customerName}\nยอดบิล ${inv.total.toLocaleString()} · ค้างอยู่ ${remaining.toLocaleString()} บาท\n\nรับรอบนี้กี่บาท?`,
-      ""
-    );
-    if (raw == null) return;
-    const amount = Math.round(Number(raw.replace(/[,\s฿]/g, "")) || 0);
+    setPartialAmt("");
+    setPartialFor(inv);
+  };
+
+  const submitPartial = async (inv: Invoice, method: "transfer" | "cash") => {
+    if (invoiceBusy) return;
+    const amount = Math.round(Number(partialAmt.replace(/[,\s฿]/g, "")) || 0);
     if (amount <= 0) {
       toast("ใส่จำนวนเงินให้ถูกนะ", "error");
       return;
     }
-    const method: "transfer" | "cash" = confirm("รับเป็นเงินสดใช่ไหม?\n(ตกลง = เงินสด · ยกเลิก = โอน)")
-      ? "cash"
-      : "transfer";
+    setPartialFor(null);
     setInvoiceBusy(`${inv.id}:receive_payment`);
     let fullyPaid = false;
     try {
@@ -1809,6 +1884,85 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     );
   };
 
+  // เรียกเป็นฟังก์ชัน (ไม่ใช่ <Component />) ช่องกรอกยอดจะได้ไม่หลุดโฟกัสทุกครั้งที่พิมพ์
+  const partialSheet = () => {
+    if (!partialFor) return null;
+    const inv = partialFor;
+    const remaining = Math.max(0, inv.total - receivedOf(inv));
+    const amount = Math.round(Number(partialAmt.replace(/[,\s฿]/g, "")) || 0);
+    const over = amount > remaining;
+    const ok = amount > 0 && !over && !invoiceBusy;
+    const close = () => setPartialFor(null);
+    return (
+      <div
+        className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center sm:p-3"
+        onClick={close}
+      >
+        <div
+          className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-card px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-catcha sm:rounded-catcha"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-catcha-line sm:hidden" />
+          <div className="mb-3 flex items-center gap-3">
+            <Avatar name={inv.customerName} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">รับมัดจำ / บางส่วน</p>
+              <p className="truncate text-sm font-extrabold text-catcha-chocolate">
+                {inv.customerName} · {inv.catName}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-base font-extrabold text-catcha-chocolate">{remaining.toLocaleString()} ฿</p>
+              <p className="text-[10px] text-brown-soft">ยอดค้าง</p>
+            </div>
+          </div>
+          <label className="block text-xs font-bold text-brown-soft">
+            รับรอบนี้กี่บาท
+            <input
+              autoFocus
+              inputMode="numeric"
+              value={partialAmt}
+              onChange={(e) => setPartialAmt(e.target.value)}
+              placeholder="เช่น 1000"
+              className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-3 text-lg font-extrabold text-catcha-chocolate"
+            />
+          </label>
+          <p className={`mt-1 text-[11px] ${over ? "font-bold text-red-600" : "text-brown-soft"}`}>
+            {over
+              ? `เกินยอดที่ค้าง (${remaining.toLocaleString()} บาท)`
+              : `ยอดบิล ${inv.total.toLocaleString()} · บิลยังเปิดอยู่ ค้างที่เหลือไว้เก็บทีหลัง`}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {(
+              [
+                ["transfer", "wallet", "รับแบบโอน"],
+                ["cash", "money", "รับเงินสด"],
+              ] as const
+            ).map(([m, icon, label]) => (
+              <button
+                key={m}
+                type="button"
+                disabled={!ok}
+                onClick={() => submitPartial(inv, m)}
+                className="flex min-h-[52px] items-center justify-center gap-2 rounded-catcha-sm bg-catcha-chocolate text-sm font-extrabold text-card disabled:opacity-40"
+              >
+                <Icon name={icon} size={18} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={close}
+            className="mt-2 min-h-[44px] w-full rounded-catcha-sm bg-paper text-sm font-bold text-brown-soft"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const sub = "w-full rounded-lg border border-catcha-line bg-paper px-3 py-2 text-sm";
   const field =
     "w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm";
@@ -1817,6 +1971,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     <div>
       <CreditConfirmModal />
       <PaySheet />
+      {partialSheet()}
       <div className="mb-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Billing</p>
@@ -2591,6 +2746,12 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                 </option>
               ))}
             </select>
+            {promoWarning && (
+              <span className="mt-1 flex items-start gap-1 text-[11px] font-bold text-wait">
+                <Icon name="alert" size={13} className="mt-px shrink-0" />
+                {promoWarning}
+              </span>
+            )}
           </label>
           <label className="block text-xs font-bold text-brown-soft">
             ส่วนลดเพิ่ม

@@ -908,7 +908,12 @@ export default function NewBookingPage() {
         />
 
         {/* ถามข้อมูลก่อนรับน้องได้เลยตั้งแต่ตอนเลือกลูกค้า — ยังไม่ต้องกดบันทึกนัด */}
-        {pickedCustomer && <CustomerIntakeCards key={pickedCustomer.id} customer={pickedCustomer} onDone={() => {}} />}
+        {pickedCustomer && <CustomerIntakeCards
+            key={pickedCustomer.id}
+            customer={pickedCustomer}
+            onDone={() => {}}
+            bookingKind={service === "groom" ? "groom" : withGroom ? "room+groom" : "room"}
+          />}
 
         <PastPricesHint prices={pastPrices} />
 
