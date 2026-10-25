@@ -553,6 +553,7 @@ function LinePromosTab({
               ...p,
               name: p.name.replace(/[()]/g, "").trim(),
               percent: Math.min(100, Math.max(0, Math.round(Number(p.percent) || 0))),
+              minNights: Math.max(0, Math.round(Number(p.minNights) || 0)) || undefined,
             }))
             .filter((p) => p.name && p.percent > 0 && p.kinds.length > 0),
         });
@@ -608,6 +609,20 @@ function LinePromosTab({
               );
             })}
           </div>
+          <label className="flex items-center gap-2 text-xs font-bold text-brown-soft">
+            ใช้ได้เมื่อพักตั้งแต่
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={p.minNights || ""}
+              onChange={(e) => update(i, { minNights: Number(e.target.value) || undefined })}
+              placeholder="—"
+              className="min-h-[36px] w-16 rounded-catcha-sm border border-catcha-line bg-paper px-2 text-right text-sm font-bold"
+            />
+            คืน
+            <span className="font-normal text-brown-faint">(เว้นว่าง = ทุกบิล)</span>
+          </label>
           <button
             type="button"
             onClick={() => setList((prev) => prev.filter((_, k) => k !== i))}
