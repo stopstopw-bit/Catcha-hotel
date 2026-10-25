@@ -21,6 +21,10 @@ export default {
         ok: "#7fa876",
       },
       borderRadius: { catcha: "24px", "catcha-sm": "16px" },
+      keyframes: {
+        pop: { "0%": { opacity: "0", transform: "scale(0.9)" }, "100%": { opacity: "1", transform: "scale(1)" } },
+      },
+      animation: { pop: "pop 160ms ease-out" },
       fontFamily: {
         sans: [
           "Sukhumvit Set",

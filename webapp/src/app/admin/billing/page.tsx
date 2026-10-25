@@ -8,7 +8,7 @@ import type { PosProduct } from "@/lib/pos-store";
 import { SERVICE_PRESETS, type ServicePreset } from "@/lib/service-presets";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
 import { CancelToCreditButton } from "@/components/CancelToCreditButton";
-import { toast } from "@/components/Toast";
+import { savedPopup, toast } from "@/components/Toast";
 import { Icon, type IconName } from "@/components/Icon";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
 import { groupCatNames, groupForBilling } from "@/lib/booking-group";
@@ -1293,7 +1293,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       const data = await res.json().catch(() => ({}));
       setCreating(false);
       if (res.ok) {
-        toast("แก้ไขบิลแล้ว", "success");
+        savedPopup("แก้ไขบิลแล้ว");
         resetForm();
         load();
       } else {
@@ -1338,11 +1338,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     }
     setCreating(false);
     if (data.invoice) {
-      toast(
-        `ออกบิลแล้ว ${data.invoice.total} บาท` +
-          (depositAmount > 0 ? ` · มัดจำ ${depositAmount} · คงเหลือ ${remaining}` : ""),
-        "success"
-      );
+      savedPopup(`ออกบิลแล้ว ${Number(data.invoice.total).toLocaleString()} บาท`, [
+        depositAmount > 0 ? `มัดจำ ${depositAmount} · คงเหลือ ${remaining}` : "",
+      ]);
       resetForm();
       load();
     } else {
