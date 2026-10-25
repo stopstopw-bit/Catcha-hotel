@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { renameCatAfterUpdate } from "@/lib/cat-rename";
 import {
   listCustomersWithAppointmentCounts,
   searchCustomers,
@@ -158,8 +159,24 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "update_cat") {
+    // ชื่อซ้ำกับน้องอีกตัวในบ้านเดียวกัน — ไม่ให้เปลี่ยน (นัด/บิลผูกด้วยชื่อ จะปนกันแยกไม่ออก)
+    const newName = typeof body.patch?.name === "string" ? body.patch.name.trim() : undefined;
+    if (newName !== undefined) {
+      const cur = await getCustomer(id);
+      const key = (n: string) => n.normalize("NFC").replace(/\s/g, "").toLowerCase();
+      if (!newName) return NextResponse.json({ error: "กรุณาใส่ชื่อน้อง" }, { status: 400 });
+      if (cur?.cats.some((x) => x.id !== body.catId && key(x.name) === key(newName))) {
+        return NextResponse.json(
+          { error: `บ้านนี้มีน้องชื่อ "${newName}" อยู่แล้ว ตั้งชื่อให้ต่างกันนิดนึงนะคะ` },
+          { status: 409 }
+        );
+      }
+    }
+    const oldName = (await getCustomer(id))?.cats.find((x) => x.id === body.catId)?.name;
     const c = await updateCat(id, body.catId, body.patch, { source: "staff" });
     if (!c) return NextResponse.json({ error: "not found" }, { status: 404 });
+    // เปลี่ยนชื่อน้อง → นัด/บิล/ประวัติที่ผูกด้วยชื่อเดิม เปลี่ยนตามให้ครบ
+    await renameCatAfterUpdate(c, body.catId, oldName);
     return NextResponse.json({ ok: true, customer: c });
   }
 
