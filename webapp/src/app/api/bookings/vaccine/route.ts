@@ -4,7 +4,8 @@ import { addBookingVaccinePhotos, getBooking } from "@/lib/bookings-store";
 import { copyBookingDocsToCustomer, findCustomerByLine } from "@/lib/customers-store";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /**
  * ลูกค้าแนบรูปสมุดวัคซีนจากลิงก์ "ขอสมุดวัคซีน" ที่ร้านส่งให้ทาง LINE

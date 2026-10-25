@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { featureOff } from "@/lib/features-server";
 import { getAccount, redeemReward, addPoints, deletePointsHistoryEntry } from "@/lib/points-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import { pushLineMessage, buildPointsAwardFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";

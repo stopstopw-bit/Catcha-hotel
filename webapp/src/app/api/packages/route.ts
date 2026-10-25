@@ -8,7 +8,8 @@ import {
   activeCustomerPackages,
   cancelPackage,
 } from "@/lib/packages-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import { pushLineMessage, buildPackageFlex, buildRoomPlanFlex } from "@/lib/line";
 import { getSiteConfig } from "@/lib/config-store";
 import { normalizeOfferItems, sellOfferItems } from "@/lib/package-shop-store";

@@ -15,7 +15,8 @@ import { resolveCustomerLineId, noCustomerSessionResponse } from "@/lib/customer
 import { buildLiffUrl } from "@/lib/liff-urls";
 import { getSiteConfig } from "@/lib/config-store";
 import { isFeatureOn } from "@/lib/features";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /** กระเป๋าคูปองของลูกค้า + รหัสชวนเพื่อน (แอปลูกค้า: คุกกี้เซสชันลูกค้า · หลังบ้าน: customerId) */
 export async function GET(req: NextRequest) {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { findCustomerByLine, updateCat } from "@/lib/customers-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

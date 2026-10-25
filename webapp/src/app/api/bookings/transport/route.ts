@@ -4,7 +4,8 @@ import { featureOff } from "@/lib/features-server";
 import { getBooking, listBookings, setBookingTransportLocation } from "@/lib/bookings-store";
 import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
 import { findCustomerForBooking, updateCustomer } from "@/lib/customers-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import { cleanMapUrl, hasTransport, transportLabel } from "@/lib/transport";
 
 /** นัดของบ้านเดียวกันรอบเดียวกัน — รับ-ส่งทีเดียวทั้งบ้าน จุดรับ-ส่งจึงใช้ร่วมกัน */

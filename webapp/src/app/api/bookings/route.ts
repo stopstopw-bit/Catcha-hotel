@@ -27,7 +27,8 @@ import { rescheduleGroup, type DatePatch } from "@/lib/stay-sync";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { listCustomers, resolveCustomerForBooking } from "@/lib/customers-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import {
   pushLineMessage,
   buildConsentFlex,

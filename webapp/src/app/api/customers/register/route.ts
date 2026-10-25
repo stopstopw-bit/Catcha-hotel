@@ -7,13 +7,13 @@ import {
   recalculateCustomerTier,
 } from "@/lib/customers-store";
 import { parseCatInput } from "@/lib/cat-input";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
 import { getSiteConfig } from "@/lib/config-store";
 import { isFeatureOn } from "@/lib/features";
 import { referralReward } from "@/lib/referral";
 import { issueCoupon, listCustomerCoupons } from "@/lib/coupons-store";
 import { pushLineMessage } from "@/lib/line";
-import { runAfterResponse } from "@/lib/after-response";
+import { runAfterResponse, sendTelegramLater } from "@/lib/after-response";
 
 /** คูปองชวนเพื่อน — ออกให้ทั้งคู่ทันทีที่สมัครด้วยโค้ด (เจ้าของร้านเลือกแบบนี้ 2026-10-23)
  * มูลค่า/อายุคูปองตั้งได้ในตั้งค่า › เปิด/ปิดฟีเจอร์ (ดู referralReward) */

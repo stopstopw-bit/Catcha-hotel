@@ -8,7 +8,8 @@ import {
 } from "@/lib/bookings-store";
 import { bookingGroupKey } from "@/lib/booking-group";
 import { MAX_VACCINE_PHOTOS, splitVaccinePhotos } from "@/lib/vaccine-photos";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import { copyBookingDocsToCustomer } from "@/lib/customers-store";
 
 /** ลูกค้ากด "ยอมรับข้อตกลง" ก่อนเข้าพัก */

@@ -10,7 +10,6 @@ import {
   syncTelegramBotCommands,
 } from "./telegram-config";
 import { BUSINESS } from "./business";
-import { runAfterResponse } from "./after-response";
 
 const TELEGRAM_API = "https://api.telegram.org";
 
@@ -229,14 +228,6 @@ export async function sendTelegram(text: string) {
 
 const WEBHOOK_RECHECK_MS = 10 * 60 * 1000;
 const webhookCheckedAt = new Map<string, number>();
-
-/**
- * แจ้งเจ้าของร้านหลังตอบลูกค้าแล้ว — ใช้ใน route ฝั่งลูกค้าแทน await sendTelegram()
- * ลูกค้าไม่ต้องรอ Telegram (ช้า/ล่มก็ไม่ขวางการสมัคร/จอง) ข้อความยังส่งครบเหมือนเดิม
- */
-export function sendTelegramLater(text: string) {
-  runAfterResponse("telegram notify", () => sendTelegram(text));
-}
 
 /** ส่งรูป + คำบรรยายให้เจ้าของทุกคน (เช่น รูปโปรไฟล์คนที่แอด LINE) */
 export async function sendTelegramPhoto(photoUrl: string, caption: string) {

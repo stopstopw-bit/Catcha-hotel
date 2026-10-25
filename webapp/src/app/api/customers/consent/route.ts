@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { findCustomerByLine, setCustomerConsent } from "@/lib/customers-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /**
  * ลูกค้ากดยอมรับข้อตกลงของร้านจากลิงก์ที่ส่งจากหน้าข้อมูลลูกค้า (ยังไม่มีนัด)

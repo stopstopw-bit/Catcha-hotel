@@ -21,7 +21,8 @@ import {
 import { findCustomerByLine, getCustomer } from "@/lib/customers-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import { getSiteConfig } from "@/lib/config-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import { pushLineMessage, buildPackageFlex, buildMemberBalanceFlex } from "@/lib/line";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 

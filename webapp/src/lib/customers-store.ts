@@ -2529,8 +2529,8 @@ export async function registerCustomerFromLine(data: {
       } else {
         // เบอร์ซ้ำแต่ชื่อไม่ตรง — ไม่รวมเอง แจ้งร้านให้ตรวจและกดรวมเองถ้าเป็นคนเดียวกัน
         try {
-          const { sendTelegramLater, formatBookingTelegram } = await import("./telegram");
-          sendTelegramLater(
+          const { sendTelegram, formatBookingTelegram } = await import("./telegram");
+          await sendTelegram(
             formatBookingTelegram("⚠️ สมัครใหม่เบอร์ซ้ำกับลูกค้าเดิม (ยังไม่รวมให้)", {
               สมัครใหม่: name,
               ลูกค้าเดิม: dupe.name,

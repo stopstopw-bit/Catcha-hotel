@@ -9,7 +9,8 @@ import {
   setCatStayInfo,
   type CustomerRecord,
 } from "@/lib/customers-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { getSiteConfig } from "@/lib/config-store";
 import { isFeatureOn } from "@/lib/features";

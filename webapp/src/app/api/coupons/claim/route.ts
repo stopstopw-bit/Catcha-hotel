@@ -3,7 +3,8 @@ import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { findCustomerByLine } from "@/lib/customers-store";
 import { getOffer, claimOffer } from "@/lib/coupons-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /** ข้อมูลแคมเปญคูปอง (สำหรับหน้ากดรับ) */
 export async function GET(req: NextRequest) {

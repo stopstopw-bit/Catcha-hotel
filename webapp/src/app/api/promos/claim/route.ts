@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import { claimCustomerPromo } from "@/lib/promos-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /** ลูกค้ากดใช้โปรจากหน้าแอป */
 export async function POST(req: NextRequest) {

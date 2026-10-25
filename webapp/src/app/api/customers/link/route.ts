@@ -4,7 +4,8 @@ import {
   getCustomerLinkPreview,
   linkCustomerToLine,
 } from "@/lib/customers-store";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 /** ดูข้อมูลลูกค้าก่อนผูก LINE (จากลิงก์เชิญ) */
 export async function GET(req: NextRequest) {

@@ -20,7 +20,8 @@ import { findCustomerByLine } from "@/lib/customers-store";
 import { getSiteConfig } from "@/lib/config-store";
 import { getSessionFrom } from "@/lib/auth";
 import { pushLineMessage, buildPointsAwardFlex } from "@/lib/line";
-import { sendTelegramLater, formatBookingTelegram } from "@/lib/telegram";
+import { formatBookingTelegram } from "@/lib/telegram";
+import { sendTelegramLater } from "@/lib/after-response";
 
 export async function GET(req: NextRequest) {
   const active = req.nextUrl.searchParams.get("active") === "1";
