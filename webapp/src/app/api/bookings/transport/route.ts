@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import { getBooking, listBookings, setBookingTransportLocation } from "@/lib/bookings-store";
 import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
 import { findCustomerForBooking, updateCustomer } from "@/lib/customers-store";
@@ -53,6 +54,8 @@ export async function GET(req: NextRequest) {
 
 /** ลูกค้าส่งจุดรับ-ส่ง (ลิงก์ Google Maps + ที่อยู่/จุดสังเกต) */
 export async function POST(req: NextRequest) {
+  const blocked = await featureOff("transport");
+  if (blocked) return blocked;
   const body = await req.json().catch(() => ({}));
   const bookingId = String(body.bookingId || "").trim();
   const rawUrl = String(body.mapUrl || "").trim();

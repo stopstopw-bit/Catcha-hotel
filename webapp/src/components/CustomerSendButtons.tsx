@@ -6,6 +6,8 @@ import { relevantAutoMessageTopics } from "@/lib/auto-messages";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { Icon } from "@/components/Icon";
 import { Segmented } from "@/components/ui";
+import { useConfig } from "@/components/ConfigProvider";
+import { cardOn } from "@/lib/features";
 import { INTAKE_LABEL } from "@/lib/intake-cards";
 
 type PendingSend = {
@@ -117,9 +119,9 @@ export function CustomerSendButtons({
   /** ซ่อนปุ่ม "ส่ง LINE" ของตัวเอง (ใช้คู่กับ open/onOpenChange) */
   hideTrigger?: boolean;
 }) {
-  // CatCha เปิดทั้งโรงแรมและอาบน้ำเสมอ
-  const hotelOn = true;
-  const groomOn = true;
+  const { config } = useConfig();
+  // การ์ดที่ร้านปิดในตั้งค่า › เปิด/ปิดฟีเจอร์ ไม่มีปุ่มให้ส่ง
+  const on = (part: string) => cardOn(config, part);
   const [busy, setBusy] = useState("");
   const [pending, setPending] = useState<PendingSend | null>(null);
   const [sending, setSending] = useState(false);
@@ -455,15 +457,15 @@ export function CustomerSendButtons({
   // ใบที่ต้องมีบิล/จ่ายแล้วยังซ่อนไว้จนกว่าจะมีข้อมูลจริง (กันส่งการ์ดว่าง)
   // ชุดถามข้อมูลก่อนรับน้องขึ้นก่อน ชื่อ/ลำดับเดียวกับหน้าข้อมูลลูกค้า
   const BUNDLE_OPTIONS: { key: string; label: string; when: boolean }[] = [
-    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && hotelOn && stayOk },
-    { key: "groomInfo", label: INTAKE_LABEL.groomInfo, when: !!bookingId && groomOn },
-    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId },
-    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && hotelOn && stayOk },
-    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId },
-    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && hotelOn && stayOk },
+    { key: "stayInfo", label: INTAKE_LABEL.stayInfo, when: !!bookingId && stayOk && on("stayInfo") },
+    { key: "groomInfo", label: INTAKE_LABEL.groomInfo, when: !!bookingId && on("groomInfo") },
+    { key: "vaccine", label: INTAKE_LABEL.vaccine, when: !!bookingId && on("vaccine") },
+    { key: "idcard", label: INTAKE_LABEL.idcard, when: !!bookingId && stayOk && on("idcard") },
+    { key: "consent", label: INTAKE_LABEL.consent, when: !!bookingId && on("consent") },
+    { key: "prestay", label: INTAKE_LABEL.prestay, when: !!bookingId && stayOk && on("prestay") },
     { key: "reminder", label: "แจ้งเตือนนัด", when: !!bookingId },
-    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId && stayOk },
-    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId && stayOk },
+    { key: "checkin", label: "เลือกเวลาเช็คอิน", when: !!bookingId && stayOk && on("checkin") },
+    { key: "checkout", label: "เลือกเวลาเช็คเอาท์", when: !!bookingId && stayOk && on("checkout") },
     { key: "deposit", label: "เรียกเก็บมัดจำ", when: canAskDeposit },
     {
       key: "depositThanks",
@@ -524,42 +526,42 @@ export function CustomerSendButtons({
       k: "send_stay_info",
       label: `${INTAKE_LABEL.stayInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
       icon: "edit",
-      when: !!bookingId && hotelOn && stayOk,
+      when: !!bookingId && stayOk && on("stayInfo"),
       onClick: () => void sendGroomInfoAll("stay"),
     },
     {
       k: "send_groom_info",
       label: `${INTAKE_LABEL.groomInfo}${groomBookingIds && groomBookingIds.length > 1 ? ` (${groomBookingIds.length} ตัว)` : ""}`,
       icon: "bath",
-      when: !!bookingId && groomOn,
+      when: !!bookingId && on("groomInfo"),
       onClick: () => void sendGroomInfoAll("groom"),
     },
     {
       k: "send_vaccine_request",
       label: INTAKE_LABEL.vaccine,
       icon: "image",
-      when: !!bookingId,
+      when: !!bookingId && on("vaccine"),
       onClick: () => bookingSend("send_vaccine_request", "ส่งการ์ดขอสมุดวัคซีนแล้ว 💉"),
     },
     {
       k: "send_idcard_request",
       label: INTAKE_LABEL.idcard,
       icon: "user",
-      when: !!bookingId && hotelOn && stayOk,
+      when: !!bookingId && stayOk && on("idcard"),
       onClick: () => bookingSend("send_idcard_request", "ส่งการ์ดขอบัตรประชาชนแล้ว 🪪"),
     },
     {
       k: "send_consent",
       label: INTAKE_LABEL.consent,
       icon: "doc",
-      when: !!bookingId,
+      when: !!bookingId && on("consent"),
       onClick: () => bookingSend("send_consent", "ส่งการ์ดกฎ + กดยินยอมแล้ว 📋"),
     },
     {
       k: "send_prestay",
       label: INTAKE_LABEL.prestay,
       icon: "bed",
-      when: !!bookingId && hotelOn && stayOk,
+      when: !!bookingId && stayOk && on("prestay"),
       onClick: () => bookingSend("send_prestay", "ส่งการ์ดแจ้งเตรียมตัวเข้าพักแล้ว 🏠"),
     },
     {
@@ -573,14 +575,14 @@ export function CustomerSendButtons({
       k: "send_checkin_reminder",
       label: "เตือนเช็คอิน + เลือกเวลา",
       icon: "calendar",
-      when: !!bookingId && hasRoomStay,
+      when: !!bookingId && hasRoomStay && on("checkin"),
       onClick: () => bookingSend("send_checkin_reminder", "ส่งการ์ดเลือกเวลาเช็คอินแล้ว 🧳"),
     },
     {
       k: "send_checkout_reminder",
       label: "เตือนเช็คเอาท์ + เลือกเวลา",
       icon: "clock",
-      when: !!bookingId && hasRoomStay,
+      when: !!bookingId && hasRoomStay && on("checkout"),
       onClick: () => bookingSend("send_checkout_reminder", "ส่งการ์ดเลือกเวลาเช็คเอาท์แล้ว 🧳"),
     },
     {
@@ -872,7 +874,7 @@ export function CustomerSendButtons({
                   แตะหัวข้อที่ไม่อยากให้ระบบส่งอัตโนมัติหานัดนี้ (นัดอื่นไม่กระทบ)
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {relevantAutoMessageTopics(service).map((t) => {
+                  {relevantAutoMessageTopics(service).filter((t) => on(t.id)).map((t) => {
                     const off = autoOff.includes(t.id);
                     return (
                       <button

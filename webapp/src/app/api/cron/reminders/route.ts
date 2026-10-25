@@ -3,6 +3,7 @@ import { listBookings } from "@/lib/bookings-store";
 import { autoMuted } from "@/lib/auto-messages";
 import { listInvoices } from "@/lib/invoices-store";
 import { getSiteConfig } from "@/lib/config-store";
+import { cardOn, cardsOff, isFeatureOn } from "@/lib/features";
 import { buildBookingConfirmFlex } from "@/lib/booking-line-card";
 import {
   pushLineMessage,
@@ -189,7 +190,12 @@ export async function GET(req: NextRequest) {
   let groomBriefs = 0;
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const allBookings = await listBookings();
+  // การ์ดที่ร้านปิดในตั้งค่า › เปิด/ปิดฟีเจอร์ = ถือว่าทุกนัดปิดหัวข้อนั้นไว้ (ไม่ได้บันทึกลงนัดจริง)
+  // ยกเว้นการ์ดเตรียมตัว — ชุดก่อนเข้าพักยังต้องส่งเรื่องอื่นที่เปิดอยู่ แค่ไม่ใส่การ์ดเตรียมตัว
+  const featureMuted = cardsOff(cfg).filter((t) => t !== "prestay");
+  const allBookings = (await listBookings()).map((b) =>
+    featureMuted.length ? { ...b, autoOff: [...(b.autoOff || []), ...featureMuted] } : b
+  );
   const allInvoices = await listInvoices();
   const allCustomers = await listCustomers();
 
@@ -474,7 +480,9 @@ export async function GET(req: NextRequest) {
         }
       }
       // ทุกอย่างรวมในการ์ดใบเดียว: เตรียมตัว + ข้อมูลที่ยังขาด + ยอดคงเหลือ + ปุ่มเลือกเวลา
-      const prestayBundle: object[] = [
+      // ร้านปิดการ์ดเตรียมตัวในตั้งค่า › เปิด/ปิดฟีเจอร์ → ส่งเฉพาะการ์ดขอข้อมูลที่ยังขาด
+      const prestayOn = cardOn(cfg, "prestay");
+      const prestayBundle: object[] = prestayOn ? [
         buildPrestayFlex({
           ...buildPrestayFlexData(b, cfg),
           consentUrl: undefined,
@@ -482,9 +490,9 @@ export async function GET(req: NextRequest) {
           intake: intakeLink || undefined,
           balance,
         }, cfg.cards?.prestay),
-      ];
-      // ทำเป็นปุ่มเดียวไม่ได้ (ไม่มี LIFF ID) → การ์ดขอข้อมูลแยกแบบเดิม
-      if (!intakeLink) {
+      ] : [];
+      // ทำเป็นปุ่มเดียวไม่ได้ (ไม่มี LIFF ID) หรือไม่มีการ์ดเตรียมตัว → การ์ดขอข้อมูลแยกแบบเดิม
+      if (!intakeLink || !prestayOn) {
         prestayBundle.push(
           ...mergeIntakeCards(
             intake,
@@ -499,11 +507,14 @@ export async function GET(req: NextRequest) {
           )
         );
       }
-      try {
-        await pushInChunks(to, prestayBundle);
-        prestayReminders++;
-      } catch (e) {
-        errors.push(`prestay ${b.id}: ${String(e)}`);
+      // ร้านปิดการ์ดเตรียมตัว และบ้านนี้ไม่มีเรื่องอื่นต้องส่ง — ไม่ส่งอะไร
+      if (prestayBundle.length > 0) {
+        try {
+          await pushInChunks(to, prestayBundle);
+          prestayReminders++;
+        } catch (e) {
+          errors.push(`prestay ${b.id}: ${String(e)}`);
+        }
       }
     }
 
@@ -545,7 +556,7 @@ export async function GET(req: NextRequest) {
   let birthdayQueued = 0;
   const mmdd = todayStr.slice(5); // "MM-DD"
   try {
-    if (auto?.birthdayEnabled !== false) {
+    if (auto?.birthdayEnabled !== false && isFeatureOn(cfg, "birthdays")) {
       for (const c of allCustomers) {
         if (!c.lineUserId || c.marketingConsent === false) continue;
         const hit = findBirthdayMatch(c, mmdd);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import { findCustomerByLine, setCustomerConsent } from "@/lib/customers-store";
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 
@@ -8,6 +9,9 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
  * เก็บครั้งล่าสุดไว้ที่ลูกค้า — ตัวตนยึดจากคุกกี้เซสชันลูกค้าเท่านั้น
  */
 async function postHandler(req: NextRequest) {
+  // ร้านปิดเรื่องนี้ในตั้งค่า › เปิด/ปิดฟีเจอร์
+  const blocked = await featureOff("consent");
+  if (blocked) return blocked;
   const session = await requireCustomerSession(req);
   if (!session) return noCustomerSessionResponse();
   const body = await req.json().catch(() => ({}));

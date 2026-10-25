@@ -36,6 +36,8 @@ type CatInput = {
 
 import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { REFERRAL_OPTIONS } from "@/lib/referral-options";
+import { isFeatureOn } from "@/lib/features";
+import { referralReward } from "@/lib/referral";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { customerFetch } from "@/lib/customer-fetch";
 
@@ -65,6 +67,7 @@ export default function RegisterPage() {
   const { profile, ready, customer, refreshCustomer, refreshAccount } = useLiff();
   const { config } = useConfig();
   const breeds = config.options?.catBreeds?.length ? config.options.catBreeds : BREED_OPTIONS;
+  const referralOn = isFeatureOn(config, "referral");
   const referrals = config.options?.referralOptions?.length
     ? config.options.referralOptions
     : REFERRAL_OPTIONS;
@@ -141,7 +144,7 @@ export default function RegisterPage() {
       setError("เลือกช่องทางที่รู้จักเราด้วยนะคะ");
       return;
     }
-    if (hasReferralCode && !referralCode.trim()) {
+    if (referralOn && hasReferralCode && !referralCode.trim()) {
       setError("กรอกโค้ดเพื่อนแนะนำ หรือเอาติ๊กออกถ้าไม่มีโค้ดนะคะ");
       return;
     }
@@ -160,7 +163,7 @@ export default function RegisterPage() {
           email,
           birthday,
           referralSource: referral,
-          referralCode: (hasReferralCode && referralCode.trim()) || undefined,
+          referralCode: (referralOn && hasReferralCode && referralCode.trim()) || undefined,
           postalCode: postalCode || undefined,
           marketingConsent: consent,
           cats: cats
@@ -225,10 +228,10 @@ export default function RegisterPage() {
         showLang={false}
       />
 
-      {fromLink && (
+      {fromLink && referralOn && (
         <div className="mb-4 flex items-start gap-2 rounded-catcha border border-honey/50 bg-honey/20 px-4 py-3 text-xs font-extrabold text-catcha-chocolate">
           <Icon name="gift" size={16} className="mt-px" />
-          <span>สมัครผ่านเพื่อนแนะนำ — สมัครเสร็จรับคูปองส่วนลด <span className="text-latte-deep">100฿</span> ทั้งคุณและเพื่อนทันที!</span>
+          <span>สมัครผ่านเพื่อนแนะนำ — สมัครเสร็จรับคูปองส่วนลด <span className="text-latte-deep">{referralReward(config).amount}฿</span> ทั้งคุณและเพื่อนทันที!</span>
         </div>
       )}
 
@@ -614,7 +617,8 @@ export default function RegisterPage() {
           </div>
         </section>
 
-        {/* ── โค้ดเพื่อนแนะนำ (ไม่บังคับ) ── */}
+        {/* ── โค้ดเพื่อนแนะนำ (ไม่บังคับ) · ร้านปิด "ชวนเพื่อนรับคูปอง" = ไม่ถาม ── */}
+        {referralOn && (
         <div className="rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
           <label className="flex cursor-pointer items-center gap-3">
             <input
@@ -626,7 +630,7 @@ export default function RegisterPage() {
             <span className="text-xs font-bold text-brown">
               มีโค้ดเพื่อนแนะนำ
               <span className="block text-[11px] font-normal text-brown-faint">
-                กรอกโค้ด รับคูปอง 100฿ ทั้งคุณและเพื่อน
+                กรอกโค้ด รับคูปอง {referralReward(config).amount}฿ ทั้งคุณและเพื่อน
               </span>
             </span>
           </label>
@@ -641,6 +645,7 @@ export default function RegisterPage() {
             />
           )}
         </div>
+        )}
 
         {/* ── ยินยอมรับข่าวสาร ── */}
         <label className="flex cursor-pointer items-start gap-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">

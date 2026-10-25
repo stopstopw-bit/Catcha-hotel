@@ -12,6 +12,7 @@ import {
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { getSiteConfig } from "@/lib/config-store";
+import { isFeatureOn } from "@/lib/features";
 import { resolveGroomForm } from "@/lib/groom-form";
 import { BATH_SHARED_WITH_STAY, resolveStayForm } from "@/lib/stay-form";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
@@ -106,6 +107,11 @@ async function postHandler(req: NextRequest) {
 
   // เก็บตามคำถามที่ร้านตั้งไว้จริง (ร้านเพิ่ม/แก้ตัวเลือกเองได้)
   const cfg = await getSiteConfig();
+  // ร้านปิดฟอร์มนี้ในตั้งค่า › เปิด/ปิดฟีเจอร์
+  const feature = t.kind === "stay" ? "stayInfo" : "groomInfo";
+  if (!isFeatureOn(cfg, feature)) {
+    return NextResponse.json({ error: "feature_disabled", feature }, { status: 403 });
+  }
   const fields = t.kind === "stay" ? resolveStayForm() : resolveGroomForm(cfg.groomForm);
   const payload = sanitizeInfo(fields, info);
   // ฟอร์มรวม เข้าพัก + อาบก่อนกลับ — ส่วนอาบน้ำเก็บเป็นประวัติอาบน้ำของน้องด้วย

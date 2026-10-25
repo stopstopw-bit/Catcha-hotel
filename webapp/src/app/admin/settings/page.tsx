@@ -10,9 +10,13 @@ import { adminJson } from "@/lib/admin-fetch";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { Icon } from "@/components/Icon";
+import { useConfig } from "@/components/ConfigProvider";
+import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/features";
+import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
 import { LINE_PROMO_KINDS, type LinePromo } from "@/lib/line-discount";
 
 type Tab =
+  | "features"
   | "shop"
   | "payment"
   | "linePromos"
@@ -31,6 +35,10 @@ type Tab =
 
 /** หน้าตั้งค่าแบบแอป: เปิดมาเป็นรายการหมวด แตะเข้าไปทีละหมวด (แทนแท็บ 14 อันที่ต้องเลื่อนข้าง) */
 const TAB_GROUPS: { title: string; items: { id: Tab; icon: string; hint?: string }[] }[] = [
+  {
+    title: "Features",
+    items: [{ id: "features", icon: "grid", hint: "เลือกว่าร้านใช้เมนูไหนบ้าง ปิดแล้วซ่อนทั้งหลังร้านและในแอปลูกค้า" }],
+  },
   {
     title: "Shop",
     items: [
@@ -69,6 +77,7 @@ const TAB_GROUPS: { title: string; items: { id: Tab; icon: string; hint?: string
 ];
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "features", label: "เปิด/ปิดฟีเจอร์" },
   { id: "shop", label: "ร้าน" },
   { id: "payment", label: "บัญชี" },
   { id: "linePromos", label: "โปรลดเฉพาะรายการ" },
@@ -94,6 +103,8 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [jsonText, setJsonText] = useState("");
+  // เมนูหลังร้านอ่านค่าจาก ConfigProvider — บันทึกแล้วต้องรีเฟรชให้เมนูที่ปิด/เปิดอัปเดตทันที
+  const { refresh: refreshShared } = useConfig();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +143,7 @@ export default function SettingsPage() {
       setConfig(data.config);
       setJsonText(JSON.stringify(data.config, null, 2));
       setMsg("บันทึกแล้ว — หน้าลูกค้าอัปเดตทันที");
+      void refreshShared();
     } else {
       setMsg("บันทึกไม่สำเร็จ");
     }
@@ -249,6 +261,9 @@ export default function SettingsPage() {
         </button>
       )}
 
+      {tab === "features" && (
+        <FeaturesTab config={config} saving={saving} onSave={save} />
+      )}
       {tab === "shop" && (
         <ShopTab config={config} saving={saving} onSave={save} />
       )}
@@ -2294,6 +2309,88 @@ function Toggle({
   );
 }
 
+/** เปิด/ปิดฟีเจอร์รายร้าน — ปิด = ซ่อนเมนูหลังร้าน + ส่วนที่ลูกค้าเห็น + API ฝั่งลูกค้า */
+function FeaturesTab({
+  config,
+  saving,
+  onSave,
+}: {
+  config: SiteConfig;
+  saving: boolean;
+  onSave: (patch: Partial<SiteConfig>) => void;
+}) {
+  const [form, setForm] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(FEATURES.map((f) => [f.key, config.features?.[f.key] !== false]))
+  );
+  const draft = { features: form };
+  const parentOff = (key?: FeatureKey) => (key ? !isFeatureOn(draft, key) : false);
+  // คูปองชวนเพื่อน — ตั้งมูลค่า/อายุเองได้ (ว่าง = ค่าเริ่มต้น 100 บาท · 60 วัน)
+  const [referral, setReferral] = useState(() => {
+    const r = referralReward(config);
+    return { amount: String(r.amount), expiresInDays: String(r.expiresInDays) };
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({
+          features: form,
+          referral: {
+            amount: Math.max(0, Math.round(Number(referral.amount) || 0)) || REFERRAL_DEFAULT.amount,
+            expiresInDays:
+              Math.max(0, Math.round(Number(referral.expiresInDays) || 0)) || REFERRAL_DEFAULT.expiresInDays,
+          },
+        });
+      }}
+      className="space-y-4"
+    >
+      <p className="rounded-catcha-sm bg-paper px-3 py-2.5 text-[11px] leading-relaxed text-brown-soft">
+        ปิดฟีเจอร์ไหน เมนูนั้นจะหายจากหลังร้าน และลูกค้าจะไม่เห็นในแอป ข้อมูลเดิมไม่หาย เปิดกลับมาเมื่อไหร่ก็ใช้ต่อได้ทันที
+      </p>
+      {FEATURE_GROUPS.map((g) => (
+        <section key={g} className="rounded-catcha bg-card p-4 shadow-catcha-sm">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">{g}</p>
+          <ul className="divide-y divide-catcha-line">
+            {FEATURES.filter((f) => f.group === g).map((f) => {
+              const locked = parentOff(f.requires);
+              return (
+                <li key={f.key} className={`py-1 ${f.requires ? "pl-4" : ""} ${locked ? "opacity-40" : ""}`}>
+                  <Toggle
+                    label={f.label}
+                    checked={!locked && form[f.key]}
+                    onChange={(v) => !locked && setForm((prev) => ({ ...prev, [f.key]: v }))}
+                  />
+                  <p className="-mt-1 pb-1 text-[10px] text-brown-faint">
+                    {locked ? `ปิดอยู่เพราะปิด "${FEATURES.find((x) => x.key === f.requires)?.label}"` : f.hint}
+                  </p>
+                  {f.key === "referral" && !locked && form.referral && (
+                    <div className="grid grid-cols-2 gap-2 pb-2">
+                      <Field
+                        label="คูปองคนละ (บาท)"
+                        type="number"
+                        value={referral.amount}
+                        onChange={(v) => setReferral((r) => ({ ...r, amount: v }))}
+                      />
+                      <Field
+                        label="ใช้ได้กี่วัน"
+                        type="number"
+                        value={referral.expiresInDays}
+                        onChange={(v) => setReferral((r) => ({ ...r, expiresInDays: v }))}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+      <SaveBtn saving={saving} />
+    </form>
+  );
+}
+
 function AutomationTab({
   config,
   saving,
@@ -2320,6 +2417,8 @@ function AutomationTab({
     >
       <p className="text-[11px] text-brown-soft">
         ระบบส่งอัตโนมัติ เที่ยงวัน (เวลาไทย) ทุกวัน — เปิด/ปิด และตั้งจำนวนวันได้เอง
+        <br />
+        การ์ดของเรื่องที่ปิดไว้ในแท็บ “เปิด/ปิดฟีเจอร์” จะไม่ถูกส่ง แม้เปิดไว้ตรงนี้
       </p>
 
       <div className="rounded-catcha-sm border border-catcha-line p-3">

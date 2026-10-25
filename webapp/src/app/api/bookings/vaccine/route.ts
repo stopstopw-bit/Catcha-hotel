@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { featureOff } from "@/lib/features-server";
 import { addBookingVaccinePhotos, getBooking } from "@/lib/bookings-store";
 import { copyBookingDocsToCustomer, findCustomerByLine } from "@/lib/customers-store";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
@@ -11,6 +12,9 @@ import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
  * ตัวตนยึดจากคุกกี้เซสชันลูกค้าที่ตรวจกับ LINE แล้วเท่านั้น และต้องเป็นนัดของตัวเอง
  */
 async function postHandler(req: NextRequest) {
+  // ร้านปิดเรื่องนี้ในตั้งค่า › เปิด/ปิดฟีเจอร์
+  const blocked = await featureOff("vaccine");
+  if (blocked) return blocked;
   const session = await requireCustomerSession(req);
   if (!session) return noCustomerSessionResponse();
   const body = await req.json().catch(() => ({}));

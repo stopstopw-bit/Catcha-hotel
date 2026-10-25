@@ -176,6 +176,13 @@ export type CardStyleConfig = {
 export type SiteConfig = {
   version: number;
   updatedAt: string;
+  /**
+   * เปิด/ปิดฟีเจอร์รายร้าน (key ตาม FeatureKey ใน src/lib/features.ts)
+   * false = ปิด · ไม่มี key = เปิด (ร้านเดิมใช้งานได้เหมือนเดิม)
+   */
+  features?: Partial<Record<string, boolean>>;
+  /** ชวนเพื่อนรับคูปอง — มูลค่าคูปองต่อคน/อายุคูปอง (ไม่ตั้ง = 100 บาท · 60 วัน) ดู src/lib/referral.ts */
+  referral?: { amount?: number; expiresInDays?: number };
   crm: CrmConfig;
   messages: MessagesConfig;
   automation: AutomationConfig;

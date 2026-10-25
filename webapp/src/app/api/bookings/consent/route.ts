@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerLineId } from "@/lib/customer-session";
+import { featureOff } from "@/lib/features-server";
 import {
   acceptBookingConsent,
   getBooking,
@@ -12,6 +13,9 @@ import { copyBookingDocsToCustomer } from "@/lib/customers-store";
 
 /** ลูกค้ากด "ยอมรับข้อตกลง" ก่อนเข้าพัก */
 export async function POST(req: NextRequest) {
+  // ร้านปิดเรื่องนี้ในตั้งค่า › เปิด/ปิดฟีเจอร์
+  const blocked = await featureOff("consent");
+  if (blocked) return blocked;
   const body = await req.json().catch(() => ({}));
   const bookingId = String(body.bookingId || "").trim();
   const lineUserId = (await resolveCustomerLineId(req, body.lineUserId)) || "";

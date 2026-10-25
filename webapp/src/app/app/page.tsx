@@ -19,6 +19,8 @@ import { MyMemberCreditSection } from "@/components/MyMemberCreditSection";
 import { PackageShopSection } from "@/components/PackageShopSection";
 import { HeaderBand, IconChip } from "@/components/HeaderBand";
 import { customerFetch } from "@/lib/customer-fetch";
+import { isFeatureOn, type FeatureKey } from "@/lib/features";
+import { referralReward } from "@/lib/referral";
 import { bookingGroupKey, groupCatNames, stayForGroom } from "@/lib/booking-group";
 import { bangkokToday } from "@/lib/bangkok-date";
 
@@ -29,6 +31,8 @@ export default function CustomerHome() {
   const { profile, ready, customer } = useLiff();
   const { config } = useConfig();
   const m = t(locale).home;
+  // ส่วนของฟีเจอร์ที่ร้านปิดไว้ในตั้งค่า ไม่โชว์ในหน้าแรก
+  const on = (key: FeatureKey) => isFeatureOn(config, key);
   const [nextBooking, setNextBooking] = useState<(HomeBooking & { cats: string }) | null>(null);
   const [hasPromos, setHasPromos] = useState(false);
   const [couponCount, setCouponCount] = useState(0);
@@ -135,6 +139,7 @@ export default function CustomerHome() {
         </Link>
       )}
 
+      {on("coupons") && (
       <Link
         href="/app/coupons"
         className="mb-4 flex items-center justify-between gap-3 rounded-catcha bg-card p-4 shadow-catcha"
@@ -144,18 +149,21 @@ export default function CustomerHome() {
             🎫 กระเป๋าคูปองของฉัน
           </p>
           <p className="mt-0.5 text-[11px] font-bold text-brown-soft">
-            ชวนเพื่อนสมัคร รับคูปองคนละ 100฿
+            {on("referral")
+              ? `ชวนเพื่อนสมัคร รับคูปองคนละ ${referralReward(config).amount}฿`
+              : "คูปองส่วนลดของคุณ ใช้ที่ร้านได้เลย"}
           </p>
         </div>
         <span className="flex shrink-0 items-center gap-1 rounded-full bg-latte-deep px-3.5 py-2 text-xs font-extrabold text-card shadow-catcha-sm">
           {couponCount > 0 ? `${couponCount} ใบ` : "เปิด"} →
         </span>
       </Link>
+      )}
 
       {/* เมนูลัด — ไอคอนกลมแบบหมวดหมู่ */}
       <nav aria-label="menu" className="mb-5 mt-1 grid grid-cols-4 gap-2">
-        <Link href="/app/rooms"><IconChip icon="bed" label={t(locale).nav.rooms} tone="honey" /></Link>
-        <Link href="/app/grooming"><IconChip icon="bath" label={t(locale).nav.grooming} tone="sage" /></Link>
+        {on("hotel") && <Link href="/app/rooms"><IconChip icon="bed" label={t(locale).nav.rooms} tone="honey" /></Link>}
+        {on("grooming") && <Link href="/app/grooming"><IconChip icon="bath" label={t(locale).nav.grooming} tone="sage" /></Link>}
         <Link href="/app/bookings"><IconChip icon="calendar" label={t(locale).nav.bookings} tone="latte" badge={nextBooking ? 1 : undefined} /></Link>
         <Link href="/app/profile"><IconChip icon="edit" label={locale === "th" ? "แก้ข้อมูล" : "Profile"} tone="paper" /></Link>
       </nav>
@@ -177,7 +185,7 @@ export default function CustomerHome() {
 
       {/* แต้มสะสม — โชว์เมื่อไม่มีเครดิต/คอร์ส เพื่อไม่ให้หน้าแรกโล่ง
           (ไม่มีปุ่มประวัติแต้ม เพราะเมนูแต้มด้านล่างพาไปหน้าเดียวกันอยู่แล้ว) */}
-      {showPoints && (
+      {showPoints && on("points") && (
         <section className="mb-4 overflow-hidden rounded-catcha bg-gradient-to-br from-honey/45 via-card to-latte/15 p-5 shadow-catcha">
           <p className="text-xs font-bold text-brown-soft">{m.yourPoints}</p>
           <p className="mt-1 text-4xl font-extrabold text-latte-deep">
@@ -194,12 +202,12 @@ export default function CustomerHome() {
       )}
 
       {/* คอร์สที่เปิดขาย — ซื้อ โอน แนบสลิป ได้ในที่เดียว */}
-      <PackageShopSection />
+      {on("packages") && <PackageShopSection />}
 
       {/* โปรพิเศษลูกค้า — โผล่เฉพาะตอนมีโปรจริง (ไม่มี = ซ่อนทั้งช่อง) */}
-      <CustomerExclusivePromos compact onHasPromos={setHasPromos} />
+      {on("promos") && <CustomerExclusivePromos compact onHasPromos={setHasPromos} />}
 
-      {hasPromos && (
+      {hasPromos && on("promos") && (
         <div className="mb-4 text-right">
           <Link href="/app/promos" className="text-[10px] font-bold text-latte-deep">
             {m.promosNow} · {m.seeAll} →

@@ -5,6 +5,8 @@ import { Icon } from "@/components/Icon";
 import { toast } from "@/components/Toast";
 import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { VaccinePhotosAdmin } from "@/components/VaccinePhotosAdmin";
+import { useConfig } from "@/components/ConfigProvider";
+import { cardOn } from "@/lib/features";
 import { INTAKE_LABEL } from "@/lib/intake-cards";
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import type { CustomerRecord } from "@/lib/customers-store";
@@ -27,6 +29,9 @@ export function CustomerIntakeCards({
    *  ไม่ใส่ = หน้าข้อมูลลูกค้า โชว์ทุกเรื่อง */
   bookingKind?: "groom" | "room" | "room+groom";
 }) {
+  const { config } = useConfig();
+  // การ์ดที่ร้านปิดในตั้งค่า › เปิด/ปิดฟีเจอร์ ไม่โชว์ให้ส่ง
+  const partOn = (part: Part) => cardOn(config, part);
   // CatCha เปิดทั้งโรงแรมและอาบน้ำเสมอ
   const hotelOn = bookingKind !== "groom";
   const groomOn = bookingKind !== "room";
@@ -42,13 +47,13 @@ export function CustomerIntakeCards({
   const stayDone = cats.length > 0 && cats.every((c) => c.stayInfo);
   const vaccineDone = cats.length > 0 && cats.every((c) => splitVaccinePhotos(c.vaccinePhotos).length > 0);
   const rows: { part: Part; label: string; icon: string; when: boolean; status?: string; done?: boolean }[] = [
-    { part: "stayInfo", label: INTAKE_LABEL.stayInfo, icon: "edit", when: hotelOn, done: stayDone, status: stayDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
-    { part: "groomInfo", label: INTAKE_LABEL.groomInfo, icon: "bath", when: groomOn, done: infoDone, status: infoDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
+    { part: "stayInfo", label: INTAKE_LABEL.stayInfo, icon: "edit", when: hotelOn && partOn("stayInfo"), done: stayDone, status: stayDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
+    { part: "groomInfo", label: INTAKE_LABEL.groomInfo, icon: "bath", when: groomOn && partOn("groomInfo"), done: infoDone, status: infoDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
     {
       part: "vaccine",
       label: INTAKE_LABEL.vaccine,
       icon: "image",
-      when: true,
+      when: partOn("vaccine"),
       done: vaccineDone,
       status: vaccineDone ? "ได้รับแล้ว" : "ยังไม่ได้รับ",
     },
@@ -56,7 +61,7 @@ export function CustomerIntakeCards({
       part: "idcard",
       label: INTAKE_LABEL.idcard,
       icon: "user",
-      when: hotelOn,
+      when: hotelOn && partOn("idcard"),
       done: !!customer.idCardUrl,
       status: customer.idCardUrl ? "ได้รับแล้ว" : "ยังไม่ได้รับ",
     },
@@ -64,13 +69,13 @@ export function CustomerIntakeCards({
       part: "consent",
       label: INTAKE_LABEL.consent,
       icon: "doc",
-      when: true,
+      when: partOn("consent"),
       done: !!customer.consentAcceptedAt,
       status: customer.consentAcceptedAt
         ? `ยอมรับล่าสุด ${customer.consentAcceptedAt.slice(0, 10)}`
         : "ยังไม่เคยกดยอมรับ",
     },
-    { part: "prestay", label: INTAKE_LABEL.prestay, icon: "bed", when: hotelOn },
+    { part: "prestay", label: INTAKE_LABEL.prestay, icon: "bed", when: hotelOn && partOn("prestay") },
   ];
 
   // สลับประเภทนัดแล้ว เรื่องที่ติ๊กไว้แต่ถูกซ่อน ไม่ส่งไปด้วย
@@ -121,6 +126,9 @@ export function CustomerIntakeCards({
       }
       return [...prev, p];
     });
+
+  // ร้านปิดการ์ดถามข้อมูลทุกใบ — ไม่ต้องโชว์กล่องนี้เลย
+  if (!rows.some((r) => r.when)) return null;
 
   return (
     <div className="mb-3 rounded-catcha-sm border border-catcha-line bg-card/85 p-3">
@@ -213,7 +221,7 @@ export function CustomerIntakeCards({
       </button>
 
       {/* สมุดวัคซีนรายตัว — ลูกค้าส่งมา หรือพนักงานแนบเองจากรูปที่ลูกค้าส่งในแชท */}
-      {customer.cats.length > 0 && (
+      {customer.cats.length > 0 && partOn("vaccine") && (
         <div className="mt-3 space-y-1">
           {customer.cats.map((c) => (
             <div key={c.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">

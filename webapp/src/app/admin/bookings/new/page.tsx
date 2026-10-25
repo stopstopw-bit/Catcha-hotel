@@ -16,6 +16,8 @@ import { pastPriceList, type PastInvoice, type PastPrice } from "@/lib/special-p
 import type { BookingTransport } from "@/lib/transport";
 import { Avatar, SearchField, Segmented } from "@/components/ui";
 import { GROOM_PROGRAMS, resolveGroomPrograms, type GroomProgram } from "@/lib/grooming-prices";
+import { useConfig } from "@/components/ConfigProvider";
+import { isFeatureOn } from "@/lib/features";
 import { UNKNOWN_CAT, isUnknownCat } from "@/lib/unknown-cat";
 import { PetProgramSelect } from "@/components/GroomProgramPicker";
 import { dayCarePrice } from "@/lib/day-care";
@@ -369,6 +371,14 @@ export default function NewBookingPage() {
   const searchParams = useSearchParams();
   const presetDate = searchParams.get("date") || "";
   const [service, setService] = useState<"groom" | "room">("groom");
+  // ร้านที่ปิดอาบน้ำหรือรับฝากไว้ในตั้งค่า — เหลือแค่บริการที่เปิด
+  const { config: siteConfig } = useConfig();
+  const groomOn = isFeatureOn(siteConfig, "grooming");
+  const hotelOn = isFeatureOn(siteConfig, "hotel");
+  useEffect(() => {
+    if (service === "groom" && !groomOn && hotelOn) setService("room");
+    if (service === "room" && !hotelOn && groomOn) setService("groom");
+  }, [service, groomOn, hotelOn]);
   const [saved, setSaved] = useState(false);
   const [lastBookings, setLastBookings] = useState<
     {
@@ -859,18 +869,20 @@ export default function NewBookingPage() {
         </p>
       )}
 
-      <Segmented
-        value={service}
-        onChange={(v) => {
-          setService(v);
-          setDayCare(false);
-        }}
-        className="mb-4"
-        options={[
-          { id: "groom", label: "อาบน้ำ", icon: "bath" },
-          { id: "room", label: "ห้องพัก", icon: "bed" },
-        ]}
-      />
+      {groomOn && hotelOn && (
+        <Segmented
+          value={service}
+          onChange={(v) => {
+            setService(v);
+            setDayCare(false);
+          }}
+          className="mb-4"
+          options={[
+            { id: "groom", label: "อาบน้ำ", icon: "bath" },
+            { id: "room", label: "ห้องพัก", icon: "bed" },
+          ]}
+        />
+      )}
 
       <form onSubmit={submit} className="space-y-4 rounded-catcha bg-card p-4 shadow-catcha-sm sm:p-5">
         <ClientPetPicker
