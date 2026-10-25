@@ -94,6 +94,8 @@ type Invoice = {
     amount: number;
     kind?: string;
     productId?: string;
+    offerId?: string;
+    packageIds?: string[];
     program?: string;
     breed?: string;
     size?: string;
@@ -124,6 +126,24 @@ type Booking = {
   transport?: BookingTransport;
 };
 
+type CourseOffer = {
+  id: string;
+  name: string;
+  kind: string;
+  price: number;
+  totalUses: number;
+  roomLabel?: string;
+  itemLabels?: string[];
+  active: boolean;
+};
+
+function courseOfferDetail(o: CourseOffer) {
+  if (o.itemLabels?.length) return o.itemLabels.join(" + ");
+  return o.kind === "nights"
+    ? `${o.roomLabel || "ทุกห้อง"} ${o.totalUses} คืน`
+    : `อาบน้ำ ${o.totalUses} ครั้ง`;
+}
+
 type ItemKind = "grooming" | "room" | "service" | "custom" | "freebie" | "package" | "product";
 type Item = {
   kind: ItemKind;
@@ -152,6 +172,10 @@ type Item = {
   roomLine?: { note?: string };
   /** สินค้าหน้าร้าน (kind "product") — ออก/แก้/ลบบิลแล้วตัด/คืนสต็อกให้เอง */
   productId?: string;
+  /** คอร์สที่ขาย (kind "package") — จ่ายบิลแล้วระบบเพิ่มคอร์สให้ลูกค้าเอง */
+  offerId?: string;
+  /** คอร์สที่เพิ่มให้ลูกค้าไปแล้วจากบรรทัดนี้ — กันเพิ่มซ้ำ */
+  packageIds?: string[];
 };
 
 /**
@@ -488,6 +512,16 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     fetch("/api/pos/products")
       .then((r) => r.json())
       .then((d) => setPosProducts(d.products || []))
+      .catch(() => {});
+  }, []);
+  /** คอร์สที่ตั้งไว้ในขายคอร์ส — เลือกใส่บิลได้ (ลูกค้าไม่ได้กดซื้อในแอปเอง) ไม่รวมเครดิต Member */
+  const [courseOffers, setCourseOffers] = useState<CourseOffer[]>([]);
+  useEffect(() => {
+    fetch("/api/package-shop")
+      .then((r) => r.json())
+      .then((d) =>
+        setCourseOffers(((d.offers || []) as CourseOffer[]).filter((o) => o.kind !== "credit"))
+      )
       .catch(() => {});
   }, []);
   const [freebiePresets, setFreebiePresets] = useState<string[]>(FREEBIE_PRESETS);
@@ -1382,6 +1416,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
             : it.kind,
         ...(it.kind === "grooming" ? { program: it.program, breed: it.breed, size: it.size } : {}),
         ...(it.kind === "product" && it.productId ? { productId: it.productId } : {}),
+        ...(it.kind === "package" && it.offerId
+          ? { offerId: it.offerId, ...(it.packageIds?.length ? { packageIds: it.packageIds } : {}) }
+          : {}),
       }))
       .filter((l) => l.label.trim());
 
@@ -1500,6 +1537,18 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
             kind: "custom" as const,
             label: base,
             roomLine: { note: note || undefined },
+            catName: it.catName,
+            qty,
+            amount: it.unitAmount ?? Math.round(it.amount / qty),
+          };
+        }
+        if (it.kind === "package") {
+          return {
+            ...newGrooming(groomPrograms),
+            kind: "package" as const,
+            label: it.label.replace(/^🐱 .+? · /, "").replace(/ × \d+$/, ""),
+            offerId: it.offerId,
+            packageIds: it.packageIds,
             catName: it.catName,
             qty,
             amount: it.unitAmount ?? Math.round(it.amount / qty),
@@ -2523,6 +2572,29 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                       </select>
                     ))}
 
+                  {item.kind === "package" && courseOffers.length > 0 && (
+                    <select
+                      value={item.offerId || ""}
+                      onChange={(e) => {
+                        const o = courseOffers.find((x) => x.id === e.target.value);
+                        updateItem(
+                          i,
+                          o
+                            ? { offerId: o.id, label: o.name, amount: o.price, priceOverride: undefined }
+                            : { offerId: undefined }
+                        );
+                      }}
+                      className={sub}
+                    >
+                      <option value="">— เลือกคอร์สที่ตั้งไว้ (หรือพิมพ์ชื่อเองด้านล่าง) —</option>
+                      {courseOffers.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name} · {courseOfferDetail(o)} · {o.price.toLocaleString()} ฿
+                          {o.active ? "" : " (ปิดขายในแอป)"}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {(item.kind === "custom" || item.kind === "package") && (
                     <input
                       value={item.label}
@@ -2537,6 +2609,9 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                   )}
                   {item.kind === "package" && (
                     <p className="text-[10px] text-brown-faint">
+                      {item.offerId
+                        ? "จ่ายบิลแล้วระบบเพิ่มคอร์สนี้ให้ลูกค้าเอง · "
+                        : "พิมพ์ชื่อเอง = แค่ลงยอดในบิล ต้องไปเพิ่มคอร์สให้ลูกค้าเองที่หน้าลูกค้า · "}
                       ยอดนี้ไม่นับเป็นฐานแต้ม — ลูกค้าจะได้แต้มตอนเอาคอร์สมาใช้บริการ
                       (คอร์สแบบเครดิตได้แต้มตอนเติมอยู่แล้ว)
                     </p>

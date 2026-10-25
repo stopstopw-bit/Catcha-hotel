@@ -37,6 +37,10 @@ export type InvoiceItem = {
   kind?: "grooming" | "room" | "service" | "custom" | "freebie" | "package" | "product";
   /** สินค้าหน้าร้าน (kind==="product") — ใช้ตัด/คืนสต็อกตอนออก/แก้/ลบบิล */
   productId?: string;
+  /** คอร์สที่ขาย (kind==="package") — จ่ายบิลแล้วเพิ่มคอร์สให้ลูกค้าเอง */
+  offerId?: string;
+  /** คอร์สลูกค้าที่สร้างจากบรรทัดนี้แล้ว — ยกเลิกการชำระแล้วรับเงินใหม่ จะไม่เพิ่มซ้ำ */
+  packageIds?: string[];
   /** id โปรแกรมอาบน้ำ (kind==="grooming") — ใช้เช็คคอร์สที่ผูกโปรแกรม */
   program?: string;
   /** ขน/พันธุ์ และไซส์ที่เลือก (kind==="grooming") — ไว้เลือกให้เองครั้งหน้าของน้องตัวเดิม */
@@ -979,6 +983,8 @@ async function markInvoicePaidInner(
     bookingId: inv.bookingId,
   });
 
+  await grantSoldCourses(inv);
+
   const updatedCustomer = await getCustomer(inv.customerId);
   return {
     ok: true as const,
@@ -987,6 +993,54 @@ async function markInvoicePaidInner(
     settleAmount,
     alreadyReceived,
   };
+}
+
+/**
+ * บรรทัด "ขายคอร์ส" ที่เลือกคอร์สจากรายการ → จ่ายบิลแล้วเพิ่มคอร์สให้ลูกค้าเลย
+ * (เหมือนกดยืนยันออร์เดอร์ในขายคอร์ส) ไม่ลงรายรับซ้ำ เพราะบิลลงรายรับไปแล้ว
+ * จำ id คอร์สที่สร้างไว้ในบรรทัด — ยกเลิกการชำระแล้วรับเงินใหม่จะไม่ได้คอร์สเพิ่มอีกชุด
+ */
+async function grantSoldCourses(inv: InvoiceRecord) {
+  const lines = (inv.items || []).filter(
+    (it) => it.kind === "package" && it.offerId && !it.packageIds?.length
+  );
+  if (!lines.length || !inv.customerId) return;
+  try {
+    const { listPackageOffers, sellOfferItems } = await import("./package-shop-store");
+    const offers = await listPackageOffers();
+    for (const it of lines) {
+      const o = offers.find((x) => x.id === it.offerId);
+      if (!o || o.kind === "credit") continue;
+      const items = o.items?.length
+        ? o.items
+        : [
+            {
+              unit: o.kind === "nights" ? ("night" as const) : ("use" as const),
+              paid: o.totalUses,
+              roomType: o.roomType,
+              groomProgram: o.groomProgram,
+            },
+          ];
+      const qty = Math.max(1, it.qty || 1);
+      const ids: string[] = [];
+      for (let n = 0; n < qty; n++) {
+        const made = await sellOfferItems({
+          customerId: inv.customerId,
+          customerName: inv.customerName,
+          name: o.name,
+          price: Math.round((it.amount || 0) / qty),
+          items,
+          noIncome: true,
+        });
+        ids.push(...made.map((p) => p.id));
+      }
+      it.packageIds = ids;
+    }
+    const sb = getSupabase();
+    if (sb) await sb.from("invoices").update({ items: inv.items }).eq("id", inv.id);
+  } catch (e) {
+    console.error("grantSoldCourses", e);
+  }
 }
 
 /**
