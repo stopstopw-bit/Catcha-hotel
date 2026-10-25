@@ -18,6 +18,7 @@ import {
   attachClosures,
   buildRoomBoard,
   roomCapacity,
+  roomPricing,
   freeUnitsForRange,
   compositionOf,
   nightsBetween,
@@ -393,6 +394,7 @@ function RoomMonthAvailability({
         name: r.name,
         count: r.count || 0,
         maxCats: roomCapacity(r),
+        baseCats: roomPricing(r).base,
         closures: r.closures,
       })),
     [rooms]
@@ -1270,6 +1272,7 @@ export function BookingCalendar() {
       name: r.name,
       count: r.count,
       maxCats: roomCapacity(r),
+      baseCats: roomPricing(r).base,
       closures: r.closures,
     })),
     liveBookings,
@@ -1900,9 +1903,13 @@ export function BookingCalendar() {
                               {u.leaving.map((x) => x.catName).join(", ")} ออกวันนี้
                             </p>
                           )}
-                          {u.overCapacity && (
+                          {u.overCapacity ? (
                             <p className="mt-0.5 truncate text-[9px] font-bold text-red-600">
-                              เกินความจุ ({u.capacity})
+                              เกินความจุ (จุได้ {u.capacity} ตัว)
+                            </p>
+                          ) : u.extraCats > 0 && (
+                            <p className="mt-0.5 truncate text-[9px] font-bold text-latte-deep">
+                              +{u.extraCats} ตัวเพิ่ม (คิดเพิ่ม)
                             </p>
                           )}
                         </button>
