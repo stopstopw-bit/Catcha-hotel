@@ -1,5 +1,6 @@
 "use client";
 
+import { savedPopup } from "@/components/Toast";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -141,6 +142,7 @@ export default function SettingsPage() {
       setConfig(data.config);
       setJsonText(JSON.stringify(data.config, null, 2));
       setMsg("บันทึกแล้ว — หน้าลูกค้าอัปเดตทันที");
+      savedPopup("บันทึกการตั้งค่าแล้ว", ["หน้าลูกค้าอัปเดตทันที"]);
       void refreshShared();
     } else {
       setMsg("บันทึกไม่สำเร็จ");

@@ -1,5 +1,6 @@
 "use client";
 
+import { savedPopup } from "@/components/Toast";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLiff } from "@/components/LiffProvider";
@@ -250,6 +251,7 @@ export default function ProfilePage() {
         // โหลดใหม่ให้น้องที่เพิ่งเพิ่มได้ id จริง — ไม่งั้นกดบันทึกซ้ำจะสร้างซ้ำ
         setReloadKey((k) => k + 1);
         setTimeout(() => setSaved(false), 2500);
+        savedPopup("บันทึกข้อมูลสำเร็จ");
       }
     } finally {
       setSaving(false);
