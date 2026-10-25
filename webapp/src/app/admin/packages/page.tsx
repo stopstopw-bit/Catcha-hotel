@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "@/components/Toast";
 import { toJpegDataUrl } from "@/lib/image-convert";
@@ -77,7 +77,69 @@ type Order = {
   paidAt?: string;
 };
 
-/** แถวคอร์สที่เปิดขาย — กดแก้ไขแล้วกลายเป็นฟอร์มอินไลน์ (ชื่อ/ครั้ง/ราคา/คำโปรย) */
+/** ป้ายชื่อช่องเล็กๆ เหนือช่องกรอก — พอมีค่าแล้ว placeholder หาย ยังรู้ว่าช่องไหนคืออะไร */
+function Labeled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block min-w-0 flex-1">
+      <span className="mb-1 block px-1 text-[11px] font-bold text-brown-soft">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/** เลือก/เปลี่ยน/เอาออก รูปหน้าปกคอร์ส — ใช้ทั้งตอนเพิ่มและตอนแก้ไข */
+function CoverImagePicker({
+  image,
+  onPick,
+  onRemove,
+}: {
+  image: string;
+  onPick: (file: File) => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2.5">
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt="รูปหน้าปกคอร์ส" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card text-brown-soft">
+            <Icon name="image" size={20} />
+          </span>
+        )}
+        <span className="min-w-0 text-xs font-bold text-brown">
+          {image ? "เปลี่ยนรูปหน้าปก" : "ใส่รูปหน้าปก (ถ้ามี)"}
+          <span className="block text-[11px] font-normal text-brown-faint">
+            รูปสวยๆ ช่วยให้ลูกค้ากดซื้อง่ายขึ้น
+          </span>
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) onPick(f);
+          }}
+        />
+      </label>
+      {image && onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex h-10 shrink-0 items-center gap-1 rounded-full bg-card px-3 text-xs font-bold text-brown-soft"
+        >
+          <Icon name="trash" size={14} />
+          เอารูปออก
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** แถวคอร์สที่เปิดขาย — กดแก้ไขแล้วกลายเป็นฟอร์มอินไลน์ แก้ได้ทุกช่องเหมือนตอนเพิ่ม (รวมรายละเอียดและรูป) */
 function OfferRow({
   offer,
   patch,
@@ -102,6 +164,8 @@ function OfferRow({
   const [room, setRoom] = useState(o.roomType || "");
   const [free, setFree] = useState("");
   const [items, setItems] = useState<OfferItemDraft[]>([]);
+  /** รูปหน้าปก: undefined = ไม่ได้เปลี่ยน · "" = เอารูปออก · data URL = รูปใหม่ */
+  const [image, setImage] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const isCredit = o.kind === "credit";
   const isNights = o.kind === "nights";
@@ -120,6 +184,7 @@ function OfferRow({
     setRoom(o.roomType || "");
     setFree(single?.free ? String(single.free) : "");
     setItems(itemsFromOffer(o.items));
+    setImage(undefined);
     setEditing(true);
   };
 
@@ -147,6 +212,7 @@ function OfferRow({
           price: Math.round(Number(price) || 0),
           creditBonus: Math.round(Number(creditBonus) || 0),
           description: desc.trim(),
+          ...(image !== undefined ? { image } : {}),
           ...(o.kind === "uses" ? { groomProgram: program } : {}),
           ...(isNights ? { roomType: room } : {}),
           ...(isCredit
@@ -171,6 +237,7 @@ function OfferRow({
 
   const field =
     "w-full min-w-0 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm";
+  const shownImage = image !== undefined ? image : o.imageUrl || "";
 
   if (editing) {
     return (
@@ -179,32 +246,38 @@ function OfferRow({
           <Icon name="edit" size={14} />
           {isCredit ? "แก้ไขแพ็กเกจเครดิต Member" : "แก้ไขคอร์ส"}
         </p>
-        <div className="space-y-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={isCredit ? "ชื่อแพ็กเกจ" : "ชื่อคอร์ส"}
-            className={field}
-          />
+        <div className="space-y-2.5">
+          <Labeled label={isCredit ? "ชื่อแพ็กเกจ" : "ชื่อคอร์ส"}>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={isCredit ? "ชื่อแพ็กเกจ" : "ชื่อคอร์ส"}
+              className={field}
+            />
+          </Labeled>
           {isCredit ? (
             <>
               <div className="flex gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="ลูกค้าจ่าย (บาท)"
-                  className={field}
-                />
-                <input
-                  type="number"
-                  min={0}
-                  value={creditBonus}
-                  onChange={(e) => setCreditBonus(e.target.value)}
-                  placeholder="ได้เพิ่มฟรี (บาท)"
-                  className={field}
-                />
+                <Labeled label="ลูกค้าจ่าย (บาท)">
+                  <input
+                    type="number"
+                    min={0}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="0"
+                    className={field}
+                  />
+                </Labeled>
+                <Labeled label="ได้เพิ่มฟรี (บาท)">
+                  <input
+                    type="number"
+                    min={0}
+                    value={creditBonus}
+                    onChange={(e) => setCreditBonus(e.target.value)}
+                    placeholder="0"
+                    className={field}
+                  />
+                </Labeled>
               </div>
               <p className="text-[11px] font-bold text-ok">
                 รวมเครดิตที่ลูกค้าจะได้:{" "}
@@ -217,49 +290,60 @@ function OfferRow({
           ) : isBundle ? (
             <>
               <OfferItemsEditor items={items} onChange={setItems} rooms={rooms} programs={programs} />
-              <input
-                type="number"
-                min={0}
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="ราคาทั้งชุด (บาท)"
-                className={field}
-              />
+              <Labeled label="ราคาทั้งชุด (บาท)">
+                <input
+                  type="number"
+                  min={0}
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0"
+                  className={field}
+                />
+              </Labeled>
             </>
           ) : (
             <div className="flex gap-2">
-              <input
-                type="number"
-                min={1}
-                value={uses}
-                onChange={(e) => setUses(e.target.value)}
-                placeholder={isNights ? "กี่คืน" : "กี่ครั้ง"}
-                className={field}
-              />
-              <input
-                type="number"
-                min={0}
-                value={free}
-                onChange={(e) => setFree(e.target.value)}
-                placeholder="แถมฟรี"
-                className={field}
-              />
-              <input
-                type="number"
-                min={0}
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="ราคา (บาท)"
-                className={field}
-              />
+              <Labeled label={isNights ? "กี่คืน" : "กี่ครั้ง"}>
+                <input
+                  type="number"
+                  min={1}
+                  value={uses}
+                  onChange={(e) => setUses(e.target.value)}
+                  placeholder={isNights ? "กี่คืน" : "กี่ครั้ง"}
+                  className={field}
+                />
+              </Labeled>
+              <Labeled label="แถมฟรี">
+                <input
+                  type="number"
+                  min={0}
+                  value={free}
+                  onChange={(e) => setFree(e.target.value)}
+                  placeholder="0"
+                  className={field}
+                />
+              </Labeled>
+              <Labeled label="ราคา (บาท)">
+                <input
+                  type="number"
+                  min={0}
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0"
+                  className={field}
+                />
+              </Labeled>
             </div>
           )}
-          <input
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="คำโปรย (ถ้ามี)"
-            className={field}
-          />
+          <Labeled label="รายละเอียด / คำโปรย (ลูกค้าเห็นในแอป)">
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              rows={4}
+              placeholder="เช่น เงื่อนไข สิ่งที่ได้ ประหยัดกว่าซื้อแยกเท่าไร (ขึ้นบรรทัดใหม่ได้)"
+              className={`${field} resize-y leading-relaxed`}
+            />
+          </Labeled>
           {o.kind === "uses" && (
             <GroomProgramPicker value={program} onChange={setProgram} programs={programs} />
           )}
@@ -272,6 +356,11 @@ function OfferRow({
               price={Math.round(Number(price) || 0)}
             />
           )}
+          <CoverImagePicker
+            image={shownImage}
+            onPick={(f) => pickImage(f, setImage)}
+            onRemove={o.imageUrl || image ? () => setImage("") : undefined}
+          />
           <div className="flex gap-2 pt-1">
             <button
               type="button"
@@ -689,11 +778,12 @@ export default function AdminPackagesPage() {
                 />
               </div>
             )}
-            <input
+            <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              placeholder="คำโปรย (ถ้ามี) เช่น ประหยัดกว่าซื้อแยก 500฿"
-              className={field}
+              rows={3}
+              placeholder="รายละเอียด / คำโปรย (ถ้ามี) เช่น ประหยัดกว่าซื้อแยก 500฿ (ขึ้นบรรทัดใหม่ได้)"
+              className={`${field} resize-y leading-relaxed`}
             />
             {kind === "uses" && (
               <GroomProgramPicker value={program} onChange={setProgram} programs={groomPrograms} />
@@ -708,32 +798,11 @@ export default function AdminPackagesPage() {
               />
             )}
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2.5">
-              {image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={image} alt="รูปหน้าปกคอร์ส" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
-              ) : (
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card text-brown-soft">
-                  <Icon name="image" size={20} />
-                </span>
-              )}
-              <span className="min-w-0 text-xs font-bold text-brown">
-                {image ? "เปลี่ยนรูปหน้าปก" : "ใส่รูปหน้าปก (ถ้ามี)"}
-                <span className="block text-[11px] font-normal text-brown-faint">
-                  รูปสวยๆ ช่วยให้ลูกค้ากดซื้อง่ายขึ้น
-                </span>
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) pickImage(f, setImage);
-                }}
-              />
-            </label>
+            <CoverImagePicker
+              image={image}
+              onPick={(f) => pickImage(f, setImage)}
+              onRemove={() => setImage("")}
+            />
 
             <button
               type="button"
