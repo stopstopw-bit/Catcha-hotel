@@ -7,6 +7,7 @@ import { BirthdayPicker } from "@/components/BirthdayPicker";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { REFERRAL_OPTIONS } from "@/lib/referral-options";
+import { NumInput } from "@/components/NumInput";
 
 /** รายละเอียดน้องหนึ่งตัว — ช่องเดียวกับฟอร์มสมัครสมาชิกของลูกค้า (app/register) */
 type PetForm = {
@@ -351,7 +352,7 @@ export function AddCustomerModal({
                   <div className="flex gap-2">
                     <label className={`${labelCls} min-w-0 flex-1`}>
                       อายุ
-                      <input
+                      <NumInput
                         type="number"
                         min="0"
                         inputMode="numeric"
@@ -376,7 +377,7 @@ export function AddCustomerModal({
                   </div>
                   <label className={labelCls}>
                     น้ำหนัก (กก.)
-                    <input
+                    <NumInput
                       type="number"
                       min="0"
                       step="0.1"

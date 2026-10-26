@@ -14,6 +14,7 @@ import { Icon } from "@/components/Icon";
 import { useConfig } from "@/components/ConfigProvider";
 import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/features";
 import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
+import { NumInput } from "@/components/NumInput";
 
 type Tab =
   | "features"
@@ -895,7 +896,7 @@ function RoomsTab({
                 </label>
                 <label className="w-24 text-[10px] font-bold text-brown-soft">
                   จำนวนยูนิต
-                  <input
+                  <NumInput
                     type="number"
                     min={0}
                     value={room.count ?? ""}
@@ -1092,7 +1093,7 @@ function GroomProgramsTab({
                   {GROOM_SIZES.map((sz) => (
                     <label key={sz.id} className="flex-1 text-[10px] font-bold text-brown-soft">
                       {sz.label}
-                      <input
+                      <NumInput
                         type="number"
                         value={b.prices[sz.id as GroomSize]}
                         onChange={(e) =>
@@ -2085,13 +2086,22 @@ function Field({
   return (
     <label className="block text-xs font-bold text-brown-soft">
       {label}
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
-      />
+      {type === "number" ? (
+        <NumInput
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+        />
+      )}
     </label>
   );
 }
@@ -2567,7 +2577,7 @@ function ListsTab({
               placeholder="ชื่อบริการ"
               className="min-w-0 flex-1 rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm"
             />
-            <input
+            <NumInput
               type="number"
               value={String(p.amount)}
               onChange={(e) => setPreset(i, { amount: Number(e.target.value) || 0 })}
