@@ -45,6 +45,7 @@ import { OfferItemsEditor, emptyItem, itemsToPayload, type OfferItemDraft } from
 import { groomProgramName } from "@/lib/grooming-prices";
 import { tidyServiceText } from "@/lib/stay-line";
 import { Avatar, EmptyState, MoreMenu, SearchField, Segmented, SectionLabel } from "@/components/ui";
+import { NumInput } from "@/components/NumInput";
 
 type Summary = {
   customer: CustomerRecord;
@@ -541,7 +542,7 @@ function MemberTopupSection({
       <div className="mb-3 grid grid-cols-2 gap-2">
         <label className="block text-[11px] font-bold text-brown-soft">
           {isCancelCredit ? "ยอดบิลเดิม (บาท)" : "รับเงินจริง (บาท)"}
-          <input
+          <NumInput
             type="number"
             min={0}
             value={paid}
@@ -552,7 +553,7 @@ function MemberTopupSection({
         </label>
         <label className="block text-[11px] font-bold text-brown-soft">
           แถมเครดิต (บาท)
-          <input
+          <NumInput
             type="number"
             min={0}
             value={bonus}
@@ -2038,7 +2039,7 @@ function CustomerSummaryCard({
             {customer.lineUserId ? (
               <>
                 <div className="flex gap-2">
-                  <input
+                  <NumInput
                     type="number"
                     value={addAmt}
                     onChange={(e) => setAddAmt(e.target.value)}
@@ -2202,7 +2203,7 @@ function CustomerSummaryCard({
                 <>
                   <label className="block w-20 shrink-0 text-[10px] font-bold text-brown-soft">
                     {pkgMode === "night" ? "กี่คืน" : "กี่ครั้ง"}
-                    <input
+                    <NumInput
                       type="number"
                       value={pkgUses}
                       onChange={(e) => setPkgUses(e.target.value)}
@@ -2212,7 +2213,7 @@ function CustomerSummaryCard({
                   </label>
                   <label className="block w-20 shrink-0 text-[10px] font-bold text-brown-soft">
                     แถมฟรี
-                    <input
+                    <NumInput
                       type="number"
                       value={pkgFree}
                       onChange={(e) => setPkgFree(e.target.value)}
@@ -2224,7 +2225,7 @@ function CustomerSummaryCard({
               )}
               <label className="block min-w-0 flex-1 text-[10px] font-bold text-brown-soft">
                 {pkgMode === "bundle" ? "ราคาทั้งชุด (บาท)" : "ราคา (บาท)"}
-                <input
+                <NumInput
                   type="number"
                   value={pkgPrice}
                   onChange={(e) => setPkgPrice(e.target.value)}
@@ -2252,7 +2253,7 @@ function CustomerSummaryCard({
                 {pkgInstallments > 1 && (
                   <>
                     <div className="flex gap-2">
-                      <input
+                      <NumInput
                         type="number"
                         value={pkgFirstPay}
                         onChange={(e) => setPkgFirstPay(e.target.value)}
@@ -2915,7 +2916,7 @@ function AddCatForm({ customerId, onAdded }: { customerId: string; onAdded: () =
               />
 
               <div className="flex gap-2">
-                <input
+                <NumInput
                   type="number"
                   min="0"
                   inputMode="numeric"
@@ -3365,7 +3366,7 @@ export default function CustomersPage() {
                       type="number"
                       min="0"
                       inputMode="numeric"
-                      defaultValue={cat.ageValue}
+                      defaultValue={cat.ageValue || ""}
                       className={inputCls}
                       onBlur={(e) => {
                         const v = e.target.value ? Number(e.target.value) : undefined;
@@ -3399,7 +3400,7 @@ export default function CustomersPage() {
                     min="0"
                     step="0.1"
                     inputMode="decimal"
-                    defaultValue={cat.weightKg}
+                    defaultValue={cat.weightKg || ""}
                     placeholder="เช่น 4.5"
                     className={inputCls}
                     onBlur={(e) => {
