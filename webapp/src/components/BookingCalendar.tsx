@@ -1058,15 +1058,6 @@ export function BookingCalendar() {
     queueRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const confirmBooking = async (b: CalendarDay) => {
-    const res = await fetch("/api/bookings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: b.id, action: "confirm", lineUserId: b.lineUserId }),
-    });
-    return res.ok;
-  };
-
   const cancelBooking = async (b: CalendarDay) => {
     const res = await fetch("/api/bookings", {
       method: "PATCH",
@@ -1077,9 +1068,18 @@ export function BookingCalendar() {
   };
 
   // การ์ดที่รวมหลายตัวในบ้านเดียวกัน (นัดเดียวกัน) — ยืนยัน/ยกเลิกให้ครบทุกตัวในทีเดียว
+  // ยืนยันเป็นบ้าน: ยิงครั้งเดียวทั้งบ้าน (confirm_group) ไม่แยกทีละตัว
   const confirmGroup = async (group: CalendarDay[]) => {
-    const results = await Promise.all(group.map(confirmBooking));
-    if (results.every(Boolean)) toast("ยืนยันนัดแล้ว ✔️", "success");
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: group[0].id,
+        ids: group.map((x) => x.id),
+        action: "confirm_group",
+      }),
+    });
+    if (res.ok) toast("ยืนยันนัดแล้ว ✔️", "success");
     else toast("ยืนยันไม่สำเร็จบางรายการ", "error");
     load();
   };

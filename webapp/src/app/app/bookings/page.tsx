@@ -79,7 +79,7 @@ function BookingsContent() {
   // confirm_group ให้ร้านได้แจ้งเตือนเป็นข้อความเดียว ไม่ใช่แยกทีละตัวเหมือนเดิม)
   const confirmGroup = async (ids: string[], primary: BookingRow) => {
     if (confirmingId) return;
-    setConfirmingId(ids[0]);
+    setConfirmingId(primary.id);
     try {
       const res = await fetch("/api/bookings", {
         method: "PATCH",
@@ -137,16 +137,15 @@ function BookingsContent() {
       ) : (
         <ul className="space-y-3">
           {groups.map((group) => {
-            // บ้านเดียวกัน + นัดเดียวกัน หลายตัว → รวมเป็นการ์ดเดียว ยืนยันทีเดียวจบ
-            // (สถานะต้องตรงกันทั้งกลุ่มถึงจะรวมโชว์ — ถ้าบางตัวยืนยันไปแล้วบางตัวยังไม่
-            //  ให้แยกโชว์ทีละตัวแทน กันสับสน)
-            const sameStatus = group.every((x) => x.status === group[0].status);
-            const combine = group.length > 1 && sameStatus;
+            // บ้านเดียวกัน + นัดเดียวกัน หลายตัว → รวมเป็นการ์ดเดียว ยืนยันทีเดียวทั้งบ้าน
+            // (ตัวไหนยังรอยืนยัน กดครั้งเดียวยืนยันให้ครบทุกตัว ไม่แยกทีละตัว)
+            const combine = group.length > 1;
             const primary = group[0];
+            const status = group.some((x) => x.status === "pending") ? "pending" : primary.status;
             const baths = bathsOf(group);
             const past = lastDay(primary) < today;
             const ids = [
-              ...group.map((x) => x.id),
+              ...group.filter((x) => x.status === "pending").map((x) => x.id),
               ...baths.filter((x) => x.status === "pending").map((x) => x.id),
             ];
             const catLabel = combine ? groupCatNames(group) : primary.catName;
@@ -187,16 +186,16 @@ function BookingsContent() {
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                      primary.status === "confirmed"
+                      status === "confirmed"
                         ? "bg-sage/20 text-ok"
-                        : primary.status === "cancelled"
+                        : status === "cancelled"
                           ? "bg-brown-soft/15 text-brown-soft"
                           : "bg-honey/25 text-wait"
                     }`}
                   >
-                    {primary.status === "confirmed"
+                    {status === "confirmed"
                       ? m.confirmed
-                      : primary.status === "cancelled"
+                      : status === "cancelled"
                         ? m.cancelled
                         : past
                           ? locale === "th"
@@ -206,18 +205,8 @@ function BookingsContent() {
                   </span>
                 </div>
 
-                {!combine && group.length > 1 && (
-                  <ul className="mt-2 space-y-1 pl-[52px] text-xs text-brown-soft">
-                    {group.slice(1).map((x) => (
-                      <li key={x.id} className="flex items-center gap-1.5">
-                        <Icon name="paw" size={13} />
-                        {x.catName}
-                      </li>
-                    ))}
-                  </ul>
-                )}
 
-                {primary.status === "pending" && !past && (
+                {status === "pending" && !past && (
                   <div className="mt-3">
                     {asksTime(primary) && pickId === primary.id && (
                       <div className="mb-3 rounded-catcha-sm bg-paper p-3">
@@ -239,17 +228,7 @@ function BookingsContent() {
                           setPickId(primary.id);
                           setCheckin(savedArrival(primary));
                         } else {
-                          confirmGroup(
-                            combine
-                              ? ids
-                              : [
-                                  primary.id,
-                                  ...baths
-                                    .filter((x) => x.status === "pending" && x.catName === primary.catName)
-                                    .map((x) => x.id),
-                                ],
-                            primary
-                          );
+                          confirmGroup(ids, primary);
                         }
                       }}
                       className={BTN_PRIMARY}

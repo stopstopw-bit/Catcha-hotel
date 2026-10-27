@@ -316,21 +316,14 @@ export async function PATCH(req: NextRequest) {
         checkinTime,
       });
     }
-    sendTelegramLater(
-      formatBookingTelegram("✅ ลูกค้ายืนยันแล้ว", {
-        ลูกค้า: String(b.customerName),
-        น้องแมว: String(b.catName),
-        วันที่: String(b.date || b.checkin),
-      })
-    );
+    // กดยืนยันนัดแล้วไม่ส่งข้อความอะไรเลย ทั้งถึงลูกค้าและแจ้งร้าน (เจ้าของร้าน 2026-10-27)
     const matched = await findCustomerForBooking(b);
     if (matched) await recalculateCustomerTier(matched.id);
     const updated = await getBooking(id);
     return NextResponse.json({ ok: true, booking: toBooking(updated!) });
   }
 
-  // บ้านเดียวกัน จองพร้อมกันหลายตัว → ยืนยันทีเดียวทั้งกลุ่ม แจ้งร้านเป็นข้อความเดียว
-  // (เมื่อก่อนลูกค้ากดยืนยันทีละตัว แต่ละตัวยิง Telegram แยก 3-4 ข้อความรัวๆ)
+  // บ้านเดียวกัน จองพร้อมกันหลายตัว → ยืนยันทีเดียวทั้งบ้าน (ไม่ส่งข้อความใดๆ เหมือน confirm)
   if (action === "confirm_group") {
     const ids: string[] =
       Array.isArray(body.ids) && body.ids.length > 0 ? body.ids.map(String) : [id];
@@ -364,13 +357,6 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     const first = confirmed[0]!;
-    sendTelegramLater(
-      formatBookingTelegram("✅ ลูกค้ายืนยันแล้ว", {
-        ลูกค้า: String(first.customerName),
-        น้องแมว: confirmed.map((x) => x!.catName).join(", "),
-        วันที่: String(first.date || first.checkin),
-      })
-    );
     const matched = await findCustomerForBooking(first);
     if (matched) await recalculateCustomerTier(matched.id);
     return NextResponse.json({ ok: true, count: confirmed.length });
