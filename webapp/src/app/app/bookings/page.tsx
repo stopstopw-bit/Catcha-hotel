@@ -12,7 +12,6 @@ import { Icon } from "@/components/Icon";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { groupBookings, groupCatNames, stayForGroom } from "@/lib/booking-group";
 import { bangkokToday } from "@/lib/bangkok-date";
-import { TimeSlotPicker } from "@/components/TimeSlotPicker";
 import { useConfig } from "@/components/ConfigProvider";
 import { isFeatureOn } from "@/lib/features";
 
@@ -30,12 +29,9 @@ function BookingsContent() {
   const m = t(locale).bookings;
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pickId, setPickId] = useState<string | null>(null);
-  const [checkin, setCheckin] = useState("");
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const scrolledRef = useRef(false);
   const { config } = useConfig();
-  // นัดเข้าพักให้เลือกเวลามาส่งก่อนยืนยัน — เว้นร้านปิด "ให้ลูกค้าเลือกเวลาส่ง-รับน้อง"
+  // นัดเข้าพักให้เลือกเวลามาส่ง (เลือกแล้ว = ยืนยันนัด) — เว้นร้านปิด "ให้ลูกค้าเลือกเวลาส่ง-รับน้อง"
   const asksTime = (b: BookingRow) => b.service === "room" && isFeatureOn(config, "checkinTime");
 
   const load = useCallback(async () => {
@@ -63,10 +59,6 @@ function BookingsContent() {
     if (!group) return;
     const primary = group[0];
     scrolledRef.current = true;
-    if (primary.status === "pending" && asksTime(primary)) {
-      setPickId(primary.id);
-      setCheckin(savedArrival(primary));
-    }
     requestAnimationFrame(() => {
       document.getElementById(`booking-${primary.id}`)?.scrollIntoView({
         behavior: "smooth",
@@ -74,38 +66,6 @@ function BookingsContent() {
       });
     });
   }, [highlightId, loading, bookings]);
-
-  // บ้านเดียวกัน จองพร้อมกันหลายตัว → ยืนยันครั้งเดียวทั้งกลุ่ม (ids.length > 1 = ยิง
-  // confirm_group ให้ร้านได้แจ้งเตือนเป็นข้อความเดียว ไม่ใช่แยกทีละตัวเหมือนเดิม)
-  const confirmGroup = async (ids: string[], primary: BookingRow) => {
-    if (confirmingId) return;
-    setConfirmingId(primary.id);
-    try {
-      const res = await fetch("/api/bookings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: ids[0],
-          ids,
-          action: ids.length > 1 ? "confirm_group" : "confirm",
-          // ต้องส่ง lineUserId ไปด้วย ไม่งั้นฝั่งเซิร์ฟเวอร์เช็คว่า "นัดนี้เป็นของเราไหม" ไม่ผ่าน → 401
-          lineUserId: profile?.lineUserId,
-          checkinTime: asksTime(primary) ? checkin : undefined,
-        }),
-      });
-
-      if (res.ok) {
-        await load();
-        setPickId(null);
-      } else {
-        alert(locale === "th" ? "ยืนยันไม่สำเร็จ" : "Could not confirm");
-      }
-    } catch {
-      alert(locale === "th" ? "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง" : "Connection failed, try again");
-    } finally {
-      setConfirmingId(null);
-    }
-  };
 
   // อาบน้ำก่อนกลับระหว่างเข้าพัก = นัดเดียวกับการเข้าพัก (เจ้าของร้านตกลงไว้ 2026-10-23)
   // → ไม่โชว์เป็นการ์ดแยกที่ต้องกดยืนยันอีกรอบ แต่ติดไว้บนการ์ดเข้าพักแทน
@@ -144,10 +104,6 @@ function BookingsContent() {
             const status = group.some((x) => x.status === "pending") ? "pending" : primary.status;
             const baths = bathsOf(group);
             const past = lastDay(primary) < today;
-            const ids = [
-              ...group.filter((x) => x.status === "pending").map((x) => x.id),
-              ...baths.filter((x) => x.status === "pending").map((x) => x.id),
-            ];
             const catLabel = combine ? groupCatNames(group) : primary.catName;
 
             return (
@@ -206,51 +162,26 @@ function BookingsContent() {
                 </div>
 
 
+                {/* ไม่มีปุ่ม "ยืนยันนัด" แล้ว — กรอกข้อมูล/เลือกเวลาจากการ์ดใน LINE = ยืนยันนัด ทั้งบ้าน */}
                 {status === "pending" && !past && (
-                  <div className="mt-3">
-                    {asksTime(primary) && pickId === primary.id && (
-                      <div className="mb-3 rounded-catcha-sm bg-paper p-3">
-                        <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-brown">
-                          <Icon name="clock" size={14} />
-                          {m.checkin}
-                        </p>
-                        <TimeSlotPicker value={checkin} onPick={setCheckin} />
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      disabled={
-                        confirmingId === primary.id ||
-                        (asksTime(primary) && pickId === primary.id && !checkin)
-                      }
-                      onClick={() => {
-                        if (asksTime(primary) && pickId !== primary.id) {
-                          setPickId(primary.id);
-                          setCheckin(savedArrival(primary));
-                        } else {
-                          confirmGroup(ids, primary);
-                        }
-                      }}
-                      className={BTN_PRIMARY}
+                  asksTime(primary) && !savedArrival(primary) ? (
+                    <a
+                      href={`/app/booking-time?id=${primary.id}&type=checkin`}
+                      className={`mt-3 ${BTN_PRIMARY}`}
                     >
-                      {confirmingId === primary.id ? (
-                        <>
-                          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                          {locale === "th" ? "กำลังยืนยัน…" : "Confirming…"}
-                        </>
-                      ) : (
-                        <>
-                          <Icon name="check" size={18} strokeWidth={2.2} />
-                          {m.confirm}
-                          {combine ? ` (${group.length} ตัว)` : ""}
-                        </>
-                      )}
-                    </button>
-                  </div>
+                      <Icon name="clock" size={18} strokeWidth={2.2} />
+                      {m.checkin}
+                    </a>
+                  ) : (
+                    <p className="mt-2 pl-[52px] text-xs text-brown-soft">
+                      {locale === "th"
+                        ? "กรอกข้อมูลจากการ์ดใน LINE ให้ครบ = ยืนยันนัดแล้ว"
+                        : "Filling in the info from the LINE card confirms this booking"}
+                    </p>
+                  )
                 )}
                 {primary.service === "room" &&
                   primary.status !== "cancelled" &&
-                  pickId !== primary.id &&
                   savedArrival(primary) && (
                     <p className="mt-3 flex items-center gap-1.5 pl-[52px] text-xs font-semibold text-ok">
                       <Icon name="clock" size={14} />

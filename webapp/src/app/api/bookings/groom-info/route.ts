@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { confirmHouseholdFrom } from "@/lib/booking-confirm";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { getBooking, listBookings } from "@/lib/bookings-store";
 import { stayForGroom } from "@/lib/booking-group";
@@ -140,6 +141,9 @@ async function postHandler(req: NextRequest) {
   if (res.ok && groomPayload) {
     res = await setCatGroomInfo(t.booking?.lineUserId || session.lineUserId, t.catName, JSON.stringify(groomPayload));
   }
+
+  // กรอกข้อมูลแล้ว = ยืนยันนัดแล้ว ทั้งบ้าน
+  if (res.ok && t.booking) await confirmHouseholdFrom(t.booking.id);
 
   const customerName = t.booking?.customerName || (t.me as CustomerRecord | undefined)?.name || "-";
   sendTelegramLater(

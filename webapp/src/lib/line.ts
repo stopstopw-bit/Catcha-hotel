@@ -169,7 +169,8 @@ export function buildAppointmentConfirmFlex(booking: {
   /** บริการรับ-ส่ง — โชว์แถวรับ-ส่ง + ปุ่มให้ลูกค้าส่งจุดรับ-ส่ง (ลิงก์ Google Maps) */
   transport?: BookingTransport;
   transportUrl?: string;
-  confirmUrl: string;
+  /** ไม่ใช้แล้ว (เอาปุ่มยืนยันนัดออก) — คงไว้ให้คนเรียกเดิมไม่พัง */
+  confirmUrl?: string;
   /** แผนที่/ที่อยู่ของร้าน — มาจาก config ไม่ใช่ค่าตายตัว ไม่มีก็ซ่อนแถวนั้นไป */
   mapsUrl?: string;
   location?: string;
@@ -202,9 +203,9 @@ export function buildAppointmentConfirmFlex(booking: {
     booking.notes?.trim() ||
     t("notesFallback", "หากมีรายละเอียดอื่นๆ เพิ่มเติม สามารถแจ้งในแชท LINE ได้เลยนะคะ");
 
-  const altText = `ยืนยันนัด ${politeCat(booking.catName)} — ${dateText}`;
+  const altText = `กำหนดการนัด ${politeCat(booking.catName)} — ${dateText}`;
 
-  return {
+  const flex = {
     type: "flex",
     altText,
     contents: {
@@ -334,17 +335,7 @@ export function buildAppointmentConfirmFlex(booking: {
         spacing: "sm",
         paddingAll: "12px",
         contents: [
-          {
-            type: "button",
-            style: "primary",
-            color: st.buttonColor || BRAND_GREEN_DARK,
-            height: "sm",
-            action: {
-              type: "uri",
-              label: t("confirmButton", "🐾 ยืนยันนัด"),
-              uri: booking.confirmUrl,
-            },
-          },
+          // ไม่มีปุ่ม "ยืนยันนัด" แล้ว — ลูกค้ากรอกข้อมูล = ยืนยันนัด (เจ้าของร้าน 2026-10-27)
           ...(booking.transportUrl
             ? [
                 {
@@ -380,6 +371,9 @@ export function buildAppointmentConfirmFlex(booking: {
       },
     },
   };
+  // ไม่มีปุ่มรับ-ส่ง/แผนที่เลย → ตัด footer ทิ้ง (LINE ไม่รับ box ที่ contents ว่าง)
+  const { footer, ...body } = flex.contents;
+  return footer.contents.length > 0 ? flex : { ...flex, contents: body };
 }
 
 /** กล่องข้อความ "ไม่ตอบ = ยอมรับข้อตกลง" ใช้ในการ์ดที่ให้ลูกค้ายืนยันเงื่อนไขก่อนเข้าพัก */
