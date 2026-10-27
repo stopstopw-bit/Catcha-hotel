@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { confirmHouseholdFrom } from "@/lib/booking-confirm";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import { featureOff } from "@/lib/features-server";
 import {
@@ -99,6 +100,8 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+    // ยอมรับข้อตกลงแล้ว = ยืนยันนัดแล้ว ทั้งบ้าน
+    await confirmHouseholdFrom(bookingId);
     if (b) {
       const groom = b.service === "groom";
       sendTelegramLater(

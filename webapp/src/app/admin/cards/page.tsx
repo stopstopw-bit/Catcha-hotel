@@ -101,7 +101,6 @@ const CARDS: CardMeta[] = [
       { key: "notesLabel", label: "ป้าย: หมายเหตุ", placeholder: "หมายเหตุ" },
       { key: "groomServicePrefix", label: "ป้าย: ชื่อบริการ (อาบน้ำ)", placeholder: "อาบน้ำ & กรูมมิ่ง" },
       { key: "roomServicePrefix", label: "ป้าย: ชื่อบริการ (ห้องพัก)", placeholder: "ห้องพัก" },
-      { key: "confirmButton", label: "ปุ่ม: ยืนยันนัด", placeholder: "🐾 ยืนยันนัด" },
       { key: "mapButton", label: "ปุ่ม: ดูแผนที่", placeholder: "🗺️ ดูแผนที่ / เส้นทาง" },
     ],
     hasTitleSize: true,

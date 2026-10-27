@@ -76,16 +76,13 @@ export default function PendingConfirmPage() {
   const confirmGroup = async (group: PendingBooking[]) => {
     setBusy(group[0].id);
     try {
-      const results = await Promise.all(
-        group.map((b) =>
-          fetch("/api/bookings", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: b.id, action: "confirm", lineUserId: b.lineUserId }),
-          }).then((r) => r.ok)
-        )
-      );
-      if (results.every(Boolean)) toast("ยืนยันนัดแล้ว ✔️", "success");
+      // ยืนยันเป็นบ้าน: ยิงครั้งเดียวทั้งบ้าน ไม่แยกทีละตัว
+      const res = await fetch("/api/bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: group[0].id, ids: group.map((x) => x.id), action: "confirm_group" }),
+      });
+      if (res.ok) toast("ยืนยันนัดแล้ว ✔️", "success");
       else toast("ยืนยันไม่สำเร็จบางรายการ", "error");
       load();
     } finally {
