@@ -1,3 +1,4 @@
+import { signPayToken } from "@/lib/doc-share";
 import { NextRequest, NextResponse } from "next/server";
 import { BUSINESS } from "@/lib/business";
 import {
@@ -391,7 +392,7 @@ export async function PATCH(req: NextRequest) {
       await markInvoiceSent(id);
       return NextResponse.json({ ok: true, kind: "remaining" });
     }
-    const payUrl = `${base}/app/pay/${inv.id}`;
+    const payUrl = `${base}/app/pay/${inv.id}?t=${signPayToken(inv.id)}`;
     const payFlex = buildPaymentFlex({
       invoiceId: inv.id,
       customerName: inv.customerName,
