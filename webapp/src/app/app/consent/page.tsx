@@ -17,6 +17,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { IntakeFlowBar } from "@/components/IntakeFlowBar";
+import { flowProgress } from "@/lib/intake-flow";
 import { VaccinePoster } from "@/components/VaccinePoster";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -31,6 +32,7 @@ type StayBooking = Booking & {
   room?: string;
   consentAcceptedAt?: string;
   careNote?: string;
+  vaccinePhotoUrl?: string;
 };
 
 function SignaturePad({
@@ -149,7 +151,7 @@ function ConsentContent() {
   const [signature, setSignature] = useState("");
   const [signError, setSignError] = useState(false);
   /** น้องทุกตัวในนัดเดียวกัน — สมุดวัคซีนแนบแยกทีละตัว (เมื่อก่อนชุดเดียวไปติดตัวแรก) */
-  const [groupCats, setGroupCats] = useState<{ id: string; catName: string }[]>([]);
+  const [groupCats, setGroupCats] = useState<{ id: string; catName: string; hasVaccine: boolean }[]>([]);
   const [vaccineByCat, setVaccineByCat] = useState<Record<string, string[]>>({});
   const [vaccineUploading, setVaccineUploading] = useState("");
   const [fleaTickTreated, setFleaTickTreated] = useState(false);
@@ -161,6 +163,17 @@ function ConsentContent() {
 
   // นัดอาบน้ำใช้ข้อตกลงอาบน้ำ (แยกจากกฎเข้าพัก) — ไม่มีบัตรประชาชน/ยาเห็บหมัดก่อนเข้าพัก
   const isGroom = booking?.service === "groom";
+  // สมุดวัคซีนมีขั้นของตัวเอง (ขั้นที่ 2 ของลำดับขอข้อมูล) — เปิดมาจากลำดับนั้นก็ไม่ถามซ้ำที่หน้านี้
+  // นอกลำดับ (การ์ดกฎแยก/ลิงก์ตรง) ถามเฉพาะน้องที่ยังไม่ได้แนบสมุดของรอบนี้
+  const fromFlow = Boolean(flowProgress(params));
+  const vaccineCats = (
+    groupCats.length
+      ? groupCats
+      : booking
+        ? [{ id: booking.id, catName: booking.catName, hasVaccine: Boolean(booking.vaccinePhotoUrl) }]
+        : []
+  ).filter((c) => !c.hasVaccine);
+  const askVaccine = !fromFlow && vaccineCats.length > 0;
   const { title: consentTitle, terms } = consentTextFor(config.messages, booking?.service);
 
   useEffect(() => {
@@ -188,7 +201,11 @@ function ConsentContent() {
           setCatLabel(groupCatNames(group));
           // ตัวที่ลิงก์ชี้มาก่อน แล้วตามด้วยตัวอื่นในบ้าน
           setGroupCats(
-            [stay, ...group.filter((b) => b.id !== stay.id)].map((b) => ({ id: b.id, catName: b.catName }))
+            [stay, ...group.filter((b) => b.id !== stay.id)].map((b) => ({
+              id: b.id,
+              catName: b.catName,
+              hasVaccine: Boolean(b.vaccinePhotoUrl),
+            }))
           );
         }
         if (stay?.consentAcceptedAt) setAccepted(true);
@@ -469,7 +486,7 @@ function ConsentContent() {
               )}
 
               {/* ลิงก์จากหน้าข้อมูลลูกค้า: สมุดวัคซีนมีการ์ดขอแยกต่างหาก (เก็บที่ตัวน้อง) ไม่ถามซ้ำตรงนี้ */}
-              {!customerMode && isFeatureOn(config, "vaccine") && (
+              {!customerMode && askVaccine && isFeatureOn(config, "vaccine") && (
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="image" size={14} />
@@ -485,12 +502,12 @@ function ConsentContent() {
                     รวมถึงความเสี่ยงจากการที่ทางร้านไม่ได้ตรวจสอบประวัติวัคซีนของน้อง
                   </span>
                 </p>
-                {(groupCats.length ? groupCats : booking ? [{ id: booking.id, catName: booking.catName }] : []).map(
+                {vaccineCats.map(
                   (cat) => {
                     const photos = vaccineByCat[cat.id] || [];
                     return (
-                      <div key={cat.id} className={groupCats.length > 1 ? "mt-3 first:mt-0" : ""}>
-                        {groupCats.length > 1 && (
+                      <div key={cat.id} className={vaccineCats.length > 1 ? "mt-3 first:mt-0" : ""}>
+                        {vaccineCats.length > 1 && (
                           <p className="mb-1.5 flex items-center gap-1 text-xs font-extrabold text-catcha-chocolate">
                             <Icon name="paw" size={13} className="text-brown-soft" />
                             {cat.catName}
@@ -543,7 +560,7 @@ function ConsentContent() {
                                 ? "กำลังแนบรูป…"
                                 : photos.length
                                   ? `เพิ่มรูปอีก (แนบได้สูงสุด ${MAX_VACCINE_PHOTOS} รูป)`
-                                  : groupCats.length > 1
+                                  : vaccineCats.length > 1
                                     ? `แตะเพื่อแนบสมุดวัคซีนของ${cat.catName}`
                                     : "แตะเพื่อแนบภาพสมุดวัคซีน (เลือกได้หลายรูป)"}
                             </span>
