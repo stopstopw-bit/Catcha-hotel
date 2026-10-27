@@ -110,7 +110,8 @@ export default function CustomerHome() {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-catcha-chocolate/70">
               {m.greeting}
-              {profile ? `, ${profile.displayName}` : ""}
+              {/* ชื่อที่ลูกค้ากรอกตอนสมัคร (ชื่อที่ร้านใช้เรียก) ก่อนชื่อ LINE ที่มักเป็นอีโมจิ/ชื่อเล่นแปลกๆ */}
+              {customer?.name || profile?.displayName ? `, ${customer?.name || profile?.displayName}` : ""}
             </p>
             <h1 className="text-xl font-extrabold text-catcha-chocolate">
               CatCha <span className="text-card">Hotel</span>

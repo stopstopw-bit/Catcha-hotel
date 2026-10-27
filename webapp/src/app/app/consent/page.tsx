@@ -442,7 +442,8 @@ function ConsentContent() {
                 )}
               </section>
 
-              {!idCardOnFile && !isGroom && isFeatureOn(config, "idCard") && (
+              {/* มาจากลำดับขอข้อมูล = บัตรมีขั้นของตัวเองแล้ว (หรือร้านไม่ได้ขอรอบนี้) ไม่ถามซ้ำ เหมือนสมุดวัคซีน */}
+              {!idCardOnFile && !fromFlow && !isGroom && isFeatureOn(config, "idCard") && (
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="user" size={14} />
