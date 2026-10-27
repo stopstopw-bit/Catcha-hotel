@@ -43,15 +43,30 @@ export default function PayPage() {
   const id = String(params.id);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/invoices?id=${id}`)
-      .then((r) => r.json())
+    // t = โทเคนในลิงก์จากการ์ด LINE — ลูกค้าไม่ได้ล็อกอินหลังบ้าน จึงอ่าน /api/invoices ตรงๆ ไม่ได้
+    const t = new URLSearchParams(window.location.search).get("t") || "";
+    fetch(`/api/invoices/pay?id=${encodeURIComponent(id)}&t=${encodeURIComponent(t)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         setInvoice(data.invoice);
         setPayment(data.payment);
-      });
+      })
+      .catch(() => setFailed(true));
   }, [id]);
+
+  if (failed) {
+    return (
+      <div className="px-4 pb-6 pt-5">
+        <PageHeader eyebrow="Payment" title="ชำระเงิน" back="/app" />
+        <p className="mt-6 rounded-catcha border border-catcha-line bg-card p-4 text-sm text-brown-soft">
+          เปิดบิลนี้ไม่ได้ค่ะ ลองกดปุ่มจากการ์ดในแชท LINE อีกครั้ง หรือทักแชทให้ร้านส่งยอดให้ใหม่นะคะ
+        </p>
+      </div>
+    );
+  }
 
   if (!invoice) {
     return <LoadingScreen message="กำลังโหลดข้อมูลบิล..." />;

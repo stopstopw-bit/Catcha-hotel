@@ -24,6 +24,7 @@ import {
   buildDepositReminderCard,
   balanceReminderSender,
   buildPrestayFlexData,
+  inStayBathText,
   buildGroomInfoBody,
   getBookingTimeUrl,
   getGroomInfoUrl,
@@ -486,6 +487,7 @@ export async function GET(req: NextRequest) {
       const prestayBundle: object[] = prestayOn ? [
         buildPrestayFlex({
           ...buildPrestayFlexData(b, cfg),
+          bath: inStayBathText(ids, allBookings, cfg) || undefined,
           consentUrl: undefined,
           timeUrl: timeUrl || undefined,
           intake: intakeLink || undefined,

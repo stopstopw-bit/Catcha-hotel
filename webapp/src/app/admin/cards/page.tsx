@@ -357,6 +357,7 @@ const CARDS: CardMeta[] = [
       },
       { key: "checkinLabel", label: "ป้าย: วันเข้าพัก", placeholder: "วันเข้าพัก" },
       { key: "roomLabel", label: "ป้าย: ห้องพัก", placeholder: "ห้องพัก" },
+      { key: "bathLabel", label: "ป้าย: อาบน้ำก่อนกลับบ้าน (เฉพาะนัดที่อาบน้ำด้วย)", placeholder: "อาบน้ำก่อนกลับบ้าน" },
       { key: "timeButton", label: "ปุ่ม: เลือกเวลาส่งน้อง (ส่งอัตโนมัติ)", placeholder: "🕒 เลือกเวลาส่งน้อง" },
       { key: "intakeTitle", label: "หัวข้อ: ข้อมูลที่ยังต้องส่ง", placeholder: "📋 ข้อมูลที่ยังต้องส่งให้ร้าน" },
       { key: "balanceLabel", label: "ป้าย: ยอดคงเหลือ", placeholder: "💳 ยอดคงเหลือที่ต้องโอน" },

@@ -25,3 +25,15 @@ export function verifyDocToken(invoiceId: string, kind: string, token: string): 
 export function docShareUrl(origin: string, invoiceId: string, kind: DocKind) {
   return `${origin}/doc/${encodeURIComponent(invoiceId)}?k=${kind}&t=${signDocToken(invoiceId, kind)}`;
 }
+
+/** ลิงก์หน้าชำระเงินในการ์ด "แจ้งชำระเงิน" — ลูกค้าเปิดจาก LINE ได้โดยไม่ต้องล็อกอิน (เดา id บิลอื่นไม่ได้) */
+export function signPayToken(invoiceId: string): string {
+  return createHmac("sha256", secret()).update(`${invoiceId}:pay`).digest("base64url").slice(0, 32);
+}
+
+export function verifyPayToken(invoiceId: string, token: string): boolean {
+  if (!invoiceId || !token) return false;
+  const want = Buffer.from(signPayToken(invoiceId));
+  const got = Buffer.from(token);
+  return want.length === got.length && timingSafeEqual(want, got);
+}
