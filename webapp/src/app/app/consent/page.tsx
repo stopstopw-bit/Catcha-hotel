@@ -25,7 +25,7 @@ import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
 import { isFeatureOn } from "@/lib/features";
-import { bookingGroupKey, groupCatNames } from "@/lib/booking-group";
+import { bookingGroupKey, groupCatNames, stayForGroom } from "@/lib/booking-group";
 
 type StayBooking = Booking & {
   checkin?: string;
@@ -160,6 +160,8 @@ function ConsentContent() {
   const [idCardOnFile, setIdCardOnFile] = useState(false);
   const [idCardBusy, setIdCardBusy] = useState(false);
   const [fleaError, setFleaError] = useState(false);
+  /** อาบน้ำก่อนกลับของรอบเข้าพักนี้ — มีแล้วต้องอ่านข้อตกลงอาบน้ำด้วย ยอมรับครั้งเดียวในหน้านี้ */
+  const [stayBath, setStayBath] = useState<{ date: string; time?: string } | null>(null);
 
   // นัดอาบน้ำใช้ข้อตกลงอาบน้ำ (แยกจากกฎเข้าพัก) — ไม่มีบัตรประชาชน/ยาเห็บหมัดก่อนเข้าพัก
   const isGroom = booking?.service === "groom";
@@ -175,6 +177,7 @@ function ConsentContent() {
   ).filter((c) => !c.hasVaccine);
   const askVaccine = !fromFlow && vaccineCats.length > 0;
   const { title: consentTitle, terms } = consentTextFor(config.messages, booking?.service);
+  const groomText = consentTextFor(config.messages, "groom");
 
   useEffect(() => {
     if (!profile?.lineUserId) return;
@@ -199,6 +202,10 @@ function ConsentContent() {
           const key = bookingGroupKey(stay);
           const group = list.filter((b) => bookingGroupKey(b) === key && b.status !== "cancelled");
           setCatLabel(groupCatNames(group));
+          if (stay.service === "room") {
+            const bath = list.find((x) => group.some((s) => stayForGroom(x, [s]) === s));
+            setStayBath(bath ? { date: bath.date, time: bath.time } : null);
+          }
           // ตัวที่ลิงก์ชี้มาก่อน แล้วตามด้วยตัวอื่นในบ้าน
           setGroupCats(
             [stay, ...group.filter((b) => b.id !== stay.id)].map((b) => ({
@@ -387,6 +394,29 @@ function ConsentContent() {
               {isGroom ? DEEMED_GROOM_CONSENT_NOTICE : DEEMED_CONSENT_NOTICE}
             </p>
           </section>
+
+          {/* เข้าพัก + อาบน้ำก่อนกลับ = นัดเดียว → กฎเข้าพักกับข้อตกลงอาบน้ำอยู่หน้าเดียว เซ็นครั้งเดียว */}
+          {!isGroom && stayBath && (
+            <section className="mt-5">
+              <SectionLabel>
+                {`${groomText.title} · อาบน้ำก่อนกลับ ${stayBath.date}${stayBath.time ? ` ${stayBath.time} น.` : ""}`}
+              </SectionLabel>
+              <VaccinePoster className="mb-3" />
+              <ol className="divide-y divide-catcha-line overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
+                {groomText.terms.map((term, i) => (
+                  <li key={i} className="flex gap-3 px-4 py-3 text-xs leading-relaxed text-brown">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-honey/30 text-[11px] font-extrabold text-catcha-chocolate">
+                      {i + 1}
+                    </span>
+                    <TermText term={term} />
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-2 rounded-catcha border border-catcha-line bg-cream px-3 py-2.5 text-[11px] leading-relaxed text-brown">
+                {DEEMED_GROOM_CONSENT_NOTICE}
+              </p>
+            </section>
+          )}
 
           <section className="mt-5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
             <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
@@ -610,6 +640,7 @@ function ConsentContent() {
                     ข้าพเจ้าขอรับรองว่าข้อมูลทั้งหมดที่กรอกและแนบมาข้างต้น
                     (รวมถึงประวัติวัคซีนและการหยดยาเห็บหมัด) เป็นความจริงทุกประการ
                     และร้านสามารถใช้ข้อมูลนี้เป็นหลักฐานได้หากเกิดปัญหาที่เกี่ยวข้อง
+                    {stayBath ? " รวมถึงยอมรับข้อตกลงการอาบน้ำก่อนกลับบ้านด้วย" : ""}
                   </span>
                 )}
               </label>
