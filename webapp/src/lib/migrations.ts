@@ -66,6 +66,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "package_offers", column: "room_type", feature: "คอร์สวันพักในแอปแยกตามประเภทห้อง" },
   { table: "package_offers", column: "items", feature: "คอร์สชุดรวม / แถมฟรี" },
   { table: "bookings", column: "transport", feature: "บริการรับ-ส่งในนัด" },
+  { table: "bookings", column: "room_segments", feature: "ย้ายห้องกลางทางในนัดเดียว" },
   { table: "member_topups", column: "source_invoice_id", feature: "ยกเลิกนัด เก็บยอดเป็นเครดิต" },
   { table: "cats", column: "vaccine_photos", feature: "สมุดวัคซีนที่ตัวน้อง (ขอก่อนมีนัด)" },
   { table: "customers", column: "consent_accepted_at", feature: "ยอมรับข้อตกลงจากหน้าลูกค้า" },
@@ -480,6 +481,11 @@ where staff_note like '%🎁%';`,
     // บริการรับ-ส่งของนัด {pickup, dropoff, mapUrl, address} — ว่าง = ลูกค้ามาเอง
     name: "bookings.transport",
     sql: "alter table bookings add column if not exists transport jsonb;",
+  },
+  {
+    // ย้ายห้องกลางทางในนัดเดียว [{from, room, roomUnit}] — ว่าง = อยู่ห้องเดียวตลอด (ดู room-segments.ts)
+    name: "bookings.room_segments",
+    sql: "alter table bookings add column if not exists room_segments jsonb;",
   },
   {
     // POS หน้าร้าน: สินค้า+สต็อก, ประวัติสต็อก, บิลขายเร็ว, ปิดยอดรายวัน — ตารางใหม่ทั้งหมด
