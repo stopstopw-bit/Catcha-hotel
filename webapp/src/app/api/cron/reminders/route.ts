@@ -237,6 +237,7 @@ export async function GET(req: NextRequest) {
           checkin: primary.checkin,
           checkout: primary.checkout,
           room: primary.room,
+          roomSegments: primary.roomSegments,
           notes: primary.notes,
           groomProgram: primary.groomProgram,
           transport: primary.transport,

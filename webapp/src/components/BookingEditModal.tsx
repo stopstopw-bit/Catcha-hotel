@@ -12,6 +12,8 @@ import type { BookingTransport } from "@/lib/transport";
 import { isUnknownCat, pickableCatNames } from "@/lib/unknown-cat";
 import { GROOM_PROGRAMS, type GroomProgram } from "@/lib/grooming-prices";
 import { freeUnitsForRange, roomCapacity, compositionOf, type BoardBooking, type RoomClosure } from "@/lib/room-board";
+import { RoomMovesEditor } from "@/components/RoomMovesEditor";
+import type { RoomSegment } from "@/lib/room-segments";
 import { useConfig } from "@/components/ConfigProvider";
 import { cardOn } from "@/lib/features";
 
@@ -42,6 +44,8 @@ export type EditableBooking = Booking & {
   pickupTime?: string;
   /** บริการรับ-ส่ง (ดู transport.ts) */
   transport?: BookingTransport;
+  /** ย้ายห้องกลางทาง (ดู room-segments.ts) */
+  roomSegments?: RoomSegment[];
 };
 
 function EditField({
@@ -145,6 +149,15 @@ export function BookingEditModal({
   const [checkinSel, setCheckinSel] = useState(booking.checkin || booking.date || "");
   const [checkoutSel, setCheckoutSel] = useState(booking.checkout || "");
   const [roomUnit, setRoomUnit] = useState<number | null>(booking.roomUnit ?? null);
+  // ย้ายห้องกลางทาง — ส่งไปบันทึกเฉพาะตอนแก้จริง (ไม่งั้นเลื่อนวันแล้ววันย้ายเดิมจะทับที่ระบบขยับให้)
+  const [roomMoves, setRoomMoves] = useState<RoomSegment[]>(booking.roomSegments || []);
+  const [movesTouched, setMovesTouched] = useState(false);
+  const firstOut = roomMoves.find((m) => m.from > checkinSel && (!checkoutSel || m.from < checkoutSel))?.from;
+  /** นัดอื่นของร้าน ไม่รวมตัวนี้และน้องในบ้านเดียวกัน — ไว้คิดห้องว่างของช่วงย้ายห้อง */
+  const otherStays = useMemo(() => {
+    const own = new Set([booking.id, ...siblings.map((s) => s.id)]);
+    return roomBookings.filter((b) => !own.has(b.id));
+  }, [roomBookings, siblings, booking.id]);
   // เช็กคิวอาบน้ำชนเฉพาะตอนย้ายวัน/เวลา — นัดเดิมไม่ต้องเตือนซ้ำทุกครั้งที่แก้อย่างอื่น
   const [groomDate, setGroomDate] = useState(booking.date || "");
   const [groomTime, setGroomTime] = useState(booking.time || "12:30");
@@ -162,10 +175,10 @@ export function BookingEditModal({
       roomBookings,
       roomSel,
       checkinSel,
-      checkoutSel || checkinSel,
+      firstOut || checkoutSel || checkinSel,
       booking.id
     );
-  }, [boardRooms, roomBookings, roomSel, checkinSel, checkoutSel, booking.id]);
+  }, [boardRooms, roomBookings, roomSel, checkinSel, checkoutSel, firstOut, booking.id]);
 
   // เปลี่ยนห้อง/วัน แล้วเลขที่เคยเลือกไว้ไม่ว่างแล้ว → เคลียร์ทิ้ง (ให้ระบบเดาเองแทน)
   useEffect(() => {
@@ -280,6 +293,29 @@ export function BookingEditModal({
       setSaving(false);
       alert("บันทึกไม่สำเร็จ");
       return;
+    }
+
+    // 3) ย้ายห้องกลางทาง — น้องในบ้านที่อยู่ห้องเดียวกัน (ช่วงห้องเดิมเหมือนกัน) ย้ายไปด้วยกัน
+    if (service === "room" && movesTouched) {
+      const sameRoom = (b?: { room?: string; roomSegments?: RoomSegment[] }) =>
+        !!b &&
+        (b.room || "") === (booking.room || booking.roomType || "") &&
+        JSON.stringify(b.roomSegments || []) === JSON.stringify(booking.roomSegments || []);
+      const mates = applyToSiblings
+        ? siblings.filter((s) => sameRoom(roomBookings.find((b) => b.id === s.id)))
+        : [];
+      for (const id of [booking.id, ...mates.map((m) => m.id)]) {
+        await fetch("/api/bookings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id,
+            action: "update",
+            roomSegments: roomMoves,
+            ...(id === booking.id ? {} : { room: payload.room }),
+          }),
+        });
+      }
     }
 
     const count = Number(movedData.movedCount) || 1;
@@ -496,6 +532,22 @@ export function BookingEditModal({
                 onChange={setCheckoutSel}
                 required
               />
+              {roomSel && (
+                <RoomMovesEditor
+                  rooms={rooms}
+                  boardRooms={boardRooms}
+                  existing={otherStays}
+                  checkin={checkinSel}
+                  checkout={checkoutSel}
+                  firstRoom={roomSel}
+                  firstUnit={roomUnit}
+                  moves={roomMoves}
+                  onChange={(m) => {
+                    setRoomMoves(m);
+                    setMovesTouched(true);
+                  }}
+                />
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <div className="min-w-0">
                   <EditField

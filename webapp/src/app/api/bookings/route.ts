@@ -64,6 +64,7 @@ import {
 import { getSiteConfig } from "@/lib/config-store";
 import { getLineCredentials } from "@/lib/line-config";
 import { cleanTransport, hasTransport, transportLabel } from "@/lib/transport";
+import { cleanRoomSegments } from "@/lib/room-segments";
 import { cardOn, CARD_FEATURE, featureLabel } from "@/lib/features";
 import { consentDates, consentTextFor, renderTemplate } from "@/lib/messages";
 import { listInvoices, getInvoice, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
@@ -156,6 +157,7 @@ export async function GET(req: NextRequest) {
       groomProgram: b.groomProgram,
       transport: b.transport,
       roomUnit: b.roomUnit,
+      roomSegments: b.roomSegments,
       autoOff: b.autoOff || [],
       customerId: customer?.id,
       catMedical: cat?.medical || undefined,
@@ -170,7 +172,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   // ลูกค้าจองเองจากแอป: ผูกนัดกับ LINE จากคุกกี้ที่ตรวจแล้วเท่านั้น — ห้ามเชื่อ body.lineUserId
   // ไม่งั้นจองแทน/ยัดนัดเข้าบัญชีคนอื่นได้แค่รู้ LINE ID (หลังบ้านระบุให้ลูกค้าได้ตามเดิม)
-  const lineUserId = (await isAdmin(req))
+  const staff = await isAdmin(req);
+  const lineUserId = staff
     ? body.lineUserId
     : (await resolveCustomerLineId(req, body.lineUserId)) || undefined;
   const customer = await resolveCustomerForBooking({
@@ -204,6 +207,16 @@ export async function POST(req: NextRequest) {
     checkin: body.checkin,
     room: body.room,
     roomUnit: body.roomUnit ? Number(body.roomUnit) || undefined : undefined,
+    // ย้ายห้องกลางทาง — ร้านจัดให้จากหลังบ้านเท่านั้น
+    roomSegments:
+      staff && body.service === "room"
+        ? cleanRoomSegments(body.roomSegments, {
+            room: body.room,
+            roomUnit: body.roomUnit ? Number(body.roomUnit) || undefined : undefined,
+            checkin: body.checkin,
+            checkout: body.checkout,
+          })
+        : undefined,
     lineUserId: customer.lineUserId,
     notes: body.notes,
     groomProgram,
@@ -390,6 +403,7 @@ export async function PATCH(req: NextRequest) {
         checkin: b.checkin,
         checkout: b.checkout,
         room: b.room,
+        roomSegments: b.roomSegments,
         notes: b.notes,
         groomProgram: b.groomProgram,
         transport: b.transport,
@@ -744,6 +758,7 @@ function groomInfoCardFor(
             checkin: b.checkin,
             checkout: b.checkout,
             room: b.room,
+            roomSegments: b.roomSegments,
             notes: b.notes,
             groomProgram: b.groomProgram,
             transport: b.transport,
@@ -1262,6 +1277,17 @@ function groomInfoCardFor(
     }
     // รับ-ส่ง — ส่ง null/{} มา = ยกเลิกบริการรับ-ส่งของนัดนี้
     if (body.transport !== undefined) patch.transport = cleanTransport(body.transport);
+    // ย้ายห้องกลางทาง — [] = อยู่ห้องเดียวตลอด · คิดจากห้อง/วันใหม่ในคำขอนี้ (ถ้ามี)
+    // แก้วัน/ห้องแรกโดยไม่ได้ส่งช่วงมา → กรองช่วงเดิมให้อยู่ในวันใหม่
+    const datesChanged = patch.checkin !== undefined || patch.checkout !== undefined || patch.room !== undefined;
+    if (body.roomSegments !== undefined || (datesChanged && b.roomSegments?.length)) {
+      patch.roomSegments = cleanRoomSegments(body.roomSegments ?? b.roomSegments, {
+        room: patch.room ?? b.room,
+        roomUnit: patch.roomUnit !== undefined ? patch.roomUnit || undefined : b.roomUnit,
+        checkin: patch.checkin ?? b.checkin,
+        checkout: patch.checkout ?? b.checkout,
+      });
+    }
     // หัวข้อข้อความอัตโนมัติที่นัดนี้ไม่ต้องส่ง
     if (Array.isArray(body.autoOff)) {
       const valid = new Set(AUTO_MESSAGE_TOPICS.map((t) => t.id));
