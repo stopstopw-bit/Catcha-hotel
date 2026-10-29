@@ -1063,7 +1063,6 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       body: JSON.stringify({
         lineUserId: selected.lineUserId,
         summary: buildSummaryPayload(mode),
-        text: buildSummary(mode),
       }),
     });
     setSending(false);

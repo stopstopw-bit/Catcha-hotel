@@ -13,6 +13,7 @@ import { isFeatureOn } from "@/lib/features";
 import { referralReward } from "@/lib/referral";
 import { issueCoupon, listCustomerCoupons } from "@/lib/coupons-store";
 import { pushLineMessage } from "@/lib/line";
+import { buildReferralRewardCard } from "@/lib/notice-cards";
 import { runAfterResponse, sendTelegramLater } from "@/lib/after-response";
 
 /** คูปองชวนเพื่อน — ออกให้ทั้งคู่ทันทีที่สมัครด้วยโค้ด (เจ้าของร้านเลือกแบบนี้ 2026-10-23)
@@ -127,12 +128,9 @@ export async function POST(req: NextRequest) {
         });
         const referrerLine = referrer.lineUserId;
         if (referrerLine) {
-          runAfterResponse("referral push", () =>
+          runAfterResponse("referral push", async () =>
             pushLineMessage(referrerLine, [
-              {
-                type: "text",
-                text: `🎉 เพื่อนสมัครด้วยโค้ดของคุณแล้ว!\nคุณได้รับคูปองส่วนลด ${reward.amount}฿ เก็บไว้ในกระเป๋าคูปองแล้วนะคะ 🧡 (ใช้ได้ ${reward.expiresInDays} วัน)`,
-              },
+              await buildReferralRewardCard("signup", reward, await getSiteConfig()),
             ])
           );
         }

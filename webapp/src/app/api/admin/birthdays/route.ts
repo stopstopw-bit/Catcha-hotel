@@ -3,6 +3,7 @@ import { getSessionFrom } from "@/lib/auth";
 import { getSiteConfig } from "@/lib/config-store";
 import { isFeatureOn } from "@/lib/features";
 import { pushLineMessage } from "@/lib/line";
+import { buildBirthdayCard } from "@/lib/notice-cards";
 import { getCustomer } from "@/lib/customers-store";
 import { issueCoupon, listCustomerCoupons } from "@/lib/coupons-store";
 import { buildBirthdayText } from "@/lib/birthday-greeting";
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest) {
         }
 
         const text = buildBirthdayText(row, cfg) + coupon.line;
-        await pushLineMessage(customer.lineUserId, [{ type: "text", text }]);
+        await pushLineMessage(customer.lineUserId, [await buildBirthdayCard(text, coupon.willIssue, cfg)]);
         await markBirthdayStatus(id, "sent");
         sent++;
       } catch (e) {

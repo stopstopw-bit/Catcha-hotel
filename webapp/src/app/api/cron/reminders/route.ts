@@ -15,6 +15,7 @@ import {
   mergeIntakeCards,
   intakeStartLink,
   politeCat,
+  buildNoticeFlex,
   STAY_INFO_HEADER,
   type IntakeEntry,
 } from "@/lib/line";
@@ -45,6 +46,8 @@ import { findBirthdayMatch } from "@/lib/birthday-greeting";
 import { queueBirthdayGreeting } from "@/lib/birthday-queue";
 import { getAppUrlFromEnv } from "@/lib/telegram-config";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
+import { buildLiffUrl } from "@/lib/liff-urls";
+import { PROFILE_CHECK_DEFAULTS, fillCardText } from "@/lib/line-card-defaults";
 
 function addDays(dateStr: string, n: number) {
   const dt = new Date(`${dateStr}T12:00:00Z`);
@@ -255,15 +258,21 @@ export async function GET(req: NextRequest) {
             .filter((cat): cat is NonNullable<typeof cat> => Boolean(cat?.needsOwnerConfirm))
         : [];
       if (catsNeedConfirm.length > 0) {
-        const names = catsNeedConfirm.map((cat) => cat.name).join(", ");
+        // การ์ดเท่านั้น ห้ามส่งข้อความเปล่า — คำในการ์ดแก้ได้ที่ /admin/cards (cards.profileCheck)
+        const style = cfg.cards?.profileCheck;
+        const tx = { ...PROFILE_CHECK_DEFAULTS, ...style?.texts };
         const base = getAppUrlFromEnv();
-        dayMessages.push({
-          type: "text",
-          text:
-            `📋 ก่อนนัดครั้งนี้ รบกวนช่วยตรวจสอบ/แก้ไขข้อมูลของ ${names} ให้ล่าสุดหน่อยนะคะ ` +
-            `(พันธุ์ / อายุ / วันเกิด / โรคประจำตัว) — ตอนนี้เป็นข้อมูลที่ทางร้านกรอกแทนไว้ อาจไม่ครบถ้วน 🙏` +
-            (base ? `\n\nแก้ไขได้ที่: ${base}/app/profile` : ""),
-        });
+        const uri = liffId ? buildLiffUrl(liffId, { path: "profile" }) : base ? `${base}/app/profile` : "";
+        dayMessages.push(
+          buildNoticeFlex(
+            {
+              header: tx.header,
+              body: fillCardText(tx.body, { cats: catsNeedConfirm.map((cat) => politeCat(cat.name)).join(", ") }),
+              button: uri ? { label: tx.button, uri } : undefined,
+            },
+            style
+          )
+        );
       }
 
       // เรื่องที่ต้องขอจากลูกค้ารอบนี้ (ประวัติ/สมุดวัคซีน/กฎ) — รวมเป็นการ์ดใบเดียวตอนท้าย
