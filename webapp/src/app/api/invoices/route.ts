@@ -1,3 +1,4 @@
+import { buildReferralRewardCard } from "@/lib/notice-cards";
 import { signPayToken } from "@/lib/doc-share";
 import { NextRequest, NextResponse } from "next/server";
 import { BUSINESS } from "@/lib/business";
@@ -653,10 +654,7 @@ export async function PATCH(req: NextRequest) {
             });
             if (referrer.lineUserId) {
               await pushLineMessage(referrer.lineUserId, [
-                {
-                  type: "text",
-                  text: `🎉 เพื่อนที่คุณชวนมาใช้บริการแล้ว!\nคุณได้รับคูปองส่วนลด ${reward.amount}฿ เก็บไว้ในกระเป๋าคูปองแล้วนะคะ 🧡 (ใช้ได้ ${reward.expiresInDays} วัน)`,
-                },
+                await buildReferralRewardCard("visit", reward, await getSiteConfig()),
               ]);
             }
             await sendTelegram(

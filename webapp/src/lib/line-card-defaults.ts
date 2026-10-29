@@ -41,3 +41,30 @@ export const DEPOSIT_REMINDER_DEFAULTS = {
   accountNameLabel: "ชื่อบัญชี:",
   copyButton: "📋 คัดลอกเลขบัญชี",
 };
+
+/** การ์ดขอให้ลูกค้าตรวจข้อมูลน้องที่ร้านกรอกแทนไว้ (cards.profileCheck) — {cats} = ชื่อน้อง */
+export const PROFILE_CHECK_DEFAULTS = {
+  header: "📋 ข้อมูลน้องยังไม่ครบ",
+  body: "ข้อมูลของ{cats}ยังไม่ครบค่ะ ก่อนถึงนัด รบกวนช่วยกรอกให้หน่อยนะคะ (พันธุ์ / อายุ / วันเกิด / โรคประจำตัว) 🙏",
+  button: "✏️ กรอกข้อมูลน้อง",
+};
+
+/** การ์ดแจ้งได้คูปองชวนเพื่อน (cards.referralReward) — {amount} = มูลค่าคูปอง, {days} = ใช้ได้กี่วัน */
+export const REFERRAL_REWARD_DEFAULTS = {
+  header: "🎉 ได้คูปองชวนเพื่อน",
+  signupBody: "เพื่อนสมัครด้วยโค้ดของคุณแล้ว! คุณได้รับคูปองส่วนลด {amount}฿ เก็บไว้ในกระเป๋าคูปองแล้วนะคะ 🧡",
+  visitBody: "เพื่อนที่คุณชวนมาใช้บริการแล้ว! คุณได้รับคูปองส่วนลด {amount}฿ เก็บไว้ในกระเป๋าคูปองแล้วนะคะ 🧡",
+  expiry: "ใช้ได้ {days} วัน",
+  button: "🎟️ ดูคูปองของฉัน",
+};
+
+/** การ์ดอวยพรวันเกิด (cards.birthday) — เนื้อความมาจากแม่แบบวันเกิดในตั้งค่าข้อความ */
+export const BIRTHDAY_CARD_DEFAULTS = {
+  header: "🎂 สุขสันต์วันเกิด",
+  button: "🎟️ ดูคูปองของฉัน",
+};
+
+/** แทน {key} ในข้อความการ์ด */
+export function fillCardText(text: string, vars: Record<string, string | number>): string {
+  return text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}

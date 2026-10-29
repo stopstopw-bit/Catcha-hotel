@@ -17,7 +17,15 @@ import { FormFieldsEditor, FormFieldsPreview, resetFormConfig } from "@/componen
 import { RegisterFormEditor, RegisterFormPreview, resetRegisterForm } from "@/components/RegisterFormEditor";
 import { STAY_FORM_DEFAULTS, resolveStayForm } from "@/lib/stay-form";
 import type { RegisterFieldConfig, RegisterFormConfig } from "@/lib/register-form";
-import { DEPOSIT_REMINDER_DEFAULTS, DOC_REQUEST_DEFAULTS, INTAKE_CARD_DEFAULTS } from "@/lib/line-card-defaults";
+import {
+  BIRTHDAY_CARD_DEFAULTS,
+  DEPOSIT_REMINDER_DEFAULTS,
+  DOC_REQUEST_DEFAULTS,
+  INTAKE_CARD_DEFAULTS,
+  PROFILE_CHECK_DEFAULTS,
+  REFERRAL_REWARD_DEFAULTS,
+  fillCardText,
+} from "@/lib/line-card-defaults";
 
 /**
  * ปรับแต่งการ์ด LINE — สี ขนาดตัวอักษร ข้อความ เงื่อนไข และส่วนประกอบของการ์ดแต่ละใบ
@@ -572,6 +580,74 @@ const CARDS: CardMeta[] = [
       { key: "pickupTimeLabel", label: "ป้าย: เวลามารับ", placeholder: "🚗 เวลาที่แจ้งไว้ว่าจะมารับ" },
     ],
     closingLabel: "ข้อความปิดท้าย (ว่าง = ขอบคุณที่ไว้ใจ…)",
+    hasTitleSize: true,
+  },
+  {
+    key: "profileCheck",
+    name: "ขอข้อมูลน้องที่ยังไม่ครบ",
+    desc: "ส่งพร้อมการ์ดก่อนวันนัด เมื่อข้อมูลน้อง (พันธุ์ / อายุ / วันเกิด / โรคประจำตัว) ยังไม่ครบ",
+    colors: [
+      { key: "headerColor", label: "สีแถบหัว", fallback: "#4A7348" },
+      { key: "headerTextColor", label: "สีตัวหนังสือหัว", fallback: "#FFFFFF" },
+      { key: "buttonColor", label: "สีปุ่ม", fallback: "#4A7348" },
+    ],
+    fields: [{ key: "header", label: "แถบหัวการ์ด" }],
+    texts: [],
+    styleTexts: [
+      { key: "header", label: "ข้อความบนแถบหัว", placeholder: PROFILE_CHECK_DEFAULTS.header },
+      { key: "body", label: "ข้อความ ({cats} = ชื่อน้อง)", placeholder: PROFILE_CHECK_DEFAULTS.body, multiline: true },
+      { key: "button", label: "คำในปุ่ม", placeholder: PROFILE_CHECK_DEFAULTS.button },
+    ],
+    closingLabel: "ข้อความท้ายการ์ด (ว่าง = ไม่มี)",
+    hasTitleSize: true,
+  },
+  {
+    key: "referralReward",
+    name: "ได้คูปองชวนเพื่อน",
+    desc: "ส่งหาคนชวน ตอนเพื่อนสมัครด้วยโค้ด และตอนเพื่อนมาใช้บริการครั้งแรก",
+    colors: [
+      { key: "headerColor", label: "สีแถบหัว", fallback: "#4A7348" },
+      { key: "headerTextColor", label: "สีตัวหนังสือหัว", fallback: "#FFFFFF" },
+      { key: "buttonColor", label: "สีปุ่ม", fallback: "#4A7348" },
+    ],
+    fields: [{ key: "header", label: "แถบหัวการ์ด" }],
+    texts: [],
+    styleTexts: [
+      { key: "header", label: "ข้อความบนแถบหัว", placeholder: REFERRAL_REWARD_DEFAULTS.header },
+      {
+        key: "signupBody",
+        label: "ข้อความ: เพื่อนสมัครด้วยโค้ด ({amount} = มูลค่าคูปอง)",
+        placeholder: REFERRAL_REWARD_DEFAULTS.signupBody,
+        multiline: true,
+      },
+      {
+        key: "visitBody",
+        label: "ข้อความ: เพื่อนมาใช้บริการครั้งแรก ({amount} = มูลค่าคูปอง)",
+        placeholder: REFERRAL_REWARD_DEFAULTS.visitBody,
+        multiline: true,
+      },
+      { key: "expiry", label: "บรรทัดวันหมดอายุ ({days} = จำนวนวัน)", placeholder: REFERRAL_REWARD_DEFAULTS.expiry },
+      { key: "button", label: "คำในปุ่ม", placeholder: REFERRAL_REWARD_DEFAULTS.button },
+    ],
+    closingLabel: "ข้อความท้ายการ์ด (ว่าง = ไม่มี)",
+    hasTitleSize: true,
+  },
+  {
+    key: "birthday",
+    name: "อวยพรวันเกิด",
+    desc: "ส่งตอนกดส่งที่หน้าวันเกิด — เนื้อความอวยพรแก้ได้ที่ตั้งค่า › ข้อความ",
+    colors: [
+      { key: "headerColor", label: "สีแถบหัว", fallback: "#4A7348" },
+      { key: "headerTextColor", label: "สีตัวหนังสือหัว", fallback: "#FFFFFF" },
+      { key: "buttonColor", label: "สีปุ่ม", fallback: "#4A7348" },
+    ],
+    fields: [{ key: "header", label: "แถบหัวการ์ด" }],
+    texts: [],
+    styleTexts: [
+      { key: "header", label: "ข้อความบนแถบหัว", placeholder: BIRTHDAY_CARD_DEFAULTS.header },
+      { key: "button", label: "คำในปุ่ม (แสดงเฉพาะตอนแจกคูปอง)", placeholder: BIRTHDAY_CARD_DEFAULTS.button },
+    ],
+    closingLabel: "ข้อความท้ายการ์ด (ว่าง = ไม่มี)",
     hasTitleSize: true,
   },
   {
@@ -1337,6 +1413,55 @@ function Preview({
             </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (meta.key === "profileCheck" || meta.key === "referralReward" || meta.key === "birthday") {
+    // ตัวอย่างใช้ชื่อสมมติ — ตอนส่งจริงระบบเติมชื่อน้อง/มูลค่าคูปองให้
+    const d =
+      meta.key === "profileCheck"
+        ? {
+            header: t("header", PROFILE_CHECK_DEFAULTS.header),
+            body: fillCardText(t("body", PROFILE_CHECK_DEFAULTS.body), { cats: "น้องมะลิ" }),
+            note: "",
+            button: t("button", PROFILE_CHECK_DEFAULTS.button),
+          }
+        : meta.key === "referralReward"
+          ? {
+              header: t("header", REFERRAL_REWARD_DEFAULTS.header),
+              body: fillCardText(t("signupBody", REFERRAL_REWARD_DEFAULTS.signupBody), { amount: 50 }),
+              note: fillCardText(t("expiry", REFERRAL_REWARD_DEFAULTS.expiry), { days: 30 }),
+              button: t("button", REFERRAL_REWARD_DEFAULTS.button),
+            }
+          : {
+              header: t("header", BIRTHDAY_CARD_DEFAULTS.header),
+              body: "🎂 สุขสันต์วันเกิดน้องมะลินะคะ ขอให้แข็งแรง ซนสุดๆ ไปอีกปีค่ะ 🧡\n\n🎁 ร้านมีของขวัญวันเกิดให้ — คูปองส่วนลด 100 บาท เก็บไว้ในกระเป๋าคูปองแล้วนะคะ (ใช้ได้ 30 วัน) 🎟️",
+              note: "",
+              button: t("button", BIRTHDAY_CARD_DEFAULTS.button),
+            };
+    return (
+      <div className={bubble}>
+        {show("header") && (
+          <div className="px-4 py-3" style={{ background: c("headerColor", "#4A7348") }}>
+            <p className={`${titleCls} font-extrabold`} style={{ color: c("headerTextColor", "#FFFFFF") }}>
+              {d.header}
+            </p>
+          </div>
+        )}
+        <div className="space-y-1 px-4 py-4 text-[11px] text-[#4E3E32]">
+          <p className="whitespace-pre-line">{d.body}</p>
+          {d.note && <p className="pt-1 text-[10px] text-[#A2907E]">{d.note}</p>}
+          {st.closing && <p className="whitespace-pre-line pt-2 text-[10px] text-[#A2907E]">{st.closing}</p>}
+        </div>
+        <div className="px-3 pb-3">
+          <div
+            className="rounded-lg py-1.5 text-center text-[11px] font-bold"
+            style={{ background: c("buttonColor", "#4A7348"), color: "#fff" }}
+          >
+            {d.button}
+          </div>
+        </div>
       </div>
     );
   }
