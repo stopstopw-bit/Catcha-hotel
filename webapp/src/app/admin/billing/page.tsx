@@ -83,6 +83,9 @@ type Invoice = {
   deposit?: number;
   promoId?: string;
   promoLabel?: string;
+  /** บิลที่หักคอร์ส — ส่วนลดของบิลคือค่าบริการที่จ่ายไปแล้วตอนซื้อคอร์ส ไม่ใช่ส่วนลดจริง */
+  packageId?: string;
+  packageUnits?: number;
   status: string;
   customerName: string;
   catName: string;
@@ -3440,7 +3443,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                 })}
                 {inv.discount ? (
                   <div className="flex justify-between border-t border-catcha-line pt-1 text-wait">
-                    <span>ส่วนลด{inv.promoLabel ? ` (${inv.promoLabel})` : ""}</span>
+                    <span>
+                      {inv.packageId && !inv.promoLabel
+                        ? `หักคอร์ส ${inv.packageUnits || 1} ${billServiceKind(inv.items) === "room" ? "คืน" : "ครั้ง"} (จ่ายค่าคอร์สแล้ว)`
+                        : `ส่วนลด${inv.promoLabel ? ` (${inv.promoLabel})` : ""}`}
+                    </span>
                     <span>-{inv.discount.toLocaleString()} ฿</span>
                   </div>
                 ) : null}
