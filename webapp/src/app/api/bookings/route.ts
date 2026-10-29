@@ -26,7 +26,7 @@ import { AUTO_MESSAGE_TOPICS } from "@/lib/auto-messages";
 import { rescheduleGroup, type DatePatch } from "@/lib/stay-sync";
 import { bookingMatchesCustomer } from "@/lib/booking-customer-match";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
-import { listCustomers, resolveCustomerForBooking } from "@/lib/customers-store";
+import { findCustomerByLine, lineDeletedAt, listCustomers, resolveCustomerForBooking } from "@/lib/customers-store";
 import { formatBookingTelegram } from "@/lib/telegram";
 import { sendTelegramLater } from "@/lib/after-response";
 import {
@@ -142,8 +142,16 @@ export async function GET(req: NextRequest) {
   if (!lineUserId && !staff) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // ร้านลบลูกค้าแล้ว = ตัดการเชื่อม: ยังไม่สมัครใหม่ไม่เห็นนัดเลย สมัครใหม่แล้วเห็นเฉพาะนัดหลังวันลบ
+  let deletedAt: string | undefined;
+  if (lineUserId && !staff) {
+    if (!(await findCustomerByLine(lineUserId))) return NextResponse.json({ bookings: [] });
+    deletedAt = await lineDeletedAt(lineUserId);
+  }
   const allCustomers = lineUserId ? [] : await listCustomers();
-  const items = (await listBookings(lineUserId)).map((b) => {
+  const visible = (list: StoredBooking[]) =>
+    deletedAt ? list.filter((b) => b.createdAt > deletedAt) : list;
+  const items = visible(await listBookings(lineUserId)).map((b) => {
     const customer = allCustomers.find((c) => bookingMatchesCustomer(b, c));
     // ป้ายเตือนที่พนักงานต้องเห็นก่อนจับน้อง — โน้ตลับร้านอยู่ในนี้ด้วย
     // จึงแนบเฉพาะฝั่งหลังบ้าน (allCustomers ว่างเสมอเมื่อเป็นแอปลูกค้า)
@@ -176,7 +184,7 @@ export async function GET(req: NextRequest) {
     };
   });
   if (lineUserId && !staff) {
-    const raw = await listBookings(lineUserId);
+    const raw = visible(await listBookings(lineUserId));
     const todos = await customerTodos(raw, lineUserId);
     return NextResponse.json({ bookings: items.map((x) => ({ ...x, todo: todos.get(x.id) })) });
   }

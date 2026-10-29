@@ -444,6 +444,12 @@ export async function findCustomerByLine(lineUserId: string) {
   const uid = (lineUserId || "").trim();
   if (!uid) return undefined;
   const sb = getSupabase();
+  // ลูกค้าที่ร้านลบแล้ว (ถังขยะ) ไม่นับ — ฝั่งลูกค้าเห็นเป็น "ยังไม่สมัคร" ต้องสมัครใหม่
+  // ดึงหลายแถวแล้วกรองฝั่งโค้ด (select("*") ไม่อ้าง deleted_at ตรง ๆ — ฐานที่ยังไม่มีคอลัมน์จะได้ไม่ error)
+  const firstLive = (rows: CustomerRow[] | null) => {
+    const row = (rows || []).find((r) => !r.deleted_at);
+    return row ? mapCustomer(row) : undefined;
+  };
   if (sb) {
     // จับคู่ทั้ง line_user_id หลัก และรายการ line_user_ids ที่ผูกไว้ (คนละอุปกรณ์/Provider)
     // uid เป็น LINE User ID (ตัวอักษร+ตัวเลข) ปลอดภัยพอจะใส่ใน .or filter
@@ -455,11 +461,8 @@ export async function findCustomerByLine(lineUserId: string) {
           .select("*, cats(*)")
           .or(`line_user_id.eq.${uid},line_user_ids.cs.{${uid}}`)
           .order("updated_at", { ascending: false })
-          .limit(1);
-        if (!error) {
-          const row = (data as CustomerRow[] | null)?.[0];
-          return row ? mapCustomer(row) : undefined;
-        }
+          .limit(10);
+        if (!error) return firstLive(data as CustomerRow[] | null);
       } catch {
         /* ยังไม่มีคอลัมน์ line_user_ids — ตกไปใช้แบบเดิม */
       }
@@ -470,13 +473,61 @@ export async function findCustomerByLine(lineUserId: string) {
       .select("*, cats(*)")
       .eq("line_user_id", uid)
       .order("updated_at", { ascending: false })
-      .limit(1);
-    const row = (data as CustomerRow[] | null)?.[0];
-    return row ? mapCustomer(row) : undefined;
+      .limit(10);
+    return firstLive(data as CustomerRow[] | null);
   }
   return [...memCustomers.values()].find(
-    (c) => c.lineUserId === uid || (c.lineUserIds || []).includes(uid)
+    (c) => !c.deletedAt && (c.lineUserId === uid || (c.lineUserIds || []).includes(uid))
   );
+}
+
+/**
+ * เวลาที่ร้านลบบัญชีเก่าของ LINE ID นี้ล่าสุด (ไม่เคยถูกลบ = undefined)
+ * ใช้ซ่อนของเก่าก่อนวันลบจากฝั่งลูกค้า — กลับมาสมัครใหม่ก็เริ่มจากศูนย์
+ */
+export async function lineDeletedAt(lineUserId: string): Promise<string | undefined> {
+  const uid = (lineUserId || "").trim();
+  if (!uid) return undefined;
+  const sb = getSupabase();
+  let rows: { deleted_at?: string | null }[] = [];
+  if (sb) {
+    if (!/^[A-Za-z0-9_-]+$/.test(uid)) return undefined;
+    try {
+      const { data, error } = await sb
+        .from("customers")
+        .select("*")
+        .or(`line_user_id.eq.${uid},line_user_ids.cs.{${uid}}`)
+        .limit(20);
+      if (!error) rows = (data as CustomerRow[] | null) || [];
+    } catch {
+      /* ยังไม่มีคอลัมน์ line_user_ids */
+    }
+  } else {
+    rows = [...memCustomers.values()]
+      .filter((c) => c.lineUserId === uid || (c.lineUserIds || []).includes(uid))
+      .map((c) => ({ deleted_at: c.deletedAt }));
+  }
+  const times = rows.map((r) => r.deleted_at || "").filter(Boolean).sort();
+  return times[times.length - 1];
+}
+
+/**
+ * ปลด LINE ID หลักออกจากลูกค้าที่ถูกลบ — คอลัมน์ line_user_id ห้ามซ้ำ
+ * ไม่ปลด = คนเดิมกลับมาสมัครใหม่สร้างบัญชีไม่ได้ (ลูกค้าที่ลบไว้ก่อนแก้นี้ยังถือ ID ค้างอยู่)
+ * line_user_ids ยังเก็บไว้ ใช้ผูกกลับตอนกู้จากถังขยะ
+ */
+async function releaseLineFromDeleted(lineUserId: string) {
+  const sb = getSupabase();
+  if (!sb || !lineUserId) return;
+  try {
+    await sb
+      .from("customers")
+      .update({ line_user_id: null })
+      .eq("line_user_id", lineUserId)
+      .not("deleted_at", "is", null);
+  } catch {
+    /* ยังไม่มีคอลัมน์ deleted_at — ไม่มีใครถูกลบนุ่ม */
+  }
 }
 
 /** รหัสชวนเพื่อนของลูกค้า — คิดจาก id แบบเสถียร (ไม่ต้องเก็บ DB) */
@@ -609,7 +660,6 @@ export async function upsertCustomerFromLine(data: {
     existing.lineDisplayName = displayName;
     // ไม่ทับชื่อที่ร้านตั้งเอง — อัปเดตแค่ชื่อ LINE
     existing.updatedAt = now;
-    existing.deletedAt = undefined;
     if (sb) {
       await sb
         .from("customers")
@@ -628,18 +678,15 @@ export async function upsertCustomerFromLine(data: {
       } catch {
         /* ยังไม่มีคอลัมน์ line_user_ids */
       }
-      // ถ้าเคยถูกลบนุ่มไว้ — กู้คืน (best-effort, ถ้ายังไม่มีคอลัมน์ deleted_at ก็ไม่พัง)
-      try {
-        await sb.from("customers").update({ deleted_at: null }).eq("id", existing.id);
-      } catch {
-        /* ไม่มีคอลัมน์ deleted_at — ข้าม */
-      }
     } else {
       memCustomers.set(existing.id, existing);
     }
     await linkBookingsToLineCustomer(existing);
     return existing;
   }
+
+  // คนที่ร้านลบไปแล้วกลับมาเปิดแอป = เริ่มบัญชีใหม่ ไม่กู้ของเก่ากลับมาเอง
+  await releaseLineFromDeleted(lineUserId);
 
   const id = `C${Date.now()}`;
   const customer: CustomerRecord = {
@@ -1584,6 +1631,9 @@ export async function deleteCustomer(customerId: string) {
         .update({ deleted_at: now })
         .eq("id", customerId);
       if (error) throw new Error(error.message);
+      // ตัดการเชื่อม LINE ทันที — หน้าสมาชิกฝั่งลูกค้าไม่เห็นบัญชีนี้แล้ว จะใช้ต้องสมัครใหม่
+      // (line_user_ids ยังเก็บไว้ กู้จากถังขยะแล้วผูกกลับได้)
+      await sb.from("customers").update({ line_user_id: null }).eq("id", customerId);
     } catch {
       // ยังไม่ได้รัน migration deleted_at → ลบจริง (cascade)
       await sb.from("customers").delete().eq("id", customerId);
@@ -1739,6 +1789,17 @@ export async function restoreCustomer(customerId: string) {
   const sb = getSupabase();
   if (sb) {
     await sb.from("customers").update({ deleted_at: null }).eq("id", customerId);
+    // ผูก LINE กลับ — เฉพาะ ID ที่ยังไม่มีบัญชีอื่นใช้ (ระหว่างนั้นลูกค้าอาจสมัครใหม่ไปแล้ว → ใช้รวมลูกค้าแทน)
+    const c = await getCustomer(customerId);
+    if (c && !c.lineUserId) {
+      for (const uid of [...(c.lineUserIds || [])].reverse()) {
+        const holder = await findCustomerByLine(uid);
+        if (holder && holder.id !== customerId) continue;
+        await releaseLineFromDeleted(uid);
+        await sb.from("customers").update({ line_user_id: uid }).eq("id", customerId);
+        break;
+      }
+    }
   } else {
     const c = memCustomers.get(customerId);
     if (c) c.deletedAt = undefined;
