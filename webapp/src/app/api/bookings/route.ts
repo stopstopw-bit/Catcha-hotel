@@ -876,7 +876,9 @@ function groomInfoCardFor(
                   ? "Member Credit"
                   : inv.paymentMethod === "cash"
                     ? "เงินสด"
-                    : "โอนเงิน",
+                    : inv.paymentMethod === "package"
+                      ? "หักจากคอร์ส"
+                      : "โอนเงิน",
             }, cfg.cards?.receipt)
           );
         }

@@ -487,7 +487,9 @@ export async function PATCH(req: NextRequest) {
           ? "Member Credit"
           : inv.paymentMethod === "cash"
             ? "เงินสด"
-            : "โอนเงิน",
+            : inv.paymentMethod === "package"
+              ? "หักจากคอร์ส"
+              : "โอนเงิน",
     }, cfgR.cards?.receipt);
     if (preview) return NextResponse.json({ ok: true, preview: [receiptFlex] });
     await pushLineMessage(inv.lineUserId, [receiptFlex]);
