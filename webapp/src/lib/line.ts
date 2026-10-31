@@ -1878,7 +1878,7 @@ export function buildDocRequestFlex(data: {
  */
 
 /** stayInfo = ฟอร์มข้อมูลก่อนเข้าพัก · info = ประวัติก่อนอาบน้ำ (คนละฟอร์ม ป้ายปุ่มต้องไม่ซ้ำกัน) */
-export type IntakeButtonKind = "stayInfo" | "info" | "vaccine" | "idcard" | "consent";
+export type IntakeButtonKind = "stayInfo" | "info" | "vaccine" | "idcard" | "time" | "consent";
 export type IntakeDeposit = {
   amount: number;
   bankName: string;
@@ -1967,6 +1967,7 @@ export function buildIntakeFlex(data: {
     info: t("infoButton"),
     vaccine: t("vaccineButton"),
     idcard: t("idcardButton"),
+    time: t("timeButton"),
     consent: t("consentButton"),
   };
   const withCount = (kind: IntakeButtonKind, count?: number) =>
@@ -2057,7 +2058,8 @@ export type IntakeEntry = {
   deposit?: IntakeDeposit;
 };
 
-const INTAKE_ORDER: IntakeEntry["kind"][] = ["stayInfo", "info", "vaccine", "idcard", "consent", "deposit"];
+// กฎ + กดยินยอมอยู่ท้ายสุด = ฟอร์มสุดท้ายที่กดยืนยันครั้งเดียวจบ (เลือกเวลาส่งน้องมาก่อนหน้านั้น)
+const INTAKE_ORDER: IntakeEntry["kind"][] = ["stayInfo", "info", "vaccine", "idcard", "time", "consent", "deposit"];
 
 /**
  * รวมหลายเรื่องเป็นการ์ดใบเดียว (ประหยัดโควตา LINE + ลูกค้าไม่ต้องไล่อ่านหลายใบ)
@@ -2138,6 +2140,7 @@ export function intakeStartLink(
     info: t("infoButton"),
     vaccine: t("vaccineButton"),
     idcard: t("idcardButton"),
+    time: t("timeButton"),
     consent: t("consentButton"),
   };
   const names = steps.map((e) => {

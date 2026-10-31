@@ -14,6 +14,7 @@ import {
   buildDocRequestFlex,
   mergeIntakeCards,
   intakeStartLink,
+  buildTimePickerFlex,
   politeCat,
   buildNoticeFlex,
   STAY_INFO_HEADER,
@@ -28,6 +29,7 @@ import {
   inStayBathText,
   buildGroomInfoBody,
   getBookingTimeUrl,
+  buildCheckinBodyText,
   getGroomInfoUrl,
   getConsentUrl,
   getPetDocsUrl,
@@ -479,6 +481,23 @@ export async function GET(req: NextRequest) {
       // บัตรประชาชน ที่ยังขาด → เป็นปุ่มเดียวในการ์ดเตรียมตัว ระบบพาไปทีละหน้า
       const consent = await consentCardFor(group, b, cfg);
       const intake = [...(consent ? [consent] : []), ...(await intakeCardsFor(group, "room", cfg))];
+      const prestayOn = cardOn(cfg, "prestay");
+      // มีเรื่องต้องกรอกด้วย → เลือกเวลาส่งน้องเป็นขั้นหนึ่งในปุ่มเดียวกัน (ก่อนกดยินยอมขั้นสุดท้าย)
+      // ลูกค้ากดปุ่มเดียวแล้วตอบทุกอย่างจบ ไม่ต้องกลับมากดปุ่มเลือกเวลาอีกปุ่ม
+      const timeInFlow = prestayOn && !!timeUrl && intake.length > 0;
+      if (timeInFlow) {
+        intake.push({
+          kind: "time",
+          url: timeUrl,
+          ids: [b.id],
+          card: buildTimePickerFlex({
+            title: "🕒 เลือกเวลาเข้าพัก",
+            body: buildCheckinBodyText(b, cfg),
+            url: timeUrl,
+            label: "🕒 เลือกเวลาส่งน้อง",
+          }, cfg.cards?.timePicker),
+        });
+      }
       const flow = liffId ? { liffId, by: "b" as const } : undefined;
       const intakeLink = intakeStartLink(intake, { flow }, cfg.cards?.intake);
       // ยอดคงเหลือ (มีบิลค้าง + มัดจำแล้ว) อยู่ในการ์ดใบเดียวกัน
@@ -500,13 +519,12 @@ export async function GET(req: NextRequest) {
       }
       // ทุกอย่างรวมในการ์ดใบเดียว: เตรียมตัว + ข้อมูลที่ยังขาด + ยอดคงเหลือ + ปุ่มเลือกเวลา
       // ร้านปิดการ์ดเตรียมตัวในตั้งค่า › เปิด/ปิดฟีเจอร์ → ส่งเฉพาะการ์ดขอข้อมูลที่ยังขาด
-      const prestayOn = cardOn(cfg, "prestay");
       const prestayBundle: object[] = prestayOn ? [
         buildPrestayFlex({
           ...buildPrestayFlexData(b, cfg),
           bath: inStayBathText(ids, allBookings, cfg) || undefined,
           consentUrl: undefined,
-          timeUrl: timeUrl || undefined,
+          timeUrl: (!timeInFlow && timeUrl) || undefined,
           intake: intakeLink || undefined,
           balance,
         }, cfg.cards?.prestay),
