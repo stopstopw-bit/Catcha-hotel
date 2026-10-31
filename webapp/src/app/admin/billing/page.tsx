@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { askDepositReceive } from "@/lib/deposit-confirm";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PosPanel } from "@/components/PosPanel";
@@ -1704,7 +1705,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     id: string,
     action: string,
     okMsg: string,
-    confirmMsg?: string
+    confirmMsg?: string,
+    extra?: Record<string, unknown>
   ) => {
     if (confirmMsg && !confirm(confirmMsg)) return;
     setInvoiceBusy(`${id}:${action}`);
@@ -1712,7 +1714,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       const res = await fetch("/api/invoices", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify({ id, action, ...extra }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -1935,14 +1937,19 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
         key: "receive_deposit",
         icon: "money",
         title: "รับมัดจำแล้ว",
-        sub: `${(inv.deposit || 0).toLocaleString()} ฿ · ลงบัญชี + ส่งการ์ดขอบคุณให้ลูกค้า`,
+        sub: `${(inv.deposit || 0).toLocaleString()} ฿ · ลงบัญชี (ถามก่อนส่งการ์ดขอบคุณ)`,
         when: hasDep && !inv.depositReceivedAt,
-        run: () =>
+        run: () => {
+          const ask = askDepositReceive(inv.customerName, inv.deposit || 0, !!inv.lineUserId);
+          if (!ask) return;
           invoiceAction(
             inv.id,
             "receive_deposit",
-            "รับมัดจำแล้ว 💰 (ลงบัญชี + ส่งการ์ดขอบคุณให้ลูกค้า)"
-          ),
+            ask.notify ? "รับมัดจำแล้ว 💰 + ส่งการ์ดขอบคุณแล้ว" : "รับมัดจำแล้ว 💰 (ไม่ได้ส่งการ์ด)",
+            undefined,
+            { notify: ask.notify }
+          );
+        },
       },
       {
         key: "transfer",
