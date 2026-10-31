@@ -25,6 +25,7 @@ const ACTION_LABEL: Record<string, string> = {
   exclude_finance: "ตั้งไม่นับเป็นรายได้",
   include_finance: "กลับมานับเป็นรายได้",
   send_birthday_greetings: "ส่งการ์ดวันเกิด",
+  receive_deposit: "รับมัดจำ",
 };
 
 /** ไอคอนเส้นของแต่ละการกระทำ */
@@ -38,6 +39,7 @@ const ACTION_ICON: Record<string, string> = {
   exclude_finance: "x",
   include_finance: "check",
   send_birthday_greetings: "cake",
+  receive_deposit: "money",
 };
 
 function when(iso: string) {
