@@ -35,7 +35,8 @@ const bundleCardCount = (parts: string[]) => {
 
 /** เรื่องที่เลือกใส่ในการ์ดขอข้อมูลได้ (info = ประวัติ/ข้อมูลก่อนเข้าพักตามบริการ) — เรียงตามลำดับขั้น */
 // payment = การ์ดแจ้งยอดชำระค่าบริการ (บิล) — ไม่ใช่เรื่องขอข้อมูล จึงส่งได้แค่แยกใบ
-const INTAKE_PICK_KEYS = ["info", "vaccine", "idcard", "consent", "deposit", "payment"] as const;
+// time = เลือกเวลาส่งน้อง (เข้าพัก) — อยู่ในปุ่มเดียวกัน ก่อนกดยินยอมขั้นสุดท้าย
+const INTAKE_PICK_KEYS = ["info", "vaccine", "idcard", "time", "consent", "deposit", "payment"] as const;
 type IntakePickKey = (typeof INTAKE_PICK_KEYS)[number];
 /** แต่ละเรื่อง: ไม่ส่ง · รวม (อยู่ในการ์ดใบเดียวปุ่มเดียว) · แยก (การ์ดของตัวเอง) — ส่งพร้อมกันในครั้งเดียวได้ */
 type IntakeMode = "off" | "combined" | "separate";
@@ -44,7 +45,7 @@ const INTAKE_PICK_STORE = "catcha-intake-pick";
 
 /** ตัวเลือกล่าสุดที่ร้านใช้ (เก็บในเครื่อง) — ครั้งแรก = ทุกเรื่องรวมใบเดียว ไม่ขอมัดจำ */
 function loadIntakePick(depositAllowed: boolean): IntakePick {
-  const modes = { info: "combined", vaccine: "combined", idcard: "combined", consent: "combined", deposit: "off", payment: "off" } as Record<
+  const modes = { info: "combined", vaccine: "combined", idcard: "combined", time: "combined", consent: "combined", deposit: "off", payment: "off" } as Record<
     IntakePickKey,
     IntakeMode
   >;
@@ -257,7 +258,8 @@ export function CustomerSendButtons({
       toast("ใส่ยอดมัดจำ หรือเลือก \"ไม่ส่ง\" ที่มัดจำ", "error");
       return;
     }
-    const partOf = (k: IntakePickKey) => (k === "info" ? (hasRoomStay ? "stayInfo" : "groomInfo") : k);
+    const partOf = (k: IntakePickKey) =>
+      k === "info" ? (hasRoomStay ? "stayInfo" : "groomInfo") : k === "time" ? "checkin" : k;
     const on = intakePickOptions.map((o) => o.key).filter((k) => k !== "deposit" && modes[k] !== "off");
     if (on.length === 0 && !withDeposit) {
       toast("เลือกอย่างน้อย 1 เรื่อง", "error");
@@ -285,6 +287,8 @@ export function CustomerSendButtons({
     // นัดอาบน้ำก็ขอสมุดวัคซีน + ข้อตกลงอาบน้ำ · บัตรประชาชนเฉพาะนัดที่มีเข้าพัก
     { key: "vaccine", label: "สมุดวัคซีน" },
     ...(hasRoomStay ? [{ key: "idcard" as const, label: "บัตรประชาชน" }] : []),
+    // เลือกเวลาส่งน้อง (เข้าพัก) อยู่ในปุ่มเดียวกัน ก่อนกดยินยอมขั้นสุดท้าย
+    ...(hasRoomStay && cardOn(config, "checkin") ? [{ key: "time" as const, label: "เลือกเวลาส่งน้อง" }] : []),
     { key: "consent", label: hasRoomStay ? INTAKE_LABEL.consent : "ข้อตกลงอาบน้ำ + กดยินยอม" },
     ...(hasRoomStay && canAskDeposit
       ? [{ key: "deposit" as const, label: depForBill > 0 ? `มัดจำ (ขอแล้ว ${depForBill.toLocaleString()}฿)` : "มัดจำ" }]
