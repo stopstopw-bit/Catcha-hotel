@@ -1,4 +1,5 @@
 import { getSiteConfig } from "./config-store";
+import { healWrite } from "./heal-write";
 import {
   deductMemberCredit,
   restoreMemberCredit,
@@ -851,14 +852,7 @@ export async function receiveInvoicePayment(
     const sb = getSupabase();
     if (sb) {
       await sb.from("invoices").update({ deposit: inv.deposit }).eq("id", id);
-      try {
-        await sb
-          .from("invoices")
-          .update({ deposit_received_at: inv.depositReceivedAt })
-          .eq("id", id);
-      } catch {
-        /* ยังไม่ได้รัน migration — ข้าม */
-      }
+      await healWrite("invoices", ["deposit_received_at"], () => sb.from("invoices").update({ deposit_received_at: inv.depositReceivedAt }).eq("id", id));
     } else {
       const m = mem.find((x) => x.id === id);
       if (m) {

@@ -1,4 +1,5 @@
 import type { Booking, BookingStatus } from "./business";
+import { healWrite } from "./heal-write";
 import { getSupabase, selectAllRows } from "./supabase/server";
 import { uploadDataUrlToStorage } from "./supabase/storage";
 import { seedEnabled } from "./demo-seed";
@@ -470,14 +471,7 @@ export async function addBooking(
     // เขียนโปรแกรมอาบน้ำแยก เพราะ storedToRow ตัดคอลัมน์ใหม่ออก — ร้านที่ยังไม่รัน
     // migration จะ insert แถวหลักได้ปกติ ส่วนโปรแกรมจะเข้าเมื่อรัน SQL แล้ว
     if (booking.groomProgram) {
-      try {
-        await sb
-          .from("bookings")
-          .update({ groom_program: booking.groomProgram })
-          .eq("id", booking.id);
-      } catch {
-        /* ยังไม่มีคอลัมน์ groom_program */
-      }
+      await healWrite("bookings", ["groom_program"], () => sb.from("bookings").update({ groom_program: booking.groomProgram }).eq("id", booking.id));
     }
     if (booking.roomUnit != null) {
       try {
@@ -557,51 +551,20 @@ export async function updateBooking(
     // คอลัมน์ auto_off เพิ่มมาทีหลัง — เขียนแยกและกลืน error ไว้
     // เครื่องที่ยังไม่ได้รัน migration จะได้ไม่พังทั้งการบันทึกนัด
     if (patch.autoOff !== undefined) {
-      try {
-        await sb
-          .from("bookings")
-          .update({ auto_off: merged.autoOff || [] })
-          .eq("id", id);
-      } catch {
-        /* ยังไม่มีคอลัมน์ — ข้ามไป ฟีเจอร์จะทำงานเมื่ออัปเดตฐานข้อมูลแล้ว */
-      }
+      await healWrite("bookings", ["auto_off"], () => sb.from("bookings").update({ auto_off: merged.autoOff || [] }).eq("id", id));
     }
     // โปรแกรมอาบน้ำ — เขียนแยกเช่นกัน (คอลัมน์ groom_program เพิ่มมาทีหลัง)
     if (patch.groomProgram !== undefined) {
-      try {
-        await sb
-          .from("bookings")
-          .update({ groom_program: merged.groomProgram || null })
-          .eq("id", id);
-      } catch {
-        /* ยังไม่มีคอลัมน์ groom_program */
-      }
+      await healWrite("bookings", ["groom_program"], () => sb.from("bookings").update({ groom_program: merged.groomProgram || null }).eq("id", id));
     }
     // ห้องจริงที่ปักหมุด — คอลัมน์ room_unit เพิ่มมาทีหลัง เขียนแยกเช่นกัน
     // 0 = ถอนหมุด (ให้ระบบเดาเอง) เก็บเป็น null ในฐานข้อมูล ไม่ใช่ 0 (ไม่ใช่เลขห้องจริง)
     if (patch.roomUnit !== undefined) {
-      try {
-        await sb
-          .from("bookings")
-          .update({ room_unit: merged.roomUnit || null })
-          .eq("id", id);
-      } catch {
-        /* ยังไม่มีคอลัมน์ room_unit */
-      }
+      await healWrite("bookings", ["room_unit"], () => sb.from("bookings").update({ room_unit: merged.roomUnit || null }).eq("id", id));
     }
     // เวลาส่ง/รับน้อง — คอลัมน์เพิ่มมาทีหลัง เขียนแยก (เดิมไม่ได้เขียนเลย เวลาที่ร้านกรอกแทนลูกค้าเลยหาย)
     if ("arrivalTime" in patch || "pickupTime" in patch) {
-      try {
-        await sb
-          .from("bookings")
-          .update({
-            arrival_time: merged.arrivalTime || null,
-            pickup_time: merged.pickupTime || null,
-          })
-          .eq("id", id);
-      } catch {
-        /* ยังไม่มีคอลัมน์ arrival_time / pickup_time */
-      }
+      await healWrite("bookings", ["arrival_time", "pickup_time"], () => sb.from("bookings").update({ arrival_time: merged.arrivalTime || null, pickup_time: merged.pickupTime || null, }).eq("id", id));
     }
     // รับ-ส่ง — undefined ใน patch = ไม่ได้ส่งมา, ส่งมาเป็นค่าว่างให้ล้างทิ้ง (ใช้ "transport" in patch)
     if ("transport" in patch) await writeTransport(id, merged.transport || null);

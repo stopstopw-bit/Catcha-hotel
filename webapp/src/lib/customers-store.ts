@@ -1,4 +1,5 @@
 import { bookingMatchesCustomer, datesForBooking, isUpcomingBooking } from "./booking-customer-match";
+import { healWrite } from "./heal-write";
 import type { Booking } from "./business";
 import {
   computeTier,
@@ -670,14 +671,7 @@ export async function upsertCustomerFromLine(data: {
         })
         .eq("id", existing.id);
       // เก็บ ID ทุกตัวแยก (คอลัมน์ใหม่) — ถ้ายังไม่รัน migration ก็ไม่พัง
-      try {
-        await sb
-          .from("customers")
-          .update({ line_user_ids: existing.lineUserIds })
-          .eq("id", existing.id);
-      } catch {
-        /* ยังไม่มีคอลัมน์ line_user_ids */
-      }
+      await healWrite("customers", ["line_user_ids"], () => sb.from("customers").update({ line_user_ids: existing.lineUserIds }).eq("id", existing.id));
     } else {
       memCustomers.set(existing.id, existing);
     }
@@ -1135,7 +1129,8 @@ export async function updateCustomer(
 
   const sb = getSupabase();
   if (sb) {
-    await sb
+    // เดิมไม่เช็ค error — ถ้าคอลัมน์ไหนยังไม่มี ทั้งแถว (ชื่อ/เบอร์) จะไม่ลงฐานแบบเงียบ ๆ
+    await healWrite("customers", ["email", "birthday", "marketing_consent", "referral_source", "tier", "last_follow_up_at", "member_since"], () => sb
       .from("customers")
       .update({
         name: c.name,
@@ -1153,25 +1148,14 @@ export async function updateCustomer(
         last_follow_up_at: c.lastFollowUpAt || null,
         updated_at: c.updatedAt,
       })
-      .eq("id", id);
+      .eq("id", id));
     if (
       patch.address !== undefined ||
       patch.addressMapUrl !== undefined ||
       patch.postalCode !== undefined
     ) {
       // คอลัมน์ใหม่ — best-effort เผื่อยังไม่ได้รัน migration
-      await sb
-        .from("customers")
-        .update({
-          address: c.address || null,
-          address_map_url: c.addressMapUrl || null,
-          postal_code: c.postalCode || null,
-        })
-        .eq("id", id)
-        .then(
-          () => {},
-          () => {}
-        );
+      await healWrite("customers", ["address", "address_map_url", "postal_code"], () => sb.from("customers").update({ address: c.address || null, address_map_url: c.addressMapUrl || null, postal_code: c.postalCode || null, }).eq("id", id));
     }
   } else {
     memCustomers.set(id, c);
@@ -1322,58 +1306,22 @@ export async function updateCat(
         staff_note: cat.staffNote || null,
       })
       .eq("id", catId);
-    try {
-      await sb
-        .from("cats")
-        .update({
-          gender: cat.gender || null,
-          breed: cat.breed || null,
-          age_value: cat.ageValue ?? null,
-          age_unit: cat.ageUnit || null,
-          age_as_of: cat.ageAsOf || null,
-          birthday: cat.birthday || null,
-          medical: cat.medical || null,
-          fur_length: cat.furLength || null,
-          color: cat.color || null,
-          ...(touchesSharedField ? { needs_owner_confirm: cat.needsOwnerConfirm } : {}),
-        })
-        .eq("id", catId);
-    } catch {
-      /* ยังไม่ได้ migrate คอลัมน์เพิ่ม — ข้าม (ชื่อ/โน้ตยังบันทึกได้) */
-    }
+    // ช่องที่เขียนไม่ติด → แจ้งกลับให้หน้าจอบอก "บันทึกไม่สำเร็จ" แทนที่จะขึ้นว่าสำเร็จแล้วข้อมูลหาย
+    let extraFailed = false;
+    if (!(await healWrite("cats", ["gender", "breed", "age_value", "age_unit", "age_as_of", "birthday", "medical", "fur_length", "color", "needs_owner_confirm"], () => sb.from("cats").update({ gender: cat.gender || null, breed: cat.breed || null, age_value: cat.ageValue ?? null, age_unit: cat.ageUnit || null, age_as_of: cat.ageAsOf || null, birthday: cat.birthday || null, medical: cat.medical || null, fur_length: cat.furLength || null, color: cat.color || null, ...(touchesSharedField ? { needs_owner_confirm: cat.needsOwnerConfirm } : {}), }).eq("id", catId)))) extraFailed = true;
     if (weightChanged) {
       // คอลัมน์ใหม่ — แยกเขียนเผื่อยังไม่ได้รัน migration จะได้ไม่ทำให้ช่องอื่นเซฟไม่ติด
-      await sb
-        .from("cats")
-        .update({ weight_kg: cat.weightKg ?? null })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      if (!(await healWrite("cats", ["weight_kg"], () => sb.from("cats").update({ weight_kg: cat.weightKg ?? null }).eq("id", catId)))) extraFailed = true;
     }
     if (neuteredChanged) {
       // คอลัมน์ใหม่ (cats.neutered) — แยกเขียนเผื่อยังไม่ได้รัน migration
-      await sb
-        .from("cats")
-        .update({ neutered: cat.neutered ?? null })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      if (!(await healWrite("cats", ["neutered"], () => sb.from("cats").update({ neutered: cat.neutered ?? null }).eq("id", catId)))) extraFailed = true;
     }
     if (historyChanged) {
       // คอลัมน์ใหม่ (cats.seizure_history / cats.allergy) — แยกเขียนเผื่อยังไม่ได้รัน migration
-      await sb
-        .from("cats")
-        .update({ seizure_history: cat.seizureHistory ?? null, allergy: cat.allergy ?? null })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      if (!(await healWrite("cats", ["seizure_history", "allergy"], () => sb.from("cats").update({ seizure_history: cat.seizureHistory ?? null, allergy: cat.allergy ?? null }).eq("id", catId)))) extraFailed = true;
     }
+    if (extraFailed) return { ...c, saveFailed: true as const };
   } else {
     memCustomers.set(customerId, c);
   }
@@ -1551,48 +1499,16 @@ export async function addCat(
     if (error) throw new Error(error.message);
     if (cat.furLength || cat.color || cat.needsOwnerConfirm) {
       // คอลัมน์ใหม่ — best-effort เผื่อยังไม่ได้รัน migration
-      await sb
-        .from("cats")
-        .update({
-          fur_length: cat.furLength || null,
-          color: cat.color || null,
-          needs_owner_confirm: cat.needsOwnerConfirm || false,
-        })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      await healWrite("cats", ["fur_length", "color", "needs_owner_confirm"], () => sb.from("cats").update({ fur_length: cat.furLength || null, color: cat.color || null, needs_owner_confirm: cat.needsOwnerConfirm || false, }).eq("id", catId));
     }
     if (cat.neutered != null) {
-      await sb
-        .from("cats")
-        .update({ neutered: cat.neutered })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      await healWrite("cats", ["neutered"], () => sb.from("cats").update({ neutered: cat.neutered }).eq("id", catId));
     }
     if (cat.seizureHistory || cat.allergy) {
-      await sb
-        .from("cats")
-        .update({ seizure_history: cat.seizureHistory ?? null, allergy: cat.allergy ?? null })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      await healWrite("cats", ["seizure_history", "allergy"], () => sb.from("cats").update({ seizure_history: cat.seizureHistory ?? null, allergy: cat.allergy ?? null }).eq("id", catId));
     }
     if (cat.weightKg != null) {
-      await sb
-        .from("cats")
-        .update({ weight_kg: cat.weightKg })
-        .eq("id", catId)
-        .then(
-          () => {},
-          () => {}
-        );
+      await healWrite("cats", ["weight_kg"], () => sb.from("cats").update({ weight_kg: cat.weightKg }).eq("id", catId));
     }
   } else {
     memCustomers.set(customerId, c);
