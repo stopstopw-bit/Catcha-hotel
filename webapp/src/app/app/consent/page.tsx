@@ -26,6 +26,7 @@ import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
 import { isFeatureOn } from "@/lib/features";
 import { bookingGroupKey, groupCatNames, stayForGroom } from "@/lib/booking-group";
+import { formatThaiDateShort, roomWithWord } from "@/lib/format-thai-date";
 
 type StayBooking = Booking & {
   checkin?: string;
@@ -359,15 +360,15 @@ function ConsentContent() {
                 <p className="text-xs text-brown-soft">
                   {isGroom ? (
                     <>
-                      นัดอาบน้ำ: {booking.date}
-                      {booking.time ? ` ${booking.time} น.` : ""}
+                      นัดอาบน้ำ: {formatThaiDateShort(booking.date)}
+                      {booking.time ? ` · ${booking.time} น.` : ""}
                     </>
                   ) : (
                     <>
-                      เข้าพัก: {booking.checkin || booking.date}
-                      {booking.checkout ? ` → ${booking.checkout}` : ""}
+                      เข้าพัก: {formatThaiDateShort(booking.checkin || booking.date)}
+                      {booking.checkout ? ` → ${formatThaiDateShort(booking.checkout)}` : ""}
                       {booking.room
-                        ? ` · ห้อง ${config.rooms.find((r) => r.id === booking.room)?.name || booking.room}`
+                        ? ` · ${roomWithWord(config.rooms.find((r) => r.id === booking.room)?.name || booking.room)}`
                         : ""}
                     </>
                   )}
