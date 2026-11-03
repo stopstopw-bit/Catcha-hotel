@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PosPanel } from "@/components/PosPanel";
 import { useConfig } from "@/components/ConfigProvider";
 import { isFeatureOn } from "@/lib/features";
+import { rewardDiscountBaht } from "@/lib/points-reward";
 import type { PosProduct } from "@/lib/pos-store";
 import { SERVICE_PRESETS, type ServicePreset } from "@/lib/service-presets";
 import { CustomerSendButtons } from "@/components/CustomerSendButtons";
@@ -66,7 +67,12 @@ type Customer = {
   memberCredit: number;
   /** มัดจำล่วงหน้าคงเหลือ — หักบิลนี้อัตโนมัติ */
   depositCredit?: number;
+  /** แต้มสะสมคงเหลือ — แอดมินแลกแทนลูกค้าเป็นส่วนลดบิลได้ */
+  points?: number;
 };
+
+/** รางวัลแลกแต้มที่เป็นส่วนลดเงิน (ใช้หักบิลได้) */
+type PointReward = { id: string; points: number; name: string; value: number };
 
 type Promo = {
   id: string;
@@ -578,6 +584,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   }, [customerId, billBookingIds]);
   const [discount, setDiscount] = useState("");
   const [couponId, setCouponId] = useState("");
+  /** รางวัลแลกแต้มที่เป็นส่วนลดเงิน — ว่าง = ร้านปิดแต้ม หรือไม่มีรางวัลแบบส่วนลด */
+  const [pointRewards, setPointRewards] = useState<PointReward[]>([]);
+  const [redeeming, setRedeeming] = useState("");
+  /** บิลที่กำลังจะแลกแต้มเข้า (จากเมนู ⋯ ของบิล) */
+  const [redeemFor, setRedeemFor] = useState<Invoice | null>(null);
   const [customerCoupons, setCustomerCoupons] = useState<
     { id: string; amount: number; reason: string; code: string }[]
   >([]);
@@ -688,6 +699,14 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     setRooms([...nightly, ...daily]);
     setGroomPrograms(resolveGroomPrograms(config?.groomPricePrograms));
     if (config?.payment) setPay(config.payment);
+    setPointRewards(
+      config && isFeatureOn(config, "points")
+        ? ((config.pointsRewards || []) as { id: string; points: number; reward: { th: string; en: string }; discount?: number }[])
+            .map((r) => ({ id: r.id, points: r.points, name: r.reward?.th || "", value: rewardDiscountBaht(r) }))
+            .filter((r) => r.value > 0 && r.points > 0)
+            .sort((a, b) => a.points - b.points)
+        : []
+    );
     if (config?.business?.name) setShopName(config.business.name);
     if (config?.billing) setBillMsg(config.billing);
     if (config?.options?.servicePresets?.length) setServicePresets(config.options.servicePresets);
@@ -1450,6 +1469,8 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
           extraDiscount: manualDiscount + packageCovers,
           deposit: depositAmount || 0,
           promoId,
+          // คูปองที่เลือกตอนแก้บิล (เช่น เพิ่งแลกแต้มแทนลูกค้า) — เมื่อก่อนไม่ได้ส่ง ส่วนลดคูปองเลยไม่ลง
+          couponId: couponId || undefined,
           ...(packageId ? { packageId, packageUnits: packageUnitsToUse || undefined } : {}),
         }),
       });
@@ -1699,6 +1720,121 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
     } finally {
       setInvoiceBusy("");
     }
+  };
+
+  /** แลกแต้มแทนลูกค้าในฟอร์มออกบิล/แก้บิล → ได้คูปอง แล้วเลือกใส่บิลนี้ให้ทันที */
+  const redeemPointsInForm = async (r: PointReward) => {
+    if (!selected || redeeming) return;
+    const have = selected.points ?? 0;
+    if (
+      !confirm(
+        `แลก ${r.points} แต้มของ ${selected.name} เป็นส่วนลด ${r.value.toLocaleString()} ฿ ใส่บิลนี้?\n` +
+          `แต้มเหลือ ${(have - r.points).toLocaleString()} แต้ม` +
+          (couponId ? "\n(ใช้แทนคูปองที่เลือกไว้ — คูปองเดิมยังอยู่ในกระเป๋าลูกค้า)" : "")
+      )
+    )
+      return;
+    setRedeeming(r.id);
+    try {
+      const res = await fetch("/api/points", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "admin_redeem",
+          customerId: selected.id,
+          lineUserId: selected.lineUserId,
+          displayName: selected.name,
+          rewardId: r.id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.coupon?.id) {
+        toast(typeof data.error === "string" ? data.error : "แลกแต้มไม่สำเร็จ", "error");
+        return;
+      }
+      setCustomerCoupons((prev) => [data.coupon, ...prev.filter((c) => c.id !== data.coupon.id)]);
+      setCouponId(data.coupon.id);
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === selected.id ? { ...c, points: data.points } : c))
+      );
+      toast(`แลกแต้มแล้ว ลด ${r.value.toLocaleString()} ฿ ในบิลนี้ · เหลือ ${data.points} แต้ม`, "success");
+    } finally {
+      setRedeeming("");
+    }
+  };
+
+  /** แลกแต้มเข้าบิลที่ออกไปแล้ว (เมนู ⋯) — หักแต้ม + ลดยอดบิลทันที */
+  const RedeemPointsModal = () => {
+    if (!redeemFor) return null;
+    const inv = redeemFor;
+    const cust = customers.find((c) => c.id === inv.customerId);
+    const have = cust?.points ?? 0;
+    const due = Math.max(0, inv.total - receivedOf(inv));
+    return (
+      <div
+        className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center"
+        onClick={() => setRedeemFor(null)}
+      >
+        <div
+          className="w-full max-w-sm rounded-catcha bg-card p-4 shadow-catcha"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="mb-1 flex items-center justify-center gap-1.5 text-center text-sm font-extrabold text-catcha-chocolate">
+            <Icon name="gift" size={18} />
+            แลกแต้มเป็นส่วนลดบิล
+          </p>
+          <p className="mb-3 text-center text-xs text-brown-soft">
+            {inv.customerName} มี <b className="text-catcha-chocolate">{have.toLocaleString()}</b> แต้ม · ยอดค้าง{" "}
+            {due.toLocaleString()} ฿
+          </p>
+          <div className="space-y-2">
+            {pointRewards.map((r) => {
+              const short = have < r.points;
+              const over = r.value > due;
+              const busy = invoiceBusy === `${inv.id}:redeem_points`;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  disabled={short || over || busy}
+                  onClick={async () => {
+                    setRedeemFor(null);
+                    await invoiceAction(
+                      inv.id,
+                      "redeem_points",
+                      `แลกแต้มแล้ว 🎁 ลดบิล ${r.value.toLocaleString()} ฿`,
+                      `แลก ${r.points} แต้มของ ${inv.customerName} เป็นส่วนลด ${r.value.toLocaleString()} ฿ เข้าบิลนี้เลย?\n` +
+                        `ยอดบิลจะเหลือ ${(inv.total - r.value).toLocaleString()} ฿ · แต้มเหลือ ${(have - r.points).toLocaleString()} แต้ม`,
+                      { rewardId: r.id }
+                    );
+                  }}
+                  className="flex min-h-[48px] w-full items-center justify-between gap-2 rounded-catcha-sm bg-paper px-3.5 py-2.5 text-left disabled:opacity-40"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-extrabold text-catcha-chocolate">
+                      ลด {r.value.toLocaleString()} ฿
+                    </span>
+                    <span className="block truncate text-[11px] text-brown-soft">
+                      {short ? `แต้มไม่พอ (ขาด ${(r.points - have).toLocaleString()})` : over ? "ส่วนลดมากกว่ายอดค้าง" : r.name}
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-latte-deep px-3 py-1 text-xs font-extrabold text-card">
+                    {r.points.toLocaleString()} แต้ม
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setRedeemFor(null)}
+            className="mt-3 min-h-[44px] w-full rounded-catcha-sm bg-paper py-3 text-sm font-bold text-brown-soft"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const invoiceAction = async (
@@ -2148,6 +2284,7 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
   return (
     <div>
       <CreditConfirmModal />
+      <RedeemPointsModal />
       <PaySheet />
       {partialSheet()}
       <div className="mb-4 flex items-end justify-between gap-3">
@@ -3004,6 +3141,31 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
             </div>
           )}
 
+          {selected && pointRewards.length > 0 && (
+            <div>
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-brown-soft">
+                <Icon name="gift" size={14} />
+                แลกแต้มแทนลูกค้า (มี {(selected.points ?? 0).toLocaleString()} แต้ม)
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {pointRewards.map((r) => {
+                  const short = (selected.points ?? 0) < r.points;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      disabled={short || !!redeeming}
+                      onClick={() => redeemPointsInForm(r)}
+                      className="flex min-h-[40px] items-center gap-1 rounded-full bg-paper px-3.5 py-2 text-xs font-bold text-brown-soft disabled:opacity-40"
+                    >
+                      {redeeming === r.id ? "กำลังแลก…" : `${r.points.toLocaleString()} แต้ม → ลด ฿${r.value.toLocaleString()}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {customerPackages.length > 0 && !editingHasPackage && (
             <div>
               <span className="mb-1.5 flex items-start gap-1.5 text-xs font-bold text-brown-soft">
@@ -3389,6 +3551,16 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
                 { label: "ส่ง LINE หาลูกค้า", icon: "send", onClick: openSend },
                 { label: "ใบเสนอราคา / ใบแจ้งหนี้", icon: "doc", onClick: openDocs },
                 { label: "แก้ไขบิล", icon: "edit", onClick: () => editInvoice(inv) },
+                // ลูกค้าขอใช้แต้ม — แอดมินแลกแทน แล้วหักเป็นส่วนลดบิลนี้ทันที
+                ...(inv.customerId && pointRewards.length > 0
+                  ? [
+                      {
+                        label: "แลกแต้มเป็นส่วนลด",
+                        icon: "gift" as const,
+                        onClick: () => setRedeemFor(inv),
+                      },
+                    ]
+                  : []),
                 // ลูกค้ามาใช้คอร์สก่อนจ่ายครบ — ให้คอร์สเลยเฉพาะบิลนี้ (ปกติได้ตอนจ่ายครบ)
                 ...((inv.items || []).some((it) => it.kind === "package" && it.offerId && !it.packageIds?.length)
                   ? [
