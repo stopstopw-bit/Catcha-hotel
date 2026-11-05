@@ -28,6 +28,8 @@ export async function buildBookingConfirmFlex(
     notes?: string;
     groomProgram?: string;
     transport?: BookingTransport;
+    /** ปุ่มเลือกเวลาส่งน้องในการ์ดนี้ (แทนการ์ดเลือกเวลาเช็คอินแยกอีกใบ) */
+    timeUrl?: string;
   },
   /** น้องทุกตัวในบ้านที่จองมาด้วยกัน (นัดละตัว) — อาบคนละโปรแกรม จะแยกบอกรายตัวในการ์ด */
   pets?: { catName: string; groomProgram?: string }[]

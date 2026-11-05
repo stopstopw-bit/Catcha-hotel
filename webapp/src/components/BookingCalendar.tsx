@@ -2557,6 +2557,8 @@ export function BookingCalendar() {
                     service={b.service}
                     groomBookingIds={many ? group.map((x) => x.id) : undefined}
                     initialAutoOff={b.autoOff}
+                    checkinTimeKnown={!!b.arrivalTime}
+                    checkoutTimeKnown={!!b.pickupTime}
                     onDone={load}
                   />
                   <InvoiceActionButtons bookingId={b.id} onDone={load} />

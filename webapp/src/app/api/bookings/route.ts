@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { receiptCourseSummary } from "@/lib/packages-store";
 import { isDayCareStay } from "@/lib/day-care";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
@@ -801,7 +802,13 @@ function groomInfoCardFor(
       return direct.find(want) || mine.find(want) || direct[0] || mine[0];
     };
 
+    // เลือกทั้งแจ้งเตือนนัด + เลือกเวลาเช็คอิน → ปุ่มเลือกเวลาอยู่ในการ์ดแจ้งเตือนนัดใบเดียว ไม่แยกการ์ด
+    const reminderTimeUrl =
+      parts.includes("reminder") && parts.includes("checkin") && !b.arrivalTime
+        ? await getBookingTimeUrl(b.id, "checkin")
+        : "";
     for (const part of parts) {
+      if (part === "checkin" && reminderTimeUrl) continue;
       if (part === "reminder") {
         messages.push(
           await buildBookingConfirmFlex({
@@ -818,6 +825,7 @@ function groomInfoCardFor(
             notes: b.notes,
             groomProgram: b.groomProgram,
             transport: b.transport,
+            timeUrl: reminderTimeUrl || undefined,
           }, household)
         );
       } else if (part === "consent") {
@@ -859,6 +867,8 @@ function groomInfoCardFor(
           // เครดิตปัจจุบัน = ยอดหลังหักบิลนี้ไปแล้ว (บิลถูกปิดไปก่อนถึงจะส่งใบเสร็จได้)
           const creditCustomer =
             paidByCredit && inv.customerId ? await getCustomer(inv.customerId) : null;
+          // ลูกค้ามีคอร์สอยู่ → สรุปคอร์สที่เหลือทุกใบไปท้ายใบเสร็จด้วย (เหมือนส่งจากหน้าบิล)
+          const courses = await receiptCourseSummary(inv.customerId, inv.packageId, inv.packageUnits);
           messages.push(
             buildReceiptFlex({
               invoiceId: inv.id,
@@ -872,6 +882,7 @@ function groomInfoCardFor(
               items: (inv.items || []).map((it) => ({ label: it.label, amount: it.amount })),
               memberCreditUsed: paidByCredit ? inv.total : undefined,
               memberCreditLeft: creditCustomer?.memberCredit,
+              courses,
               paymentMethod:
                 inv.paymentMethod === "member_credit"
                   ? "Member Credit"
