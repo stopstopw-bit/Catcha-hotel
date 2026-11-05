@@ -184,6 +184,8 @@ export type SiteConfig = {
   features?: Partial<Record<string, boolean>>;
   /** ชวนเพื่อนรับคูปอง — มูลค่าคูปองต่อคน/อายุคูปอง (ไม่ตั้ง = 100 บาท · 60 วัน) ดู src/lib/referral.ts */
   referral?: { amount?: number; expiresInDays?: number };
+  /** นัดอาบน้ำขอการ์ดเข้าพักอะไรบ้าง (สมุดวัคซีน/กฎ/บัตร) ดู src/lib/intake-rules.ts */
+  intakeRules?: import("./intake-rules").IntakeRules;
   crm: CrmConfig;
   messages: MessagesConfig;
   automation: AutomationConfig;

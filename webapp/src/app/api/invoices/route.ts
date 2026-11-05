@@ -48,7 +48,7 @@ import {
   politeCat,
 } from "@/lib/line";
 import { renderTemplate } from "@/lib/messages";
-import { consumePackage, refundPackageUse, getPackage } from "@/lib/packages-store";
+import { consumePackage, refundPackageUse, getPackage, receiptCourseSummary } from "@/lib/packages-store";
 import { roomPlanOutstanding } from "@/lib/room-plans-store";
 import { getBooking } from "@/lib/bookings-store";
 import { bookingScheduleText } from "@/lib/booking-reminders";
@@ -459,6 +459,8 @@ export async function PATCH(req: NextRequest) {
     const creditCustomer = paidByCredit && inv.customerId ? await getCustomer(inv.customerId) : null;
     // คอร์สที่บิลนี้หักไป — โชว์สิทธิ์คงเหลือในใบเสร็จ ลูกค้าจะได้ไม่ต้องถาม
     const usedPkg = inv.packageId ? await getPackage(inv.packageId) : undefined;
+    // ลูกค้ามีคอร์สอยู่ → สรุปคอร์สที่เหลือทุกใบไปท้ายใบเสร็จด้วย
+    const courses = await receiptCourseSummary(inv.customerId, inv.packageId, inv.packageUnits);
     const receiptFlex = buildReceiptFlex({
       invoiceId: inv.id,
       customerName: inv.customerName,
@@ -475,6 +477,7 @@ export async function PATCH(req: NextRequest) {
       packageUsed: usedPkg ? inv.packageUnits || 1 : undefined,
       packageLeft: usedPkg ? usedPkg.totalUses - usedPkg.usedUses : undefined,
       packageUnitLabel: usedPkg?.unit === "night" ? "คืน" : "ครั้ง",
+      courses,
       paymentMethod:
         inv.paymentMethod === "member_credit"
           ? "Member Credit"

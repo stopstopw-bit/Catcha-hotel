@@ -13,6 +13,7 @@ import { ExportSheetsButton } from "@/components/ExportSheetsButton";
 import { Icon } from "@/components/Icon";
 import { useConfig } from "@/components/ConfigProvider";
 import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/features";
+import { GROOM_EXTRA_CARDS, groomCardsOf } from "@/lib/intake-rules";
 import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
 import { NumInput } from "@/components/NumInput";
 
@@ -2238,6 +2239,10 @@ function FeaturesTab({
     const r = referralReward(config);
     return { amount: String(r.amount), expiresInDays: String(r.expiresInDays) };
   });
+  // นัดอาบน้ำขอการ์ดเข้าพักอะไรด้วย (ชุดเดียวกับ PetFlow) — ไม่ได้ตั้ง = สมุดวัคซีน + ข้อตกลง
+  const [groomCards, setGroomCards] = useState<string[]>(() => groomCardsOf(config));
+  const toggleGroomCard = (key: string, v: boolean) =>
+    setGroomCards((cur) => (v ? [...cur.filter((k) => k !== key), key] : cur.filter((k) => k !== key)));
 
   return (
     <form
@@ -2245,6 +2250,7 @@ function FeaturesTab({
         e.preventDefault();
         onSave({
           features: form,
+          intakeRules: { ...config.intakeRules, groomCards },
           referral: {
             amount: Math.max(0, Math.round(Number(referral.amount) || 0)) || REFERRAL_DEFAULT.amount,
             expiresInDays:
@@ -2293,6 +2299,25 @@ function FeaturesTab({
               );
             })}
           </ul>
+          {g === "ข้อมูลก่อนรับน้อง" && (
+            <div className="mt-3 border-t border-catcha-line pt-3">
+              <p className="text-sm font-extrabold text-catcha-chocolate">นัดอาบน้ำ ขอเพิ่มด้วย</p>
+              <p className="pb-2 text-[10px] text-brown-faint">
+                การ์ดเรื่องเข้าพักที่จะขึ้นในปุ่มส่ง LINE ของนัด/บิลอาบน้ำ (ปิด = ไม่มีปุ่มนั้นในนัดอาบน้ำ)
+              </p>
+              <ul className="divide-y divide-catcha-line">
+                {GROOM_EXTRA_CARDS.map((c) => (
+                  <li key={c.key} className="py-1">
+                    <Toggle
+                      label={c.label}
+                      checked={groomCards.includes(c.key)}
+                      onChange={(v) => toggleGroomCard(c.key, v)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       ))}
       <SaveBtn saving={saving} />
