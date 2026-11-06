@@ -513,6 +513,8 @@ export async function updateInvoice(
   id: string,
   patch: {
     items?: InvoiceItem[];
+    /** ชื่อน้องหัวบิล (ตามรายการที่เหลือหลังแก้) */
+    catName?: string;
     deposit?: number;
     extraDiscount?: number;
     promoId?: string;
@@ -566,6 +568,7 @@ export async function updateInvoice(
   }
 
   inv.items = items;
+  if (patch.catName) inv.catName = patch.catName;
   inv.subtotal = subtotal;
   inv.discount = discount;
   inv.total = total;
