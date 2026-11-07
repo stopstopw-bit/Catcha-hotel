@@ -11,6 +11,7 @@ import {
   type CustomerRecord,
 } from "@/lib/customers-store";
 import { formatBookingTelegram } from "@/lib/telegram";
+import { formatThaiDateShort } from "@/lib/format-thai-date";
 import { sendTelegramLater } from "@/lib/after-response";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { getSiteConfig } from "@/lib/config-store";
@@ -156,6 +157,8 @@ async function postHandler(req: NextRequest) {
       {
         น้อง: t.catName,
         ลูกค้า: customerName,
+        // บอกว่าเป็นของนัดไหน — ลูกค้ากรอกล่วงหน้าได้ (คิวของฉัน › ทำต่อเลย) ร้านจะได้ไม่งงว่านัดอะไร
+        ...whenLine(t.booking),
         ...groomInfoSummary(payload, fields),
         // ข้อที่ถามครั้งเดียวขึ้นแล้วด้านบน — ไม่ซ้ำ
         ...(groomPayload
@@ -166,6 +169,16 @@ async function postHandler(req: NextRequest) {
   );
 
   return NextResponse.json({ ok: res.ok, needSql: !res.ok && res.error === "need_sql" });
+}
+
+/** บรรทัดวันนัดในแจ้งเตือน Telegram — ไม่มีนัด (ลิงก์จากหน้าลูกค้า) ก็บอกตรง ๆ */
+function whenLine(b?: { service?: string; date?: string; time?: string; checkin?: string; checkout?: string }): Record<string, string> {
+  if (!b) return { นัด: "ยังไม่ผูกกับนัด (กรอกจากลิงก์ข้อมูลน้อง)" };
+  if (b.service === "groom") {
+    return { นัดอาบน้ำ: `${formatThaiDateShort(b.date || "") || "-"}${b.time ? ` ${b.time}` : ""}` };
+  }
+  const from = formatThaiDateShort(b.checkin || b.date || "") || "-";
+  return { เข้าพัก: `${from}${b.checkout ? ` → ${formatThaiDateShort(b.checkout)}` : ""}` };
 }
 
 /** เก็บตามคำถามที่ร้านตั้งไว้จริง — sanitize ตามชนิดของคำถาม */
