@@ -43,6 +43,7 @@ import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
 import { customerFetch } from "@/lib/customer-fetch";
 import { resolveRegisterForm } from "@/lib/register-form";
 import { NumInput } from "@/components/NumInput";
+import { ReviewSheet, reviewDate as thaiDate, type ReviewSection } from "@/components/ReviewSheet";
 
 function emptyCat(): CatInput {
   return {
@@ -93,6 +94,8 @@ export default function RegisterPage() {
   // ติ๊ก "มีโค้ดเพื่อนแนะนำ" แล้วค่อยโชว์ช่องกรอก — มาจากลิงก์ชวนจะติ๊ก + เติมโค้ดให้เอง
   const [hasReferralCode, setHasReferralCode] = useState(false);
   const [fromLink, setFromLink] = useState(false);
+  // ป๊อปอัปสรุปให้ลูกค้าเช็คก่อนบันทึกจริง
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("ref");
@@ -174,6 +177,79 @@ export default function RegisterPage() {
       return;
     }
 
+    // ผ่านครบ → โชว์สรุปให้เช็คก่อน ยังไม่บันทึก
+    setError("");
+    setReviewing(true);
+  };
+
+  /** สรุปทุกช่องที่ร้านเปิดไว้ — ให้ลูกค้าเห็นภาพเดียวกับที่ร้านจะได้ */
+  const reviewSections = (): ReviewSection[] => {
+    const owner: ReviewSection = {
+      title: "ข้อมูลผู้ปกครอง",
+      icon: "user",
+      rows: [
+        { label: rf.ownerName.label, value: name },
+        { label: rf.phone.label, value: phone },
+        ...(rf.email.enabled ? [{ label: rf.email.label, value: email }] : []),
+        ...(rf.ownerBirthday.enabled ? [{ label: rf.ownerBirthday.label, value: thaiDate(birthday) }] : []),
+        ...(rf.postalCode.enabled ? [{ label: rf.postalCode.label, value: postalCode }] : []),
+      ],
+    };
+    const catSections: ReviewSection[] = cats
+      .filter((c) => c.name.trim())
+      .map((c, i, arr) => ({
+        title: arr.length > 1 ? `น้องแมวตัวที่ ${i + 1} · ${c.name.trim()}` : `น้องแมว · ${c.name.trim()}`,
+        icon: "paw",
+        rows: [
+          ...(rf.gender.enabled
+            ? [{ label: rf.gender.label, value: c.gender === "male" ? "♂ ผู้" : c.gender === "female" ? "♀ เมีย" : "" }]
+            : []),
+          ...(rf.breed.enabled
+            ? [{ label: rf.breed.label, value: c.breed === OTHER_BREED ? c.breedOther : c.breed }]
+            : []),
+          ...(rf.furLength.enabled
+            ? [{ label: rf.furLength.label, value: c.furLength === "long" ? "ขนยาว" : c.furLength === "short" ? "ขนสั้น" : "" }]
+            : []),
+          ...(rf.neutered.enabled
+            ? [{ label: rf.neutered.label, value: c.neutered === "yes" ? "ทำหมันแล้ว" : c.neutered === "no" ? "ยังไม่ทำหมัน" : "" }]
+            : []),
+          ...(rf.color.enabled ? [{ label: rf.color.label, value: c.color }] : []),
+          ...(rf.age.enabled
+            ? [
+                {
+                  label: rf.age.label,
+                  value: c.ageUnknown
+                    ? "ไม่ทราบ"
+                    : [c.ageValue ? `${c.ageValue} ${c.ageUnit === "month" ? "เดือน" : "ปี"}` : "", c.birthday ? `เกิด ${thaiDate(c.birthday)}` : ""]
+                        .filter(Boolean)
+                        .join(" · "),
+                },
+              ]
+            : []),
+          ...(rf.weight.enabled
+            ? [{ label: rf.weight.label, value: c.weightUnknown ? "ไม่ทราบ" : c.weightKg ? `${c.weightKg} กก.` : "" }]
+            : []),
+          ...(rf.medical.enabled
+            ? [{ label: rf.medical.label, value: [c.medical, c.note].map((x) => x.trim()).filter(Boolean).join("\n") }]
+            : []),
+          ...(rf.seizure.enabled ? [{ label: rf.seizure.label, value: c.seizureHistory }] : []),
+          ...(rf.allergy.enabled ? [{ label: rf.allergy.label, value: c.allergy }] : []),
+        ],
+      }));
+    const other: ReviewSection = {
+      title: "อื่น ๆ",
+      icon: "sparkle",
+      rows: [
+        ...(rf.referral.enabled ? [{ label: rf.referral.label, value: referral }] : []),
+        ...(referralOn && hasReferralCode ? [{ label: "โค้ดเพื่อนแนะนำ", value: referralCode }] : []),
+        { label: "รับข่าวสาร/โปรโมชั่น", value: consent ? "ยินยอม" : "ไม่ยินยอม" },
+      ],
+    };
+    return [owner, ...catSections, other];
+  };
+
+  const save = async () => {
+    if (!profile?.lineUserId) return;
     setSaving(true);
     setError("");
 
@@ -229,6 +305,7 @@ export default function RegisterPage() {
         [petNames.length ? `ลงทะเบียนน้อง ${petNames.join(", ")} เรียบร้อยแล้วค่ะ` : "", "จองคิวและดูข้อมูลน้องได้ที่หน้าแรกเลยค่ะ"],
         { afterNav: true }
       );
+      setReviewing(false);
       router.replace("/app");
     } catch {
       setError(
@@ -761,6 +838,18 @@ export default function RegisterPage() {
           {saving ? "กำลังบันทึก…" : "บันทึกข้อมูล"}
         </button>
       </form>
+      <ReviewSheet
+        open={reviewing}
+        sections={reviewing ? reviewSections() : []}
+        saving={saving}
+        error={error}
+        confirmLabel="ยืนยัน สมัครสมาชิก"
+        onEdit={() => {
+          setReviewing(false);
+          setError("");
+        }}
+        onConfirm={save}
+      />
     </div>
   );
 }
