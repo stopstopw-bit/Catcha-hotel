@@ -14,6 +14,7 @@ import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { customerFetch } from "@/lib/customer-fetch";
+import { ReviewSheet, type ReviewSection } from "@/components/ReviewSheet";
 
 type Answers = Record<string, string | string[]>;
 
@@ -75,6 +76,8 @@ function GroomInfoContent() {
   const [done, setDone] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [attempted, setAttempted] = useState(false);
+  // ป๊อปอัปสรุปให้ลูกค้าเช็คก่อนส่งจริง
+  const [reviewing, setReviewing] = useState(false);
   // โหลดไม่ขึ้นเพราะอะไร — ยืนยัน LINE ไม่ผ่าน กับ หาน้อง/นัดไม่เจอ ต้องบอกลูกค้าคนละแบบ
   const [loadError, setLoadError] = useState("");
   // นัดเข้าพัก / ลิงก์ kind=stay → ฟอร์มก่อนเข้าพัก (คนละชุดคำถามกับก่อนอาบน้ำ)
@@ -193,13 +196,44 @@ function GroomInfoContent() {
 
   const nextStep = flowProgress(params)?.next;
 
-  const submit = async () => {
+  /** กดส่ง → เช็คข้อบังคับ แล้วเปิดป๊อปอัปสรุปให้ดูก่อน (ยังไม่บันทึก) */
+  const submit = () => {
     if (forms.length === 0) return;
     setAttempted(true);
     if (forms.some((f) => missingKeys(f).length > 0)) {
       setSaveError("กรุณาตอบให้ครบทุกข้อที่มีเครื่องหมาย * ก่อนส่งข้อมูลนะคะ 🙏");
       return;
     }
+    setSaveError("");
+    setReviewing(true);
+  };
+
+  /** สรุปคำตอบเป็นข้อความอ่านง่าย — ตัวเลือกโชว์ชื่อ ไม่ใช่ key */
+  const reviewSections = (): ReviewSection[] =>
+    forms.flatMap((f) => {
+      const visible = fieldsFor(f).filter((fd) => !f.skip.includes(fd.key));
+      const row = (fd: GroomField) => {
+        const v = f.answers[fd.key];
+        const label = fd.label;
+        if (fd.type === "single") return { label, value: fd.options.find((o) => o.key === v)?.label || "" };
+        if (fd.type === "multi")
+          return {
+            label,
+            value: ((v as string[]) || []).map((k) => fd.options.find((o) => o.key === k)?.label || k),
+          };
+        if (fd.hasUnknownToggle && f.weightUnknown) return { label, value: "ไม่ทราบ" };
+        return { label, value: String(v || "") };
+      };
+      const own = visible.filter((fd) => !fd.key.startsWith(BATH_PREFIX)).map(row);
+      const bath = visible.filter((fd) => fd.key.startsWith(BATH_PREFIX)).map(row);
+      return [
+        { title: f.catName, icon: "paw", rows: own },
+        ...(bath.length ? [{ title: `${f.catName} · ก่อนอาบน้ำ`, icon: "bath", rows: bath }] : []),
+      ];
+    });
+
+  const save = async () => {
+    if (forms.length === 0) return;
     setSaving(true);
     setSaveError("");
     try {
@@ -248,6 +282,7 @@ function GroomInfoContent() {
       } catch {
         /* เปิดนอก LINE — โชว์หน้าจอเสร็จแทน */
       }
+      setReviewing(false);
       setDone(true);
       savedPopup("บันทึกข้อมูลน้องสำเร็จ");
     } catch {
@@ -485,6 +520,24 @@ function GroomInfoContent() {
                   ? `ส่งข้อมูลให้ร้าน (${forms.length} ตัว)`
                   : "ส่งข้อมูลให้ร้าน"}
           </button>
+          <ReviewSheet
+            open={reviewing}
+            sections={reviewing ? reviewSections() : []}
+            saving={saving}
+            error={saveError}
+            confirmLabel={
+              nextStep
+                ? "ยืนยัน แล้วไปขั้นต่อไป"
+                : forms.length > 1
+                  ? `ยืนยัน ส่งข้อมูล (${forms.length} ตัว)`
+                  : "ยืนยัน ส่งข้อมูล"
+            }
+            onEdit={() => {
+              setReviewing(false);
+              setSaveError("");
+            }}
+            onConfirm={save}
+          />
         </>
       )}
     </div>
