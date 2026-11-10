@@ -42,3 +42,18 @@
 
 - Admin → ติดตั้ง → ต้องขึ้น ✅ พร้อมใช้งาน
 - จองใหม่ → ดูตาราง `bookings` ใน Supabase Table Editor
+
+---
+
+## ย้ายไปอยู่โปรเจกต์ Supabase เดียวกับระบบอื่น (ประหยัดค่าโปรเจกต์)
+
+ร้านเก็บตารางใน "ห้อง" (Postgres schema) ของตัวเองได้ เช่นห้อง `catcha` ในโปรเจกต์ของ PetFlow
+ตารางไม่ปนกับของระบบอื่น รูปอยู่ bucket `catcha-media`
+
+1. ในโปรเจกต์ปลายทาง: **Project Settings → Data API → Exposed schemas** เพิ่ม `catcha` → Save
+2. Vercel ของ CatCha เพิ่ม `MOVE_TO_SUPABASE_URL` + `MOVE_TO_SUPABASE_SERVICE_ROLE_KEY` (ของปลายทาง) → Redeploy
+3. หลังบ้าน → ติดตั้ง → **คัดลอกข้อมูลไปฐานใหม่** (เว็บยังใช้ฐานเดิม กดซ้ำได้ ดูจำนวนให้ตรงทุกตาราง)
+4. ตอนสลับ: กดคัดลอกอีกรอบ แล้วใน Vercel เปลี่ยน
+   `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` เป็นของปลายทาง และเพิ่ม `SUPABASE_DB_SCHEMA=catcha`
+   (ถ้ามี `DATABASE_URL` เปลี่ยนเป็นของปลายทางด้วย) → Redeploy
+5. ใช้งานได้ปกติแล้วค่อยลบ `MOVE_TO_*` และ pause โปรเจกต์เดิม — ย้อนกลับ = เปลี่ยน env กลับ

@@ -39,6 +39,22 @@ export function isPlaceholderSupabaseUrl(raw?: string): boolean {
   return !!m && !/^[a-z0-9]{20}$/.test(m[1]);
 }
 
+/**
+ * ห้อง (Postgres schema) ที่ร้านนี้เก็บตาราง — ปกติ "public"
+ * ตั้ง SUPABASE_DB_SCHEMA=catcha เมื่อย้ายไปอยู่ในโปรเจกต์ Supabase เดียวกับระบบอื่น (เช่น PetFlow)
+ * ตารางจะอยู่ห้องของตัวเอง ไม่ปนกับข้อมูลอื่นในโปรเจกต์นั้น
+ */
+export function getDbSchema(): string {
+  const s = process.env.SUPABASE_DB_SCHEMA?.trim().toLowerCase();
+  return s && /^[a-z_][a-z0-9_]{0,40}$/.test(s) ? s : "public";
+}
+
+/** bucket รูป — ห้อง public ใช้ "media" เหมือนเดิม ห้องอื่นใช้ "<ห้อง>-media" กันชื่อไฟล์ชนกับระบบอื่น */
+export function getMediaBucket(): string {
+  const schema = getDbSchema();
+  return schema === "public" ? "media" : `${schema.replace(/_/g, "-")}-media`;
+}
+
 export function getSupabaseUrl() {
   return normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
@@ -54,7 +70,8 @@ export function getSupabase() {
   if (!client) {
     client = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
-    });
+      db: { schema: getDbSchema() },
+    }) as unknown as SupabaseClient;
   }
   return client;
 }

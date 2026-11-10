@@ -9,6 +9,7 @@ import {
 } from "@/components/LineSetupSection";
 import { TelegramSetupSection } from "@/components/TelegramSetupSection";
 import { HealthCheckSection } from "@/components/HealthCheckSection";
+import { MoveDbSection } from "@/components/MoveDbSection";
 import { Icon } from "@/components/Icon";
 
 type Status = {
@@ -80,6 +81,7 @@ export default function SetupPage() {
       </p>
 
       <HealthCheckSection />
+      <MoveDbSection />
 
       <GoogleSetupSection adminCode={adminCode} />
       <LiffSetupSection adminCode={adminCode} />
