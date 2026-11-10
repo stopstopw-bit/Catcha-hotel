@@ -627,6 +627,19 @@ function ConsentContent() {
                   กรุณาติ๊กยืนยันเรื่องหยดยาเห็บหมัดก่อนกดยอมรับข้อตกลง
                 </p>
               )}
+              {!isGroom && (
+                <div className="mt-3 overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/info/flea-rules-before-stay.jpg"
+                    alt="ก่อนเข้าพัก: วัคซีนครบตามกำหนด หยดยาเห็บหมัดภายใน 1 เดือน ส่งหลักฐานก่อนเข้าพัก หากตรวจพบเห็บหมัดระหว่างเข้าพัก มีค่าหยดยาเพิ่ม ค่าทำความสะอาดโรงแรม 2,000 บาท และรับผิดชอบค่าเสียหาย"
+                    width={1254}
+                    height={1254}
+                    loading="lazy"
+                    className="block h-auto w-full"
+                  />
+                </div>
+              )}
 
               <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-catcha border border-catcha-line bg-card p-4 text-xs leading-relaxed text-brown shadow-catcha-sm">
                 <input
