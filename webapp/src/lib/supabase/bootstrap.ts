@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { getSupabase, getSupabaseUrl, isSupabaseConfigured, isPlaceholderSupabaseUrl } from "./server";
+import { getDbSchema, getSupabase, getSupabaseUrl, isSupabaseConfigured, isPlaceholderSupabaseUrl } from "./server";
+import { execSqlBootstrap, schemaGrantSql, schemaPreludeSql } from "../migrations";
 
 export type SetupStatus = {
   supabaseUrl: boolean;
@@ -136,8 +137,17 @@ export async function bootstrapDatabase() {
 
   try {
     await client.connect();
-    const sql = loadSchemaSql();
-    await client.query(sql);
+    const schema = getDbSchema();
+    if (schema !== "public") {
+      // ร้านอยู่ห้องของตัวเองในโปรเจกต์ที่ใช้ร่วมกับระบบอื่น — สร้างตารางในห้องนั้น ไม่ใช่ public
+      await client.query(schemaPreludeSql(schema));
+      await client.query(`set search_path to ${schema}`);
+    }
+    await client.query(loadSchemaSql());
+    if (schema !== "public") {
+      await client.query(schemaGrantSql(schema));
+      await client.query(execSqlBootstrap(schema));
+    }
     return { ok: true as const, message: "สร้างตารางและข้อมูลเริ่มต้นสำเร็จ" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

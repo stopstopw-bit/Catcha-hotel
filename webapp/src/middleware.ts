@@ -76,6 +76,7 @@ const STAFF_API_MENUS: [string, string[]][] = [
   ["/api/line/broadcast", ["/admin/promos"]],
   ["/api/setup", ["/admin/setup"]],
   ["/api/admin/migrate-photos", ["/admin/setup"]],
+  ["/api/admin/move-db", ["/admin/setup"]],
   ["/api/admin/cleanup-broadcast-images", ["/admin/setup"]],
 ];
 

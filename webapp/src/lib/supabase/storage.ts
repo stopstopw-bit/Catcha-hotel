@@ -1,6 +1,6 @@
-import { getSupabase } from "./server";
+import { getMediaBucket, getSupabase } from "./server";
 
-const BUCKET = "media";
+const BUCKET = getMediaBucket();
 
 function parseDataUrl(dataUrl: string) {
   const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
@@ -12,7 +12,7 @@ function parseDataUrl(dataUrl: string) {
 
 let bucketReady: Promise<void> | null = null;
 
-/** สร้าง bucket "media" ครั้งแรกที่ใช้งาน (public, ไว้เก็บรูป/วิดีโอแมว) — เงียบถ้าสร้างไม่ได้ (เช่นมีอยู่แล้ว) */
+/** สร้าง bucket รูป (ปกติ "media") ครั้งแรกที่ใช้งาน (public, ไว้เก็บรูป/วิดีโอแมว) — เงียบถ้าสร้างไม่ได้ (เช่นมีอยู่แล้ว) */
 function ensureBucket(sb: ReturnType<typeof getSupabase>) {
   if (!sb) return Promise.resolve();
   if (!bucketReady) {

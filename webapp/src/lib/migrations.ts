@@ -1,4 +1,5 @@
-import { getSupabase } from "./supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getDbSchema, getSupabase } from "./supabase/server";
 
 /**
  * ระบบอัปเดตโครงสร้างฐานข้อมูลอัตโนมัติ (auto-migrate)
@@ -12,13 +13,35 @@ import { getSupabase } from "./supabase/server";
  * "อัปเดตฐานข้อมูล" หรืออัตโนมัติเมื่อเปิดหลังบ้าน.
  */
 
-/** SQL ที่ผู้ใช้ต้องรันครั้งเดียวใน Supabase SQL Editor */
-export const EXEC_SQL_BOOTSTRAP = `-- ตั้งค่าครั้งเดียว: ให้แอปอัปเดตฐานข้อมูลเองได้
-create or replace function public.exec_sql(sql text)
+/**
+ * SQL เตรียมห้อง (schema) ที่ไม่ใช่ public — สร้างห้อง + ให้ service_role (ฝั่งเซิร์ฟเวอร์) ใช้ตารางในห้องได้
+ * anon/authenticated ไม่ได้สิทธิ์อะไรเลย (แอปต่อด้วย service_role อย่างเดียว)
+ */
+export function schemaPreludeSql(schema: string): string {
+  if (schema === "public") return "";
+  return `create schema if not exists ${schema};
+grant usage on schema ${schema} to service_role;
+alter default privileges in schema ${schema} grant all on tables to service_role;
+alter default privileges in schema ${schema} grant all on sequences to service_role;
+`;
+}
+
+/** หลังสร้างตารางในห้องที่ไม่ใช่ public — ให้ service_role ใช้ตารางที่มีอยู่แล้วได้ด้วย */
+export function schemaGrantSql(schema: string): string {
+  if (schema === "public") return "";
+  return `grant all on all tables in schema ${schema} to service_role;
+grant all on all sequences in schema ${schema} to service_role;
+`;
+}
+
+/** SQL สร้างฟังก์ชัน exec_sql ในห้องที่ร้านใช้ (ปกติ public) */
+export function execSqlBootstrap(schema: string): string {
+  return `-- ตั้งค่าครั้งเดียว: ให้แอปอัปเดตฐานข้อมูลเองได้
+${schemaPreludeSql(schema)}create or replace function ${schema}.exec_sql(sql text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ${schema}
 as $$
 begin
   execute sql;
@@ -26,10 +49,14 @@ end;
 $$;
 
 -- ล็อก: เรียกได้เฉพาะ service role (ฝั่งเซิร์ฟเวอร์เท่านั้น)
-revoke all on function public.exec_sql(text) from public;
-grant execute on function public.exec_sql(text) to service_role;
+revoke all on function ${schema}.exec_sql(text) from public;
+grant execute on function ${schema}.exec_sql(text) to service_role;
 
 notify pgrst, 'reload schema';`;
+}
+
+/** SQL ที่ผู้ใช้ต้องรันครั้งเดียวใน Supabase SQL Editor */
+export const EXEC_SQL_BOOTSTRAP = execSqlBootstrap(getDbSchema());
 
 /**
  * รายการ migration — ต้อง idempotent (รันซ้ำได้ ไม่พัง) เสมอ
@@ -347,9 +374,9 @@ where staff_note like '%🎁%';`,
       declare t record;
       begin
         for t in
-          select tablename from pg_tables where schemaname = 'public'
+          select tablename from pg_tables where schemaname = current_schema()
         loop
-          execute format('alter table public.%I enable row level security', t.tablename);
+          execute format('alter table %I.%I enable row level security', current_schema(), t.tablename);
         end loop;
       end $$;
     `,
@@ -581,8 +608,8 @@ export async function ensureMigration(name: string): Promise<boolean> {
 }
 
 /** รันทุก migration ผ่าน exec_sql (idempotent — ปลอดภัยรันซ้ำ) */
-export async function runMigrations(): Promise<MigrateResult> {
-  const sb = getSupabase();
+export async function runMigrations(target?: SupabaseClient): Promise<MigrateResult> {
+  const sb = target ?? getSupabase();
   if (!sb) {
     return {
       ok: false,
