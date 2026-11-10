@@ -154,6 +154,51 @@ function rewriteUrls<T>(rows: T[], fromUrl: string, t: Target): T[] {
   return s.includes(from) ? (JSON.parse(s.split(from).join(to)) as T[]) : rows;
 }
 
+/** ชนิดคอลัมน์ในฐานเดิม จากคำอธิบาย API (OpenAPI) ของ PostgREST — แคชไว้ทั้งรอบ */
+let sourceSpec: Promise<Record<string, { properties?: Record<string, { format?: string }> }>> | null = null;
+function loadSourceSpec(fromUrl: string) {
+  if (!sourceSpec) {
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
+    sourceSpec = fetch(`${fromUrl}/rest/v1/`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": getDbSchema() },
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<{ definitions?: unknown }>) : { definitions: undefined }))
+      .then((j) => (j?.definitions as Record<string, { properties?: Record<string, { format?: string }> }>) || {})
+      .catch(() => ({}));
+  }
+  return sourceSpec;
+}
+
+/** เดาชนิดจากค่าจริงถ้าอ่านคำอธิบายไม่ได้ */
+function guessType(rows: Record<string, unknown>[], col: string) {
+  const v = rows.map((r) => r[col]).find((x) => x !== null && x !== undefined);
+  if (typeof v === "boolean") return "boolean";
+  if (typeof v === "number") return "numeric";
+  if (v && typeof v === "object") return "jsonb";
+  return "text";
+}
+
+async function addMissingColumn(
+  dst: SupabaseClient,
+  fromUrl: string,
+  table: string,
+  col: string,
+  rows: unknown[]
+): Promise<boolean> {
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(col)) return false;
+  const spec = await loadSourceSpec(fromUrl);
+  const fmt = spec[table]?.properties?.[col]?.format?.trim().toLowerCase();
+  const type =
+    fmt && /^[a-z][a-z0-9 _(),]*(\[\])?$/.test(fmt) ? fmt : guessType(rows as Record<string, unknown>[], col);
+  const { error } = await dst.rpc("exec_sql", {
+    sql: `alter table ${table} add column if not exists ${col} ${type}; notify pgrst, 'reload schema';`,
+  });
+  if (error) return false;
+  await new Promise((r) => setTimeout(r, 1500));
+  return true;
+}
+
 /** ขั้น 2: คัดลอกตารางเดียว — คืนจำนวนแถวต้นทาง/ปลายทางให้เทียบ */
 export async function copyTable(table: string) {
   if (!(MOVE_TABLES as readonly string[]).includes(table)) throw new Error("ไม่รู้จักตารางนี้");
@@ -168,8 +213,16 @@ export async function copyTable(table: string) {
       throw new Error(`${table}: อ่านฐานเดิมไม่ได้ — ${error.message}`);
     }
     if (!data || data.length === 0) break;
-    const { error: upErr } = await dst.from(table).upsert(rewriteUrls(data, fromUrl, t));
-    if (upErr) throw new Error(`${table}: เขียนฐานใหม่ไม่ได้ — ${upErr.message}`);
+    const rows = rewriteUrls(data, fromUrl, t);
+    for (let attempt = 0; ; attempt++) {
+      const { error: upErr } = await dst.from(table).upsert(rows);
+      if (!upErr) break;
+      // ฐานเดิมมีคอลัมน์เก่าที่ไม่อยู่ใน schema.sql/migration (เคยเพิ่มเองใน SQL Editor) — เพิ่มให้ฐานใหม่แล้วลองใหม่
+      const missing = /Could not find the '([^']+)' column/.exec(upErr.message)?.[1];
+      if (!missing || attempt >= 20 || !(await addMissingColumn(dst, fromUrl, table, missing, rows))) {
+        throw new Error(`${table}: เขียนฐานใหม่ไม่ได้ — ${upErr.message}`);
+      }
+    }
     copied += data.length;
     if (data.length < PAGE) break;
   }
