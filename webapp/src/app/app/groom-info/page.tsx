@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { customerFetch } from "@/lib/customer-fetch";
 import { ReviewSheet, type ReviewSection } from "@/components/ReviewSheet";
+import { BathPrepPoster } from "@/components/BathPrepPoster";
 
 type Answers = Record<string, string | string[]>;
 
@@ -78,6 +79,8 @@ function GroomInfoContent() {
   const [attempted, setAttempted] = useState(false);
   // ป๊อปอัปสรุปให้ลูกค้าเช็คก่อนส่งจริง
   const [reviewing, setReviewing] = useState(false);
+  // ฟอร์มก่อนอาบน้ำ: หน้าแรกเป็นโปสเตอร์ "ข้อมูลก่อนพาน้องแมวมาอาบน้ำ" → กดปุ่มแล้วค่อยเริ่มตอบคำถาม
+  const [introDone, setIntroDone] = useState(false);
   // โหลดไม่ขึ้นเพราะอะไร — ยืนยัน LINE ไม่ผ่าน กับ หาน้อง/นัดไม่เจอ ต้องบอกลูกค้าคนละแบบ
   const [loadError, setLoadError] = useState("");
   // นัดเข้าพัก / ลิงก์ kind=stay → ฟอร์มก่อนเข้าพัก (คนละชุดคำถามกับก่อนอาบน้ำ)
@@ -356,6 +359,21 @@ function GroomInfoContent() {
             title={loadError || (catMode ? "ไม่พบข้อมูลน้องในบัญชี LINE นี้" : "ไม่พบข้อมูลการนัด")}
           />
         </div>
+      ) : !isStay && !introDone ? (
+        <>
+          <BathPrepPoster />
+          <button
+            type="button"
+            onClick={() => {
+              setIntroDone(true);
+              window.scrollTo({ top: 0 });
+            }}
+            className={`${BTN_PRIMARY} mt-4 w-full`}
+          >
+            อ่านแล้ว เริ่มกรอกข้อมูลน้อง
+            <Icon name="chevron" size={16} />
+          </button>
+        </>
       ) : (
         <>
           {forms.length > 1 && (
