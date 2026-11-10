@@ -16,6 +16,7 @@ import { Icon } from "@/components/Icon";
 import { customerFetch } from "@/lib/customer-fetch";
 import { ReviewSheet, type ReviewSection } from "@/components/ReviewSheet";
 import { BathPrepPoster } from "@/components/BathPrepPoster";
+import { StayConditionsPoster } from "@/components/StayConditionsPoster";
 
 type Answers = Record<string, string | string[]>;
 
@@ -359,9 +360,9 @@ function GroomInfoContent() {
             title={loadError || (catMode ? "ไม่พบข้อมูลน้องในบัญชี LINE นี้" : "ไม่พบข้อมูลการนัด")}
           />
         </div>
-      ) : !isStay && !introDone ? (
+      ) : !introDone ? (
         <>
-          <BathPrepPoster />
+          {isStay ? <StayConditionsPoster /> : <BathPrepPoster />}
           <button
             type="button"
             onClick={() => {
