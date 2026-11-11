@@ -147,7 +147,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ invoice: inv || null });
   }
 
-  return NextResponse.json({ invoices: await listInvoices(customerId) });
+  const list = await listInvoices(customerId);
+  // เงินที่เข้าร้านจริงของแต่ละบิล (รายรับที่ผูกบิลในหน้าการเงิน) — การ์ดบิลจะได้บอกได้ว่า
+  // ส่วนไหนเป็นเงินเข้า ส่วนไหนตัดเครดิต/หักคอร์ส (ซึ่งไม่ขึ้นเป็นรายรับ)
+  const moneyIn = new Map<string, number>();
+  try {
+    const { listFinance } = await import("@/lib/finance-store");
+    for (const r of await listFinance()) {
+      if (r.type !== "income" || !r.invoiceId || r.excluded) continue;
+      moneyIn.set(r.invoiceId, (moneyIn.get(r.invoiceId) || 0) + r.amount);
+    }
+  } catch {
+    /* โหลดรายรับไม่ได้ — การ์ดบิลแค่ไม่โชว์บรรทัดเงินเข้า */
+  }
+  return NextResponse.json({ invoices: list.map((inv) => ({ ...inv, moneyIn: moneyIn.get(inv.id) || 0 })) });
 }
 
 const CONVERTED_MSG =
@@ -250,6 +263,18 @@ export async function POST(req: NextRequest) {
       );
     }
     if (invoice.autoAppliedCredit > 0) {
+      await logAudit({
+        actor: await actorName(req),
+        action: "apply_deposit_credit",
+        resourceType: "invoice",
+        resourceId: invoice.id,
+        detail: {
+          ลูกค้า: invoice.customerName,
+          มัดจำที่หักจากเครดิต: invoice.autoAppliedCredit,
+          ยอดบิล: invoice.total,
+          หมายเหตุ: "หักเครดิตมัดจำล่วงหน้าเข้าบิลอัตโนมัติตอนออกบิล",
+        },
+      });
       await sendTelegram(
         formatBookingTelegram("💰 หักมัดจำล่วงหน้าเข้าบิลอัตโนมัติ", {
           ลูกค้า: invoice.customerName,
@@ -303,6 +328,17 @@ export async function POST(req: NextRequest) {
     } else {
       await adjustDepositCredit(body.customerId, amount);
     }
+    await logAudit({
+      actor: await actorName(req),
+      action: "request_deposit",
+      resourceType: linkInvoiceId ? "invoice" : "customer",
+      resourceId: linkInvoiceId || String(body.customerId),
+      detail: {
+        ลูกค้า: customer.name,
+        มัดจำที่เรียกเก็บ: amount,
+        ลงที่: linkInvoiceId ? `บิล ${linkInvoiceId}` : "เครดิตมัดจำล่วงหน้าของลูกค้า (ยังไม่มีบิล)",
+      },
+    });
     const notifyErr = await notifyCustomer(customer.lineUserId, [depositFlex]);
     return NextResponse.json({ ok: true, notifyError: notifyErr });
   }
@@ -819,6 +855,13 @@ export async function PATCH(req: NextRequest) {
     if (!res.ok) {
       return NextResponse.json({ error: res.error }, { status: 400 });
     }
+    await logAudit({
+      actor: await actorName(req),
+      action: "apply_deposit_credit",
+      resourceType: "invoice",
+      resourceId: id,
+      detail: { ลูกค้า: inv.customerName, มัดจำที่หักจากเครดิต: res.deposit, คงเหลือ: res.remaining },
+    });
     await sendTelegram(
       formatBookingTelegram("💰 รับมัดจำแล้ว", {
         ลูกค้า: inv.customerName,

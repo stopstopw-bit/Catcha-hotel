@@ -37,7 +37,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ summary: await financeSummary(from, to) });
   }
 
-  return NextResponse.json({ records: await listFinanceEnriched(from, to) });
+  const records = await listFinanceEnriched(from, to);
+  return NextResponse.json({ records, creditUses: await creditUses(records) });
+}
+
+/**
+ * บิลที่ปิดด้วย "ตัดเครดิต Member" — ไม่ใช่รายรับ (เงินเข้าไปแล้วตอนเติมเครดิต) แต่ร้านต้องเห็นว่ามี
+ * ไม่งั้นบิลรับครบแล้วแต่หน้าการเงินว่างเปล่า ดูเหมือนเงินหาย
+ */
+async function creditUses(records: { type: string; invoiceId?: string; amount: number; excluded?: boolean }[]) {
+  try {
+    const { listInvoices } = await import("@/lib/invoices-store");
+    const list = (await listInvoices()).filter((i) => i.status === "paid" && i.paymentMethod === "member_credit" && i.paidAt);
+    const moneyIn = new Map<string, number>();
+    for (const r of records) {
+      if (r.type === "income" && r.invoiceId && !r.excluded) moneyIn.set(r.invoiceId, (moneyIn.get(r.invoiceId) || 0) + r.amount);
+    }
+    return list
+      .map((i) => ({
+        invoiceId: i.id,
+        date: i.paidAt!.slice(0, 10),
+        amount: Math.max(0, i.total - (moneyIn.get(i.id) || 0)),
+        customerName: i.customerName,
+        catName: i.catName,
+      }))
+      .filter((u) => u.amount > 0);
+  } catch {
+    return [];
+  }
 }
 
 export async function POST(req: NextRequest) {
