@@ -18,6 +18,9 @@ import { BREED_OPTIONS } from "../cat-breeds";
 import { GROOM_PROGRAMS } from "../grooming-prices";
 import type { SiteConfig } from "../config-types";
 
+/** ข้อความตั้งต้นตอนทักลูกค้าที่หายไป — สั้น น่ารัก ไม่บอกว่าหายไปกี่วัน · แก้เองได้ในตั้งค่า ({days} ยังใช้ได้) */
+export const FOLLOW_UP_DEFAULT = `สวัสดีค่ะ {name} 🐱\nคิดถึงน้อง{cats} จังเลย 💛\n${BUSINESS.name} มีสิทธิพิเศษมามอบให้นะคะ 🎁`;
+
 export function getDefaultSiteConfig(): SiteConfig {
   return JSON.parse(
     JSON.stringify({
@@ -27,7 +30,7 @@ export function getDefaultSiteConfig(): SiteConfig {
         inactiveDays: 60,
         followUpCooldownDays: 30,
         followUpMessage:
-          `สวัสดีค่ะ {name} จาก ${BUSINESS.name} 🐱\nคิดถึงน้อง{cats} นะคะ มาไม่ได้นาน {days} วันแล้ว มีโปรพิเศษรออยู่ที่แอปนะคะ 💛`,
+          FOLLOW_UP_DEFAULT,
         tierPresets: ["VIP", "Gold", "Silver"],
         tierRules: {
           regularMinVisits: 1,
