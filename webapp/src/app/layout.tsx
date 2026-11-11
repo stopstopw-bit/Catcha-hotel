@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppHealth } from "@/components/AppHealth";
 import { BUSINESS } from "@/lib/business";
+import PublicAnalytics from "@/components/PublicAnalytics";
 
 export const metadata: Metadata = {
   title: BUSINESS.name,
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <AppHealth />
         {children}
+        <PublicAnalytics />
       </body>
     </html>
   );
