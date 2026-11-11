@@ -7,6 +7,7 @@ import { resolveRange, inRange, type RangeId } from "@/lib/date-range";
 import Link from "next/link";
 import { SalesActions } from "@/components/SalesActions";
 import { MonthlyCatCounts } from "@/components/MonthlyCatCounts";
+import { LinkHubStats } from "@/components/LinkHubStats";
 import type { InsightBooking } from "@/lib/sales-insights";
 import { summarizeInvoiceItems } from "@/lib/invoice-item-label";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
@@ -246,6 +247,8 @@ export default function InsightsPage() {
       <MonthlyCatCounts bookings={bookings} />
 
       <SalesActions customers={customers} invoices={invoices} bookings={bookings} packages={packages} />
+
+      <LinkHubStats />
 
       <div className="pt-2">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Details</p>
