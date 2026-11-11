@@ -41,8 +41,10 @@ export type LinkButton = {
   icon: string;
   /** ปุ่มหลัก (สีเขียว LINE) */
   primary?: boolean;
-  /** ปุ่มโซเชียลไอคอนเล็กแถวล่าง */
+  /** ช่องทางโซเชียลของร้าน — โชว์เป็นการ์ดใหญ่สีแบรนด์ในหมวด "ช่องทางของเรา" */
   social?: boolean;
+  /** สีพื้นการ์ดช่องทาง (CSS background) */
+  brand?: string;
   /** ปลายทาง — src ส่งมาให้ติด UTM กับหน้าในเว็บเราเอง */
   href: (src: string) => string;
 };
@@ -59,9 +61,10 @@ export const LINK_BUTTONS: LinkButton[] = [
   { key: "map", label: "แผนที่ร้าน", sub: BUSINESS.location.th, icon: "📍", href: () => BUSINESS.maps },
   { key: "review", label: "อ่าน/เขียนรีวิว Google", icon: "⭐", href: () => BUSINESS.reviewUrl },
   { key: "phone", label: `โทร ${BUSINESS.phones[0]}`, icon: "📞", href: () => `tel:${BUSINESS.phones[0].replace(/-/g, "")}` },
-  { key: "ig", label: "Instagram", icon: "IG", social: true, href: () => BUSINESS.social.instagram },
-  { key: "tiktok", label: "TikTok", icon: "TT", social: true, href: () => BUSINESS.social.tiktok },
-  { key: "fb", label: "Facebook", icon: "FB", social: true, href: () => BUSINESS.social.facebook },
+  { key: "ig", label: "Instagram", sub: "รูปน้องแมวที่มาพักทุกวัน", icon: "ig", social: true, brand: "linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 85%,#4f5bd5)", href: () => BUSINESS.social.instagram },
+  { key: "tiktok", label: "TikTok", sub: "คลิปสั้นน้องแมว", icon: "tiktok", social: true, brand: "#111111", href: () => BUSINESS.social.tiktok },
+  { key: "fb", label: "Facebook", sub: "เพจร้าน รีวิว ข่าวโปร", icon: "fb", social: true, brand: "#1877f2", href: () => BUSINESS.social.facebook },
+  { key: "lineoa", label: "LINE OA", sub: BUSINESS.lineOa, icon: "line", social: true, brand: "#06c755", href: () => BUSINESS.social.line },
 ];
 
 export function buttonLabel(key: string): string {

@@ -68,11 +68,11 @@ export function LinkHubStats() {
             <Stat label="คลิกปุ่ม" value={stats.totalClicks} />
             <Stat
               label="คลิก LINE"
-              value={stats.buttons.find((b) => b.key === "line")?.clicks ?? 0}
+              value={stats.buttons.filter((b) => b.key === "line" || b.key === "lineoa").reduce((n, b) => n + b.clicks, 0)}
             />
           </div>
 
-          <h3 className="mb-2 mt-4 text-xs font-extrabold text-catcha-chocolate">มาจากแพลตฟอร์มไหน</h3>
+          <h3 className="mb-2 mt-4 text-xs font-extrabold text-catcha-chocolate">มาจากลิงก์ไหน → กดไปช่องทางไหน</h3>
           <div className="space-y-2.5">
             {stats.platforms.map((p) => (
               <div key={p.src} className="text-xs">
@@ -86,6 +86,17 @@ export function LinkHubStats() {
                 <div className="h-2 overflow-hidden rounded-full bg-paper">
                   <div className="h-full rounded-full bg-latte-deep/70" style={{ width: `${(p.clicks / maxClicks) * 100}%` }} />
                 </div>
+                {p.clicks ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {Object.entries(p.byButton)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([k, n]) => (
+                        <span key={k} className="rounded-full bg-paper px-2 py-0.5 text-[10px] text-brown-soft">
+                          → {buttonLabel(k)} <b className="text-latte-deep">{n}</b>
+                        </span>
+                      ))}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
