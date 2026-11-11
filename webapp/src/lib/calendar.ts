@@ -171,7 +171,8 @@ async function getCalendarApi() {
     key: creds.privateKey,
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
-  return google.calendar({ version: "v3", auth });
+  // ห้ามรอ Google นานไม่จำกัด — คำขอจองจะค้างจน Vercel ตัด (หน้าจอหมุนค้าง)
+  return google.calendar({ version: "v3", auth, timeout: 15000 });
 }
 
 function buildGoogleEventResource(
