@@ -15,8 +15,8 @@ import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { customerFetch } from "@/lib/customer-fetch";
 import { ReviewSheet, type ReviewSection } from "@/components/ReviewSheet";
-import { BathPrepPoster } from "@/components/BathPrepPoster";
-import { StayConditionsPoster } from "@/components/StayConditionsPoster";
+import { FormPosters } from "@/components/FormPosters";
+import { resolveFormPosters } from "@/lib/form-posters";
 
 type Answers = Record<string, string | string[]>;
 
@@ -66,7 +66,7 @@ function GroomInfoContent() {
     .map((s) => s.trim())
     .filter(Boolean);
   const { profile } = useLiff();
-  const { config } = useConfig();
+  const { config, loading: configLoading } = useConfig();
 
   // คำถามทั้งหมด — ก่อนอาบน้ำ: ตามที่ร้านตั้งไว้ในหลังบ้าน · ก่อนเข้าพัก: ชุดการกิน/การดูแล (stay-form)
   const groomFields = useMemo(() => resolveGroomForm(config.groomForm), [config.groomForm]);
@@ -88,6 +88,8 @@ function GroomInfoContent() {
   const kindParam = params.get("kind") || "";
   const [isStay, setIsStay] = useState(kindParam === "stay");
   const fields = isStay ? stayFields : groomFields;
+  // รูปหน้าแรกของฟอร์ม (ร้านตั้งเองในหลังบ้าน) — ไม่มีรูป = เข้าคำถามเลย
+  const posters = resolveFormPosters(config.formPosters, isStay ? "stay" : "groom");
   // ส่วนอาบน้ำของฟอร์มรวม — ข้อที่ซ้ำกับฟอร์มเข้าพักถามครั้งเดียว (ใช้คำตอบฝั่งเข้าพัก)
   const bathFields = useMemo(
     () =>
@@ -360,9 +362,14 @@ function GroomInfoContent() {
             title={loadError || (catMode ? "ไม่พบข้อมูลน้องในบัญชี LINE นี้" : "ไม่พบข้อมูลการนัด")}
           />
         </div>
-      ) : !introDone ? (
+      ) : configLoading ? (
+        <LoadingScreen />
+      ) : !introDone && posters.length > 0 ? (
         <>
-          {isStay ? <StayConditionsPoster /> : <BathPrepPoster />}
+          <FormPosters
+            images={posters}
+            alt={isStay ? "เงื่อนไขสำคัญในการเข้าพัก" : "ข้อมูลก่อนพาน้องแมวมาอาบน้ำ"}
+          />
           <button
             type="button"
             onClick={() => {

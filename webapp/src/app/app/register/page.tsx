@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
+import { FormPosters } from "@/components/FormPosters";
+import { resolveFormPosters } from "@/lib/form-posters";
 import { BirthdayPicker } from "@/components/BirthdayPicker";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { SectionLabel } from "@/components/ui";
@@ -342,6 +344,9 @@ export default function RegisterPage() {
           <span>สมัครผ่านเพื่อนแนะนำ — สมัครเสร็จรับคูปองส่วนลด <span className="text-latte-deep">{referralReward(config).amount}฿</span> ทั้งคุณและเพื่อนทันที!</span>
         </div>
       )}
+
+      {/* รูปที่ร้านตั้งไว้ในหลังบ้าน (การ์ด & ฟอร์ม › ฟอร์มสมัครสมาชิก) */}
+      <FormPosters images={resolveFormPosters(config.formPosters, "register")} alt="ข้อมูลจากร้าน" className="mb-5" />
 
       <form onSubmit={submit} className="space-y-6">
         {/* ── ข้อมูลผู้ปกครอง ── */}

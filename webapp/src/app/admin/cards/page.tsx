@@ -14,6 +14,14 @@ import { BroadcastButtonPicker } from "@/components/BroadcastButtonPicker";
 import { toast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { FormFieldsEditor, FormFieldsPreview, resetFormConfig } from "@/components/FormFieldsEditor";
+import { FormPosterEditor } from "@/components/FormPosterEditor";
+import { FormPosters } from "@/components/FormPosters";
+import {
+  DEFAULT_FORM_POSTERS,
+  resolveFormPosters,
+  type FormPosterKey,
+  type FormPostersConfig,
+} from "@/lib/form-posters";
 import { RegisterFormEditor, RegisterFormPreview, resetRegisterForm } from "@/components/RegisterFormEditor";
 import { STAY_FORM_DEFAULTS, resolveStayForm } from "@/lib/stay-form";
 import type { RegisterFieldConfig, RegisterFormConfig } from "@/lib/register-form";
@@ -1692,6 +1700,7 @@ export default function CardsStudioPage() {
   const [groomForm, setGroomForm] = useState<GroomFormConfig>({});
   const [stayForm, setStayForm] = useState<GroomFormConfig>({});
   const [registerForm, setRegisterForm] = useState<RegisterFormConfig>({});
+  const [formPosters, setFormPosters] = useState<FormPostersConfig>({});
   const [activeKey, setActiveKey] = useState(CARDS[0].key);
   // เปิดตรงการ์ดที่ต้องการจากลิงก์ (เช่น ?card=missYou จากหน้าลูกค้า)
   useEffect(() => {
@@ -1711,6 +1720,7 @@ export default function CardsStudioPage() {
         setGroomForm(cfg.groomForm || {});
         setStayForm(cfg.stayForm || {});
         setRegisterForm(cfg.registerForm || {});
+        setFormPosters(cfg.formPosters || {});
         setTexts({
           summaryBookingTitle: cfg.billing?.summaryBookingTitle || "",
           summaryDepositTitle: cfg.billing?.summaryDepositTitle || "",
@@ -1746,6 +1756,15 @@ export default function CardsStudioPage() {
 
   const meta = useMemo(() => CARDS.find((c) => c.key === activeKey)!, [activeKey]);
   const st = cards[activeKey] || {};
+  // หน้าตั้งค่าฟอร์มลูกค้า → ฟอร์มไหน (ใช้กับตัวแก้รูปในฟอร์ม)
+  const posterKey: FormPosterKey | null =
+    activeKey === "groomFormFields"
+      ? "groom"
+      : activeKey === "stayFormFields"
+        ? "stay"
+        : activeKey === "registerFormFields"
+          ? "register"
+          : null;
 
   const patch = (p: Partial<CardStyleConfig>) => {
     setCards((prev) => ({ ...prev, [activeKey]: { ...prev[activeKey], ...p } }));
@@ -1805,6 +1824,7 @@ export default function CardsStudioPage() {
             groomForm,
             stayForm,
             registerForm,
+            formPosters,
             // ว่าง = ไม่แตะ (ส่งข้อความว่างให้ลูกค้าไม่ได้)
             ...(texts.followUpMessage?.trim() ? { crm: { followUpMessage: texts.followUpMessage } } : {}),
             billing: {
@@ -1898,6 +1918,29 @@ export default function CardsStudioPage() {
             <p className="text-sm font-extrabold text-catcha-chocolate">{meta.name}</p>
             <p className="text-[11px] text-brown-soft">{meta.desc}</p>
           </div>
+
+          {/* ── รูปในฟอร์มลูกค้า ── */}
+          {posterKey && (
+            <FormPosterEditor
+              images={resolveFormPosters(formPosters, posterKey)}
+              hint={
+                posterKey === "register"
+                  ? "โชว์ด้านบนหน้าสมัครสมาชิก — เพิ่มได้หลายรูป เรียงลำดับได้"
+                  : "โชว์เป็นหน้าแรกก่อนลูกค้าเริ่มตอบคำถาม (มีปุ่ม \"อ่านแล้ว เริ่มกรอกข้อมูลน้อง\") — เพิ่มได้หลายรูป ลบรูปหมด = เข้าคำถามเลย"
+              }
+              emptyText={posterKey === "register" ? "ยังไม่มีรูป — หน้าสมัครสมาชิกโชว์แค่ฟอร์ม" : undefined}
+              isDefault={!Array.isArray(formPosters[posterKey])}
+              hasDefault={DEFAULT_FORM_POSTERS[posterKey].length > 0}
+              onChange={(next) => {
+                setFormPosters((prev) => ({ ...prev, [posterKey]: next }));
+                setDirty(true);
+              }}
+              onUseDefault={() => {
+                setFormPosters((prev) => ({ ...prev, [posterKey]: null }));
+                setDirty(true);
+              }}
+            />
+          )}
 
           {/* ── ตัวแก้คำถามฟอร์มลูกค้า ── */}
           {activeKey === "groomFormFields" && (
@@ -2212,6 +2255,14 @@ export default function CardsStudioPage() {
             <Icon name="eye" size={14} />
             {FORM_KEYS.includes(activeKey) ? "Preview · ฟอร์มที่ลูกค้าเห็น" : "Preview · ตัวอย่างใน LINE"}
           </p>
+          {posterKey && resolveFormPosters(formPosters, posterKey).length > 0 && (
+            <div className="mb-3 rounded-2xl bg-[#efe6d6] p-3">
+              <p className="mb-2 text-center text-[10px] font-bold text-[#6b5c40]">
+                {posterKey === "register" ? "รูปด้านบนฟอร์ม" : "หน้าแรก (ก่อนเริ่มตอบคำถาม)"}
+              </p>
+              <FormPosters images={resolveFormPosters(formPosters, posterKey)} alt="รูปในฟอร์ม" />
+            </div>
+          )}
           {activeKey === "groomFormFields" ? (
             <FormFieldsPreview title="🩺 ประวัติน้องก่อนอาบน้ำ" fields={resolveGroomForm(groomForm)} />
           ) : activeKey === "stayFormFields" ? (
