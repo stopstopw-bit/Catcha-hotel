@@ -165,6 +165,11 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
     name: "invoices.deposit_received_at",
     sql: "alter table invoices add column if not exists deposit_received_at timestamptz;",
   },
+  // มัดจำของบิลส่วนที่หักจากเครดิตมัดจำล่วงหน้า (ไว้บอกที่มาของมัดจำบนการ์ดบิล)
+  {
+    name: "invoices.deposit_from_credit",
+    sql: "alter table invoices add column if not exists deposit_from_credit numeric;",
+  },
   {
     name: "bookings.groom_health_info",
     sql: "alter table bookings add column if not exists groom_health_info text;",
