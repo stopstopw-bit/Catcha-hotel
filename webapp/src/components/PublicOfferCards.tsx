@@ -20,7 +20,31 @@ export type PublicOfferItem = {
   note?: string;
   /** ป้ายบนรูป เช่น "ลด 30%" */
   badge?: string;
+  /** คอร์สเดียวกันหลายห้อง รวมเป็นการ์ดใบเดียว — ราคาบนการ์ดเป็น "เริ่ม" ราคาต่ำสุด, ในแผ่นรายละเอียดเป็นตารางราคาแต่ละห้อง */
+  options?: { label: string; sub?: string; price: number }[];
 };
+
+function PriceTag({
+  item,
+  size,
+}: {
+  item: PublicOfferItem;
+  size: "sm" | "lg";
+}) {
+  if (typeof item.price !== "number") return <span />;
+  const from = (item.options?.length || 0) > 1;
+  return (
+    <p
+      className={`${size === "lg" ? "text-xl" : "text-lg"} font-extrabold leading-none text-latte-deep`}
+    >
+      {from && (
+        <span className="text-xs font-bold text-brown-faint">เริ่ม </span>
+      )}
+      {item.price.toLocaleString()}
+      <span className="text-xs font-bold text-brown-faint"> บาท</span>
+    </p>
+  );
+}
 
 /** อิโมจิ/สัญลักษณ์ตกแต่ง — ตัดออกเฉพาะบนการ์ด (ในแผ่นรายละเอียดยังโชว์ครบ) */
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu;
@@ -122,14 +146,7 @@ function OfferCard({
         )}
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-3">
-          {typeof item.price === "number" ? (
-            <p className="text-lg font-extrabold leading-none text-latte-deep">
-              {item.price.toLocaleString()}
-              <span className="text-xs font-bold text-brown-faint"> บาท</span>
-            </p>
-          ) : (
-            <span />
-          )}
+          <PriceTag item={item} size="sm" />
           {more && (
             <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-latte/20 px-3 py-1.5 text-[11px] font-extrabold text-catcha-chocolate">
               ดูรายละเอียด
@@ -195,7 +212,7 @@ function DetailSheet({
               <img
                 src={item.imageUrl}
                 alt=""
-                className="mx-auto max-h-[46dvh] w-full object-contain"
+                className={`mx-auto w-full object-contain ${item.options && item.options.length > 1 ? "max-h-[30dvh]" : "max-h-[46dvh]"}`}
               />
             </div>
           )}
@@ -220,6 +237,37 @@ function DetailSheet({
                 {item.note}
               </p>
             )}
+            {item.options && item.options.length > 1 && (
+              <div className="mt-4 overflow-hidden rounded-catcha-sm border border-catcha-line">
+                <p className="bg-paper px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-brown-soft">
+                  ราคาแต่ละห้อง
+                </p>
+                <ul className="divide-y divide-catcha-line">
+                  {item.options.map((o) => (
+                    <li
+                      key={o.label}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-extrabold text-catcha-chocolate">
+                          {o.label}
+                        </p>
+                        {o.sub && (
+                          <p className="text-[11px] text-brown-soft">{o.sub}</p>
+                        )}
+                      </div>
+                      <p className="shrink-0 text-sm font-extrabold text-latte-deep">
+                        {o.price.toLocaleString()}
+                        <span className="text-[11px] font-bold text-brown-faint">
+                          {" "}
+                          บาท
+                        </span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {item.body && (
               <p className="mt-4 whitespace-pre-line text-[13px] leading-relaxed text-brown">
                 {formatDetail(item.body)}
@@ -229,12 +277,7 @@ function DetailSheet({
         </div>
 
         <div className="flex items-center gap-3 border-t border-catcha-line px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
-          {typeof item.price === "number" && (
-            <p className="text-xl font-extrabold leading-none text-latte-deep">
-              {item.price.toLocaleString()}
-              <span className="text-xs font-bold text-brown-faint"> บาท</span>
-            </p>
-          )}
+          <PriceTag item={item} size="lg" />
           <a
             href={lineUrl}
             target="_blank"
