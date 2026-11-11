@@ -144,12 +144,20 @@ export async function sendTelegramToChat(
   const html = options?.html !== false;
   const showMenu = options?.showMenu !== false;
 
-  return telegramApi(token, "sendMessage", {
+  const body = {
     chat_id: chatId,
     text,
     parse_mode: html ? "HTML" : undefined,
     reply_markup: showMenu ? getTelegramMenuKeyboard() : undefined,
-  });
+  };
+  const first = await telegramApi<{ parameters?: { retry_after?: number } }>(token, "sendMessage", body);
+  // ส่งถี่เกิน (กลุ่มรับได้ ~20 ข้อความ/นาที) → Telegram บอกให้รอกี่วินาที รอแล้วส่งซ้ำอีกครั้ง
+  if (first.status === 429) {
+    const wait = Math.min(Number(first.data.parameters?.retry_after) || 5, 40);
+    await new Promise((r) => setTimeout(r, wait * 1000));
+    return telegramApi(token, "sendMessage", body);
+  }
+  return first;
 }
 
 /** ลบปุ่มเก่าแล้วส่งเมนูใหม่ — Telegram ไม่อัปเดต reply keyboard เอง */
