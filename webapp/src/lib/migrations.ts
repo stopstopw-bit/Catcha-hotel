@@ -89,6 +89,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "pos_products", column: "image_url", feature: "POS สินค้า/สต็อก" },
   { table: "pos_sales", column: "method", feature: "POS บิลขายหน้าร้าน" },
   { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
+  { table: "link_clicks", column: "src", feature: "หน้าลิงก์รวม (นับคลิกตามแพลตฟอร์ม)" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
   { table: "package_offers", column: "room_type", feature: "คอร์สวันพักในแอปแยกตามประเภทห้อง" },
   { table: "package_offers", column: "items", feature: "คอร์สชุดรวม / แถมฟรี" },
@@ -530,6 +531,16 @@ where staff_note like '%🎁%';`,
       alter table pos_stock_moves enable row level security;
       alter table pos_sales enable row level security;
       alter table pos_closings enable row level security;
+    `,
+  },
+  {
+    // หน้าลิงก์รวมของร้าน (/links) — นับคนเปิดหน้า (kind=view) และคลิกแต่ละปุ่ม (kind=click) แยกตามแพลตฟอร์มที่แปะลิงก์
+    // ตารางใหม่ ไม่แตะข้อมูลเดิม (เจ้าของอนุมัติ 2026-11-11)
+    name: "link_clicks.setup",
+    sql: `
+      create table if not exists link_clicks (id bigint generated always as identity primary key, kind text not null, src text not null, target text, created_at timestamptz not null default now());
+      create index if not exists link_clicks_created_idx on link_clicks (created_at desc);
+      alter table link_clicks enable row level security;
     `,
   },
   {
