@@ -11,6 +11,7 @@ import SiteFooter from "@/components/SiteFooter";
 /** หน้าประจำโซน: อาบน้ำแมว บางนา–ศรีนครินทร์–พัฒนาการ (Local SEO area page) · ร้านไม่มีบริการตัดขน */
 
 import { getAppUrl } from "@/lib/app-url";
+import { BUSINESS_ID } from "@/lib/seo-schema";
 
 // ราคาอาบน้ำมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
 export const revalidate = 300;
@@ -36,6 +37,7 @@ export const metadata: Metadata = {
     "อาบน้ำแมว ศรีนครินทร์",
     "อาบน้ำแมว พัฒนาการ",
     "อาบน้ำแมว เมกาบางนา",
+    "อาบน้ำแมว เมกะบางนา",
     "ร้านอาบน้ำแมว ใกล้ฉัน",
     "อาบน้ำแมว อุดมสุข",
     "กรูมมิ่งแมว บางนา",
@@ -82,7 +84,7 @@ function jsonLd(bath?: GroomProgram, degrease?: GroomProgram) {
         name: "อาบน้ำแมว โซนบางนา ศรีนครินทร์ พัฒนาการ — CatCha Hotel",
         serviceType: "Cat bathing & grooming spa",
         url: `${SITE_URL}/cat-bath-bangna`,
-        provider: { "@type": "LocalBusiness", name: "CatCha Hotel", telephone: "+66805498969" },
+        provider: { "@id": BUSINESS_ID },
         areaServed: ["บางนา", "ศรีนครินทร์", "พัฒนาการ", "เมกาบางนา", "อุดมสุข", "สวนหลวง"],
         offers: [
           { "@type": "Offer", name: bath?.name || "อาบน้ำ-เป่าขน", price: String(cheapestPrice(bath, 400)), priceCurrency: "THB" },

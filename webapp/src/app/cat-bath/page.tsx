@@ -13,6 +13,7 @@ import { ContentBlocks } from "@/components/ContentBlocks";
 /** หน้าอาบน้ำแมว — เมนู + ราคาเต็ม (SEO service page) · ร้านไม่มีบริการตัดขน */
 
 import { getAppUrl } from "@/lib/app-url";
+import { BUSINESS_ID } from "@/lib/seo-schema";
 
 // ราคาอาบน้ำมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
 export const revalidate = 300;
@@ -85,7 +86,7 @@ function jsonLd(programs: GroomProgram[]) {
     serviceType: "Cat bathing & grooming spa",
     description:
       "อาบน้ำแมวแชมพูพรีเมียม เป่าแห้งสนิท รวมตัดเล็บ เช็ดหู-ตา ไถขนก้นและอุ้งเท้า บริการแบบ Private",
-    provider: { "@type": "LocalBusiness", name: "CatCha Hotel", telephone: "+66805498969" },
+    provider: { "@id": BUSINESS_ID },
     areaServed: ["บางนา", "เทพารักษ์", "หนามแดง", "ศรีนครินทร์", "พัฒนาการ", "เมกาบางนา", "สมุทรปราการ"],
     offers,
   };

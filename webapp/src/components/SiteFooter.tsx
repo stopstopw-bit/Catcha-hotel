@@ -66,11 +66,17 @@ export default function SiteFooter() {
         <Link href="/cat-hotel-bangna" className="font-bold text-brown-soft underline">
           โรงแรมแมว บางนา–เมกาบางนา
         </Link>
+        <Link href="/cat-hotel-mega-bangna" className="font-bold text-brown-soft underline">
+          โรงแรมแมว ใกล้เมกาบางนา
+        </Link>
         <Link href="/cat-hotel-samutprakan" className="font-bold text-brown-soft underline">
           โรงแรมแมว เทพารักษ์–สมุทรปราการ
         </Link>
         <Link href="/cat-bath-bangna" className="font-bold text-brown-soft underline">
           อาบน้ำแมว บางนา–ศรีนครินทร์–พัฒนาการ
+        </Link>
+        <Link href="/cat-bath-samutprakan" className="font-bold text-brown-soft underline">
+          อาบน้ำแมว เทพารักษ์–หนามแดง
         </Link>
         <a
           href="https://guide.catchahotel.com"

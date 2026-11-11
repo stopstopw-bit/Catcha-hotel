@@ -10,6 +10,7 @@ import SiteFooter from "@/components/SiteFooter";
 /** หน้าประจำโซนบางนา–เมกาบางนา (Local SEO area page) — เนื้อหาเฉพาะโซน ไม่ซ้ำหน้าอื่น */
 
 import { getAppUrl } from "@/lib/app-url";
+import { localBusinessNode, breadcrumbNode, faqNode } from "@/lib/seo-schema";
 
 // ราคา/รูปห้องมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
 export const revalidate = 300;
@@ -26,6 +27,7 @@ export const metadata: Metadata = {
   keywords: [
     "โรงแรมแมว บางนา",
     "โรงแรมแมว เมกาบางนา",
+    "โรงแรมแมว เมกะบางนา",
     "รับฝากแมว บางนา",
     "ฝากแมว เมกาบางนา",
     "โรงแรมแมว อุดมสุข",
@@ -65,23 +67,9 @@ function jsonLd() {
   return {
     "@context": "https://schema.org",
     "@graph": [
-      {
-        "@type": "LocalBusiness",
-        name: "CatCha Hotel โรงแรมแมว ใกล้บางนา เมกาบางนา",
-        url: `${SITE_URL}/cat-hotel-bangna`,
-        telephone: "+66805498969",
-        priceRange: "฿350-฿1,450",
-        areaServed: ["บางนา", "เมกาบางนา", "อุดมสุข", "แบริ่ง", "ลาซาล", "บางแก้ว"],
-        geo: { "@type": "GeoCoordinates", latitude: 13.6290175, longitude: 100.654973 },
-      },
-      {
-        "@type": "FAQPage",
-        mainEntity: FAQS.map((f) => ({
-          "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
-        })),
-      },
+      localBusinessNode(),
+      breadcrumbNode("โรงแรมแมว บางนา", "/cat-hotel-bangna"),
+      faqNode(FAQS),
     ],
   };
 }
@@ -105,6 +93,12 @@ export default async function CatHotelBangnaPage() {
           ห่างเมกาบางนาแค่ ~10 นาที เริ่มคืนละ 350.-
         </span>
       </h1>
+      <p className="mt-2 text-xs text-brown-soft">
+        อยู่ใกล้ห้างเลย?{" "}
+        <Link href="/cat-hotel-mega-bangna" className="font-bold text-latte-deep underline">
+          ดูหน้าโรงแรมแมวใกล้เมกาบางนา (เมกะบางนา) →
+        </Link>
+      </p>
       <p className="mt-3 text-sm leading-relaxed text-brown-soft">
         ทาสแมวย่าน<b className="text-catcha-chocolate">บางนา เมกาบางนา อุดมสุข แบริ่ง ลาซาล</b>{" "}
         ไม่ต้องขับข้ามเมืองไปฝากน้อง — CatCha Hotel อยู่ย่านหนามแดง–เทพารักษ์

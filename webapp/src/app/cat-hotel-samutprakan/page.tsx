@@ -10,6 +10,7 @@ import SiteFooter from "@/components/SiteFooter";
 /** หน้าประจำโซนเทพารักษ์–หนามแดง–สมุทรปราการ (Local SEO area page) — โซนบ้านของร้านเอง */
 
 import { getAppUrl } from "@/lib/app-url";
+import { localBusinessNode, breadcrumbNode, faqNode } from "@/lib/seo-schema";
 
 // ราคา/รูปห้องมาจากหลังบ้านแล้ว — ตั้ง revalidate ให้ดึงค่าล่าสุดทุก 5 นาที
 export const revalidate = 300;
@@ -69,29 +70,9 @@ function jsonLd() {
   return {
     "@context": "https://schema.org",
     "@graph": [
-      {
-        "@type": "LocalBusiness",
-        name: "CatCha Hotel โรงแรมแมว เทพารักษ์ สมุทรปราการ",
-        url: `${SITE_URL}/cat-hotel-samutprakan`,
-        telephone: "+66805498969",
-        priceRange: "฿350-฿1,450",
-        address: {
-          "@type": "PostalAddress",
-          addressLocality: "หนามแดง เทพารักษ์",
-          addressRegion: "สมุทรปราการ",
-          addressCountry: "TH",
-        },
-        areaServed: ["เทพารักษ์", "หนามแดง", "สำโรง", "ปากน้ำ", "บางพลี", "บางแก้ว", "สมุทรปราการ"],
-        geo: { "@type": "GeoCoordinates", latitude: 13.6290175, longitude: 100.654973 },
-      },
-      {
-        "@type": "FAQPage",
-        mainEntity: FAQS.map((f) => ({
-          "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
-        })),
-      },
+      localBusinessNode(),
+      breadcrumbNode("โรงแรมแมว เทพารักษ์ สมุทรปราการ", "/cat-hotel-samutprakan"),
+      faqNode(FAQS),
     ],
   };
 }

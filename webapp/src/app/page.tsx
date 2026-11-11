@@ -17,6 +17,7 @@ import PublicPromosCourses from "@/components/PublicPromosCourses";
  */
 
 import { getAppUrl } from "@/lib/app-url";
+import { localBusinessNode, faqNode } from "@/lib/seo-schema";
 
 export const revalidate = 300;
 
@@ -28,7 +29,7 @@ const MAPS_URL = BUSINESS.maps;
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title:
-    "โรงแรมแมว บางนา–เทพารักษ์ | รับฝากแมว อาบน้ำแมว | CatCha Hotel สมุทรปราการ",
+    "โรงแรมแมว บางนา เมกาบางนา เทพารักษ์ | อาบน้ำแมว | CatCha Hotel สมุทรปราการ",
   description:
     "CatCha Hotel โรงแรมแมวย่านบางนา เทพารักษ์ หนามแดง ใกล้เมกาบางนา ศรีนครินทร์ — รับฝากแมวห้องแอร์ มี CCTV ดูน้องได้ 24 ชม. รายงานเช้า-เย็นทุกวัน พร้อมบริการอาบน้ำแมวโดยพี่เลี้ยงใจดี เริ่มคืนละ 350.-",
   keywords: [
@@ -42,6 +43,9 @@ export const metadata: Metadata = {
     "อาบน้ำแมว เทพารักษ์",
     "อาบน้ำแมว สมุทรปราการ",
     "โรงแรมแมว เมกาบางนา",
+    "โรงแรมแมว เมกะบางนา",
+    "อาบน้ำแมว หนามแดง",
+    "อาบน้ำแมว เมกาบางนา",
     "โรงแรมแมว ศรีนครินทร์",
     "โรงแรมแมว หนามแดง",
     "โรงแรมแมว พัฒนาการ",
@@ -109,45 +113,8 @@ function jsonLd() {
   return {
     "@context": "https://schema.org",
     "@graph": [
-      {
-        "@type": "LocalBusiness",
-        "@id": `${SITE_URL}#business`,
-        name: "CatCha Hotel โรงแรมแมว อาบน้ำแมว",
-        alternateName: "แคทฉะ โฮเทล",
-        description:
-          "โรงแรมแมวและอาบน้ำแมว ย่านบางนา เทพารักษ์ หนามแดง สมุทรปราการ ห้องแอร์ CCTV รายงานเช้า-เย็น",
-        url: SITE_URL,
-        telephone: "+66805498969",
-        priceRange: "฿350-฿1,450",
-        image: `${SITE_URL}/logo.jpg`,
-        address: {
-          "@type": "PostalAddress",
-          addressLocality: "หนามแดง เทพารักษ์",
-          addressRegion: "สมุทรปราการ",
-          addressCountry: "TH",
-        },
-        geo: { "@type": "GeoCoordinates", latitude: 13.6290175, longitude: 100.654973 },
-        hasMap: MAPS_URL,
-        sameAs: [
-          MAPS_URL,
-          BUSINESS.social.facebook,
-          BUSINESS.social.instagram,
-          BUSINESS.social.tiktok,
-        ],
-        areaServed: AREAS.map((a) => ({ "@type": "Place", name: a })),
-        makesOffer: [
-          { "@type": "Offer", name: "รับฝากแมว ห้องพักแมวห้องแอร์", price: "350", priceCurrency: "THB" },
-          { "@type": "Offer", name: "อาบน้ำแมว เป่าขน", price: "400", priceCurrency: "THB" },
-        ],
-      },
-      {
-        "@type": "FAQPage",
-        mainEntity: FAQS.map((f) => ({
-          "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
-        })),
-      },
+      localBusinessNode(),
+      faqNode(FAQS),
     ],
   };
 }
