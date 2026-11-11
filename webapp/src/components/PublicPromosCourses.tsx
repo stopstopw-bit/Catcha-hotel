@@ -39,6 +39,76 @@ function offerDetail(o: PackageOffer): string[] {
   return [`ใช้ได้ ${o.totalUses} ครั้ง${per}`];
 }
 
+/** ชื่อห้องสั้น ๆ จาก roomLabel ("ห้อง Mini Duo" → "Mini Duo") */
+function roomName(o: PackageOffer) {
+  return (o.roomLabel || "").replace(/^ห้อง\s*/, "").trim();
+}
+
+/** ชื่อคอร์สที่ตัดชื่อห้องออก — ใช้จับคอร์สเดียวกันคนละห้อง */
+function baseName(o: PackageOffer) {
+  let n = o.name;
+  const r = roomName(o);
+  if (r) n = n.split(r).join("");
+  return n
+    .replace(/\(\s*\)/g, "")
+    .replace(/\(([^)]*)\)\s*$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * คอร์สเข้าพักแบบเดียวกันที่ต่างกันแค่ห้อง (ทำจาก "ทำคอร์สนี้ให้ทุกห้อง") → การ์ดใบเดียว
+ * ราคาบนการ์ด = ห้องถูกสุด, ข้างในเป็นตารางราคาแต่ละห้อง
+ */
+function offerCards(offers: PackageOffer[]): PublicOfferItem[] {
+  const groups = new Map<string, PackageOffer[]>();
+  const order: string[] = [];
+  for (const o of offers) {
+    const key =
+      o.kind === "nights" && o.roomType && !(o.items && o.items.length > 1)
+        ? `n|${o.totalUses}|${baseName(o)}`
+        : `id|${o.id}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key)!.push(o);
+  }
+  return order.map((key) => {
+    const list = groups.get(key)!;
+    const o = list[0];
+    if (list.length < 2) {
+      return {
+        id: o.id,
+        title: o.name,
+        imageUrl: o.imageUrl,
+        chips: offerDetail(o),
+        body: o.description,
+        price: o.price,
+      };
+    }
+    const sorted = [...list].sort((a, b) => a.price - b.price);
+    return {
+      id: `group-${o.id}`,
+      title: baseName(o),
+      imageUrl: o.imageUrl || sorted.find((x) => x.imageUrl)?.imageUrl,
+      chips: [
+        `เข้าพักได้ ${o.totalUses} คืน · เลือกได้ ${list.length} แบบห้อง`,
+      ],
+      body: o.description,
+      price: sorted[0].price,
+      options: sorted.map((x) => ({
+        label: roomName(x) || x.name,
+        sub:
+          x.totalUses > 0
+            ? `ตกคืนละ ${Math.round(x.price / x.totalUses).toLocaleString()}฿`
+            : undefined,
+        price: x.price,
+      })),
+    };
+  });
+}
+
 function thaiDate(iso: string) {
   const d = new Date(`${iso}T00:00:00+07:00`);
   return d.toLocaleDateString("th-TH", {
@@ -91,19 +161,7 @@ export default async function PublicPromosCourses() {
             🎟️ คอร์สอาบน้ำ & แพ็กเกจเข้าพัก
           </h3>
           <div className="mt-4">
-            <PublicOfferCards
-              lineUrl={LINE_URL}
-              items={offers.map(
-                (o): PublicOfferItem => ({
-                  id: o.id,
-                  title: o.name,
-                  imageUrl: o.imageUrl,
-                  chips: offerDetail(o),
-                  body: o.description,
-                  price: o.price,
-                }),
-              )}
-            />
+            <PublicOfferCards lineUrl={LINE_URL} items={offerCards(offers)} />
           </div>
         </>
       )}
