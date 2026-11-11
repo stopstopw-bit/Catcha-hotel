@@ -21,6 +21,8 @@ const PUBLIC_API = [
   "/api/customers/session",
   "/api/customers/line",
   "/api/customers/cat-photo",
+  // ประวัติเครดิต Member ของลูกค้าเอง — route ตรวจเซสชันลูกค้าเอง
+  "/api/customers/credit-history",
   // แนบรูปบัตรประชาชนจากหน้าข้อตกลงเข้าพัก — route ตรวจเองว่าเป็นลูกค้าคนนั้นจริง (resolveCustomerLineId)
   // ตกหล่นไปตอนเพิ่มฟีเจอร์ ลูกค้าเลยโดน 401 แนบไม่ได้ (มีแต่เจ้าของร้านที่ล็อกอินหลังบ้านค้างไว้ที่แนบได้)
   "/api/customers/id-card",
