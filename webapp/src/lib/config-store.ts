@@ -1,4 +1,14 @@
-import { getDefaultSiteConfig } from "./defaults/site-config";
+import { FOLLOW_UP_DEFAULT, getDefaultSiteConfig } from "./defaults/site-config";
+
+/** ข้อความทักลูกค้าแบบตั้งต้นรุ่นเก่า (บอกว่าหายไปกี่วัน) ที่ยังไม่ได้แก้เอง → ใช้ข้อความใหม่ · บรรทัดที่เติมต่อท้ายคงไว้ */
+const OLD_FOLLOW_UP =
+  /^สวัสดี(?:ค่ะ|ครับ) \{name\} จาก [^\n]*\nคิดถึงน้อง\{(?:cats|pets)\} นะ(?:คะ|ครับ) มาไม่ได้นาน \{days\} วันแล้ว มีโปรพิเศษรออยู่ที่แอปนะ(?:คะ|ครับ) 💛/;
+function softenFollowUp(stored: Partial<SiteConfig>): Partial<SiteConfig> {
+  const text = stored.crm?.followUpMessage;
+  const m = text?.match(OLD_FOLLOW_UP);
+  if (!text || !m) return stored;
+  return { ...stored, crm: { ...stored.crm!, followUpMessage: FOLLOW_UP_DEFAULT + text.slice(m[0].length) } };
+}
 import type { SiteConfig } from "./config-types";
 import { getSupabase } from "./supabase/server";
 import { uploadDataUrlToStorage } from "./supabase/storage";
@@ -98,7 +108,7 @@ export async function getSiteConfig(): Promise<SiteConfig> {
         })().catch(() => {});
       }
       return mergeConfig(defaults, {
-        ...stored,
+        ...softenFollowUp(stored),
         updatedAt: data.updated_at || defaults.updatedAt,
       });
     }
