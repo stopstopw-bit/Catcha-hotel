@@ -49,7 +49,7 @@ const PUBLIC_API = [
 ];
 
 /** เปิดเฉพาะตอนอ่าน (GET) — เขียนต้องเป็นหลังบ้าน */
-const PUBLIC_GET = ["/api/config", "/api/articles", "/api/promos"];
+const PUBLIC_GET = ["/api/config", "/api/articles", "/api/promos", "/api/version"];
 
 /**
  * ใช้ร่วมกันทั้งลูกค้าและหลังบ้าน — ปล่อยผ่านด่านนี้ แล้วให้ตัว route
