@@ -1,3 +1,4 @@
+import type { FormPostersConfig } from "./form-posters";
 import type { RoomType } from "./business";
 import type { GroomFormConfig } from "./groom-form";
 import type { RegisterFormConfig } from "./register-form";
@@ -292,4 +293,6 @@ export type SiteConfig = {
   stayForm?: GroomFormConfig;
   /** ช่องในฟอร์มสมัครสมาชิก — เปิด/ปิด บังคับ แก้ชื่อช่องได้ในหลังบ้าน */
   registerForm?: RegisterFormConfig;
+  /** รูปโปสเตอร์ของฟอร์มลูกค้า (หน้าแรกก่อนอาบน้ำ/ก่อนเข้าพัก, ด้านบนฟอร์มสมัคร) — ไม่ตั้ง = รูปเริ่มต้น */
+  formPosters?: FormPostersConfig;
 };
