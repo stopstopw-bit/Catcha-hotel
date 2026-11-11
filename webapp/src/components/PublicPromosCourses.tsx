@@ -134,13 +134,14 @@ export default async function PublicPromosCourses() {
         โปรล่าสุดจากร้าน · ซื้อคอร์สหรือรับโปรผ่าน LINE @catchahotel
       </p>
 
-      {promos.length > 0 && (
-        <div className="mt-6">
-          <PublicOfferCards
-            lineUrl={LINE_URL}
-            items={promos.map(
+      <div className="mt-6">
+        {/* โปร + คอร์สอยู่แถวเดียวกัน — มือถือเลื่อนต่อกันได้เลย ไม่ต้องแยกหัวข้อ */}
+        <PublicOfferCards
+          lineUrl={LINE_URL}
+          items={[
+            ...promos.map(
               (p): PublicOfferItem => ({
-                id: p.id,
+                id: `promo-${p.id}`,
                 title: p.title.th,
                 imageUrl: p.imageUrl || undefined,
                 chips: [],
@@ -150,21 +151,11 @@ export default async function PublicPromosCourses() {
                   ? `ลด ${p.discountPercent}%`
                   : undefined,
               }),
-            )}
-          />
-        </div>
-      )}
-
-      {offers.length > 0 && (
-        <>
-          <h3 className="mt-8 text-center text-base font-extrabold text-catcha-chocolate">
-            🎟️ คอร์สอาบน้ำ & แพ็กเกจเข้าพัก
-          </h3>
-          <div className="mt-4">
-            <PublicOfferCards lineUrl={LINE_URL} items={offerCards(offers)} />
-          </div>
-        </>
-      )}
+            ),
+            ...offerCards(offers),
+          ]}
+        />
+      </div>
 
       <div className="mt-5 text-center">
         <a
