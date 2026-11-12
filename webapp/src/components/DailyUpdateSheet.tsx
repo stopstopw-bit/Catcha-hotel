@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { toast } from "@/components/Toast";
-import { DAILY_GROUPS } from "@/lib/daily-update";
+import { DAILY_GROUPS, missingRequired, toggleDailyPick } from "@/lib/daily-update";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { copyText } from "@/lib/copy-text";
 
@@ -34,12 +34,12 @@ export function DailyUpdateSheet({
   const [writing, setWriting] = useState(false);
   const [photo, setPhoto] = useState<{ preview: string; url?: string } | null>(null);
 
-  const toggle = (id: string) =>
-    setPicks((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggle = (id: string) => setPicks((p) => toggleDailyPick(p, id));
+  const missing = missingRequired(picks);
 
   const write = async () => {
-    if (picks.length === 0 && !note.trim()) {
-      toast("ติ๊กอย่างน้อย 1 เรื่อง หรือพิมพ์โน้ต", "error");
+    if (missing.length) {
+      toast(`เช็คก่อนนะคะ: ${missing.join(", ")}`, "error");
       return;
     }
     setWriting(true);
@@ -120,7 +120,15 @@ export function DailyUpdateSheet({
 
         {DAILY_GROUPS.map((g) => (
           <div key={g.id} className="mb-3">
-            <p className="mb-1.5 text-[11px] font-bold text-brown-soft">{g.label}</p>
+            <p className="mb-1.5 text-[11px] font-bold text-brown-soft">
+              {g.label}
+              {g.mode === "one" && <span className="font-normal"> · เลือก 1</span>}
+              {g.required && (
+                <span className={missing.includes(g.label) ? "text-wait" : "text-[#06883c]"}>
+                  {missing.includes(g.label) ? " · ต้องเช็ค" : " ✓"}
+                </span>
+              )}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {g.chips.map((c) => {
                 const on = picks.includes(c.id);
@@ -199,7 +207,7 @@ export function DailyUpdateSheet({
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              rows={7}
+              rows={10}
               className="w-full rounded-catcha-sm border border-catcha-line bg-card px-3 py-2 text-sm leading-relaxed"
             />
             {aiNote && <p className="mt-1 text-[11px] font-bold text-wait">{aiNote}</p>}
@@ -226,7 +234,7 @@ export function DailyUpdateSheet({
             className="flex min-h-[48px] flex-[2] items-center justify-center gap-2 rounded-catcha-sm bg-latte-deep text-sm font-extrabold text-white disabled:opacity-40"
           >
             <Icon name={text ? "send" : "sparkle"} size={16} />
-            {writing ? "AI กำลังเขียน…" : text ? (busy ? "กำลังโหลด…" : noLine ? "ยังไม่ผูก LINE" : "ส่งเป็นการ์ด LINE") : "ให้ AI เขียนข้อความ"}
+            {writing ? "AI กำลังเขียน…" : !text && missing.length ? `เช็ค${missing.join(" + ")}ก่อน` : text ? (busy ? "กำลังโหลด…" : noLine ? "ยังไม่ผูก LINE" : "ส่งเป็นการ์ด LINE") : "ให้ AI เขียนข้อความ"}
           </button>
         </div>
       </div>

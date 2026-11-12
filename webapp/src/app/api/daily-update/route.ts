@@ -11,6 +11,7 @@ import { uploadDataUrlToStorage } from "@/lib/supabase/storage";
 import { getAppUrlFromEnv } from "@/lib/line-config";
 import {
   cleanDailyPicks,
+  missingRequired,
   dailyUpdateFallback,
   dailyUpdatePrompt,
   type DailyUpdateInput,
@@ -69,8 +70,9 @@ export async function POST(req: NextRequest) {
     shopName: cfg.business.name,
     tone: cfg.cards?.dailyUpdate?.texts?.aiTone,
   };
-  if (input.picks.length === 0 && !input.note) {
-    return NextResponse.json({ error: "ติ๊กอย่างน้อย 1 เรื่อง หรือพิมพ์โน้ต" }, { status: 400 });
+  const missing = missingRequired(input.picks);
+  if (missing.length) {
+    return NextResponse.json({ error: `ยังไม่ได้เช็ค: ${missing.join(", ")}` }, { status: 400 });
   }
 
   try {
