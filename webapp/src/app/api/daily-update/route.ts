@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
     stayDay: b.service === "room" ? stayDayOf(b.checkin) : undefined,
     shopName: cfg.business.name,
     tone: cfg.cards?.dailyUpdate?.texts?.aiTone,
+    examples: cfg.cards?.dailyUpdate?.texts?.aiExamples,
+    period: body.period === "evening" ? "evening" : "morning",
   };
   const missing = missingRequired(input.picks);
   if (missing.length) {
