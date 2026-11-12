@@ -18,7 +18,6 @@ import {
   restoreInvoice,
   listTrashedInvoices,
   linkInvoiceToBooking,
-  invoiceCatNames,
   findOpenInvoiceForBooking,
   applyDepositCreditToInvoice,
   applyCouponToInvoice,
@@ -41,14 +40,13 @@ import {
   buildBillSummaryFlex,
   buildDepositRequestFlex,
   buildDepositThanksFlex,
-  buildReceiptFlex,
   buildMemberBalanceFlex,
   buildReviewRequestFlex,
   reviewMessageFor,
   politeCat,
 } from "@/lib/line";
 import { renderTemplate } from "@/lib/messages";
-import { consumePackage, refundPackageUse, getPackage, receiptCourseSummary } from "@/lib/packages-store";
+import { consumePackage, refundPackageUse, getPackage } from "@/lib/packages-store";
 import { roomPlanOutstanding } from "@/lib/room-plans-store";
 import { getBooking } from "@/lib/bookings-store";
 import { bookingScheduleText } from "@/lib/booking-reminders";
@@ -115,7 +113,8 @@ function summaryFlexFromInvoice(
   }, cardStyle);
 }
 import { sendTelegram, formatBookingTelegram } from "@/lib/telegram";
-import { logAudit } from "@/lib/audit-log";
+import { hasAudit, logAudit } from "@/lib/audit-log";
+import { buildInvoiceReceiptFlex } from "@/lib/receipt-card";
 import { cancelAppointmentToCredit, creditableAmount } from "@/lib/cancel-to-credit";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 
@@ -489,42 +488,16 @@ export async function PATCH(req: NextRequest) {
     if (!inv.lineUserId) {
       return NextResponse.json({ error: "no_line" }, { status: 400 });
     }
-    const cfgR = await getSiteConfig();
-    const paidByCredit = inv.paymentMethod === "member_credit";
-    // ยอดเครดิตปัจจุบันของลูกค้า = ยอดหลังหักบิลนี้ไปแล้ว (บิลถูก mark paid ไปก่อนหน้า)
-    const creditCustomer = paidByCredit && inv.customerId ? await getCustomer(inv.customerId) : null;
-    // คอร์สที่บิลนี้หักไป — โชว์สิทธิ์คงเหลือในใบเสร็จ ลูกค้าจะได้ไม่ต้องถาม
-    const usedPkg = inv.packageId ? await getPackage(inv.packageId) : undefined;
-    // ลูกค้ามีคอร์สอยู่ → สรุปคอร์สที่เหลือทุกใบไปท้ายใบเสร็จด้วย
-    const courses = await receiptCourseSummary(inv.customerId, inv.packageId, inv.packageUnits);
-    const receiptFlex = buildReceiptFlex({
-      invoiceId: inv.id,
-      customerName: inv.customerName,
-      catName: invoiceCatNames(inv),
-      total: inv.total,
-      discount: inv.discount,
-      promoLabel: inv.promoLabel,
-      pointsEarned: inv.pointsEarned || 0,
-      shopName: cfgR.business.name,
-      items: (inv.items || []).map((it) => ({ label: it.label, amount: it.amount })),
-      memberCreditUsed: paidByCredit ? inv.total : undefined,
-      memberCreditLeft: creditCustomer?.memberCredit,
-      packageName: usedPkg?.name,
-      packageUsed: usedPkg ? inv.packageUnits || 1 : undefined,
-      packageLeft: usedPkg ? usedPkg.totalUses - usedPkg.usedUses : undefined,
-      packageUnitLabel: usedPkg?.unit === "night" ? "คืน" : "ครั้ง",
-      courses,
-      paymentMethod:
-        inv.paymentMethod === "member_credit"
-          ? "Member Credit"
-          : inv.paymentMethod === "cash"
-            ? "เงินสด"
-            : inv.paymentMethod === "package"
-              ? "หักจากคอร์ส"
-              : "โอนเงิน",
-    }, cfgR.cards?.receipt);
+    const receiptFlex = await buildInvoiceReceiptFlex(inv, await getSiteConfig());
     if (preview) return NextResponse.json({ ok: true, preview: [receiptFlex] });
     await pushLineMessage(inv.lineUserId, [receiptFlex]);
+    await logAudit({
+      actor: await actorName(req),
+      action: "send_receipt",
+      resourceType: "invoice",
+      resourceId: inv.id,
+      detail: { ลูกค้า: inv.customerName, ยอด: inv.total, วิธีส่ง: "กดส่งเอง" },
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -711,8 +684,42 @@ export async function PATCH(req: NextRequest) {
 
     const paid = result.invoice!;
     const customer = result.customer;
+    const actor = await actorName(req);
+
+    // ── ส่งใบเสร็จ (การ์ด) ให้ลูกค้าอัตโนมัติ ── ปิดได้ที่ ตั้งค่า › อัตโนมัติ
+    // ส่งแค่ใบเสร็จ ไม่ขอรีวิว (ลูกค้าโรงแรมที่จ่ายก่อนเข้าพักจะได้ไม่ถูกขอรีวิวตอนจ่ายเงิน)
+    // กันส่งซ้ำ: บิลนี้เคยส่งใบเสร็จไปแล้ว (เช่น ยกเลิกการชำระแล้วกดรับใหม่) = ไม่ส่งอีก
+    const cfgPaid = await getSiteConfig();
+    let receiptSent = false;
+    let receiptSkip: string | undefined;
+    let paidNotifyErr: string | undefined;
+    if (cfgPaid.automation?.receiptOnPaidEnabled === false) {
+      receiptSkip = "ปิดส่งใบเสร็จอัตโนมัติไว้";
+    } else if (!paid.lineUserId) {
+      receiptSkip = "ลูกค้ายังไม่ได้ผูก LINE";
+    } else if (await hasAudit("send_receipt", paid.id)) {
+      receiptSkip = "เคยส่งใบเสร็จบิลนี้ไปแล้ว";
+    } else {
+      try {
+        const flex = await buildInvoiceReceiptFlex(paid, cfgPaid);
+        paidNotifyErr = await notifyCustomer(paid.lineUserId, [flex]);
+        receiptSent = !paidNotifyErr;
+      } catch (e) {
+        paidNotifyErr = e instanceof Error ? e.message : String(e);
+      }
+      if (receiptSent) {
+        await logAudit({
+          actor,
+          action: "send_receipt",
+          resourceType: "invoice",
+          resourceId: paid.id,
+          detail: { ลูกค้า: paid.customerName, ยอด: paid.total, วิธีส่ง: "อัตโนมัติตอนรับชำระ" },
+        });
+      }
+    }
+
     await logAudit({
-      actor: await actorName(req),
+      actor,
       action: "mark_paid",
       resourceType: "invoice",
       resourceId: id,
@@ -721,12 +728,9 @@ export async function PATCH(req: NextRequest) {
         ยอด: paid.total,
         เก็บรอบนี้: result.settleAmount,
         วิธีจ่าย: body.paymentMethod || "transfer",
+        ส่งใบเสร็จ: receiptSent ? "ส่งแล้ว" : receiptSkip || `ส่งไม่สำเร็จ (${paidNotifyErr})`,
       },
     });
-    // "รับเงินแล้ว" = แค่ปิดบิล + ลงบัญชี + แต้ม (ภายในร้านเท่านั้น) — ไม่ยิงการ์ดหาลูกค้า
-    // เคสโรงแรมจ่ายก่อนเข้าพัก ใบเสร็จ/รีวิวต้องแยกกดส่งเอง (ปุ่ม "ส่งใบเสร็จ" / "ขอรีวิว")
-    // จะได้ไม่ส่งรีวิวตั้งแต่ยังไม่เข้าพัก
-    const paidNotifyErr: string | undefined = undefined;
 
     const gotDeposit = (result.alreadyReceived || 0) > 0;
     await sendTelegram(
@@ -795,7 +799,13 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, invoice: paid, notifyError: paidNotifyErr });
+    return NextResponse.json({
+      ok: true,
+      invoice: paid,
+      receiptSent,
+      receiptSkip,
+      notifyError: paidNotifyErr,
+    });
   }
 
   if (action === "send_member_balance") {

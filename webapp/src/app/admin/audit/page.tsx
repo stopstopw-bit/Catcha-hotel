@@ -28,6 +28,7 @@ const ACTION_LABEL: Record<string, string> = {
   receive_deposit: "รับมัดจำ",
   request_deposit: "เรียกเก็บมัดจำ",
   apply_deposit_credit: "หักเครดิตมัดจำเข้าบิล",
+  send_receipt: "ส่งใบเสร็จทาง LINE",
 };
 
 /** ไอคอนเส้นของแต่ละการกระทำ */
@@ -44,6 +45,7 @@ const ACTION_ICON: Record<string, string> = {
   receive_deposit: "money",
   request_deposit: "send",
   apply_deposit_credit: "wallet",
+  send_receipt: "receipt",
 };
 
 function when(iso: string) {

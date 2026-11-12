@@ -8,6 +8,7 @@ import { MoreMenu } from "@/components/ui";
 import { toast } from "@/components/Toast";
 import { CancelToCreditButton } from "@/components/CancelToCreditButton";
 import { askDepositReceive } from "@/lib/deposit-confirm";
+import { receiptNote } from "@/lib/receipt-note";
 
 type Inv = {
   id: string;
@@ -68,7 +69,7 @@ export function InvoiceActionButtons({
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast(okMsg, "success");
+        toast(body.action === "mark_paid" ? okMsg + receiptNote(d) : okMsg, "success");
         reload();
         onDone?.();
       } else {

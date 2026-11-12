@@ -57,6 +57,7 @@ import {
   type BookingTransport,
 } from "@/lib/transport";
 import { NumInput } from "@/components/NumInput";
+import { receiptNote } from "@/lib/receipt-note";
 
 type Customer = {
   id: string;
@@ -2006,11 +2007,11 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        // ปุ่มนี้เป็นแค่สถานะหลังบ้าน — ไม่ส่งอะไรหาลูกค้า ต้องบอกให้ร้านรู้ว่าใบเสร็จต้องกดส่งเอง
+        // บอกร้านด้วยว่าใบเสร็จไปถึงลูกค้าแล้วหรือยัง (ส่งอัตโนมัติ ปิดได้ในตั้งค่า › อัตโนมัติ)
         toast(
-          method === "package"
+          (method === "package"
             ? "ปิดบิลแล้ว — หักจากคอร์ส ไม่มีเงินเข้า ✅"
-            : "รับเงินแล้ว — ลงบัญชี + แต้ม ✅ (ใบเสร็จกดส่งเองที่ปุ่ม ส่ง LINE)",
+            : "รับเงินแล้ว — ลงบัญชี + แต้ม ✅") + receiptNote(data),
           "success"
         );
         load();
