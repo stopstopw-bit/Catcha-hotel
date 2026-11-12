@@ -17,6 +17,7 @@ export function DailyUpdateSheet({
   busy,
   noLine,
   onPreview,
+  onCopied,
   onClose,
 }: {
   bookingId: string;
@@ -25,6 +26,8 @@ export function DailyUpdateSheet({
   /** ลูกค้ายังไม่ผูก LINE — ก๊อปข้อความไปส่งเองได้ แต่ส่งการ์ดไม่ได้ */
   noLine?: boolean;
   onPreview: (text: string, imageUrl?: string) => void;
+  /** ก๊อปข้อความสำเร็จ (หน้าอัปเดตน้องนับว่าบ้านนี้ส่งแล้ว) */
+  onCopied?: () => void;
   onClose: () => void;
 }) {
   const [picks, setPicks] = useState<string[]>([]);
@@ -218,9 +221,11 @@ export function DailyUpdateSheet({
           {text && (
             <button
               type="button"
-              onClick={async () =>
-                toast((await copyText(text)) ? "ก๊อปข้อความแล้ว 📋" : "ก๊อปไม่ได้ — กดค้างที่ข้อความแล้วก๊อปเองนะคะ", "info")
-              }
+              onClick={async () => {
+                const ok = await copyText(text);
+                toast(ok ? "ก๊อปข้อความแล้ว 📋" : "ก๊อปไม่ได้ — กดค้างที่ข้อความแล้วก๊อปเองนะคะ", "info");
+                if (ok) onCopied?.();
+              }}
               className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-catcha-sm bg-paper text-sm font-bold text-brown"
             >
               <Icon name="copy" size={16} />

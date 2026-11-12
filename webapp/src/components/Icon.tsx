@@ -326,6 +326,7 @@ export function Icon({
 export const ADMIN_TAB_ICONS: Record<string, string> = {
   "/admin": "home",
   "/admin/schedule": "calendar",
+  "/admin/daily-update": "paw",
   "/admin/bookings/new": "plus",
   "/admin/customers": "users",
   "/admin/billing": "card",
@@ -349,6 +350,7 @@ export const ADMIN_TAB_ICONS: Record<string, string> = {
 export const ADMIN_TAB_EN: Record<string, string> = {
   "/admin": "Dashboard",
   "/admin/schedule": "Schedule",
+  "/admin/daily-update": "Daily update",
   "/admin/bookings/new": "New booking",
   "/admin/customers": "Customers",
   "/admin/billing": "Billing",
@@ -372,7 +374,7 @@ export const ADMIN_TAB_EN: Record<string, string> = {
 export const ADMIN_TAB_GROUPS: { title: string; hrefs: string[] }[] = [
   {
     title: "Daily",
-    hrefs: ["/admin", "/admin/schedule", "/admin/bookings/new", "/admin/customers", "/admin/billing"],
+    hrefs: ["/admin", "/admin/schedule", "/admin/daily-update", "/admin/bookings/new", "/admin/customers", "/admin/billing"],
   },
   { title: "Finance", hrefs: ["/admin/finance", "/admin/tax", "/admin/insights"] },
   {

@@ -10,6 +10,7 @@ import { disabledFeatureForAdminPath } from "@/lib/features";
 export const ADMIN_TABS = [
   { href: "/admin", label: "แดชบอร์ด", icon: "📊" },
   { href: "/admin/schedule", label: "ตารางนัด", icon: "🗓️" },
+  { href: "/admin/daily-update", label: "อัปเดตน้อง", icon: "🐾" },
   { href: "/admin/bookings/new", label: "จองใหม่", icon: "➕" },
   { href: "/admin/customers", label: "ลูกค้า", icon: "👤" },
   { href: "/admin/billing", label: "คิดเงิน", icon: "💳" },
