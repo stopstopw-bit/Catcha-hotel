@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { toast } from "@/components/Toast";
-import { DAILY_GROUPS, missingRequired, toggleDailyPick } from "@/lib/daily-update";
+import { DAILY_GROUPS, DAILY_PERIOD_LABEL, guessDailyPeriod, missingRequired, toggleDailyPick, type DailyPeriod } from "@/lib/daily-update";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { copyText } from "@/lib/copy-text";
 
@@ -31,6 +31,7 @@ export function DailyUpdateSheet({
   onClose: () => void;
 }) {
   const [picks, setPicks] = useState<string[]>([]);
+  const [period, setPeriod] = useState<DailyPeriod>(() => guessDailyPeriod());
   const [note, setNote] = useState("");
   const [text, setText] = useState("");
   const [aiNote, setAiNote] = useState("");
@@ -50,7 +51,7 @@ export function DailyUpdateSheet({
       const res = await fetch("/api/daily-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate", id: bookingId, ids, picks, note }),
+        body: JSON.stringify({ action: "generate", id: bookingId, ids, picks, note, period }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.text) {
@@ -119,6 +120,21 @@ export function DailyUpdateSheet({
           >
             <Icon name="x" size={18} />
           </button>
+        </div>
+
+        <div className="mb-3 flex gap-1 rounded-full bg-paper p-1">
+          {(["morning", "evening"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriod(p)}
+              className={`min-h-[36px] flex-1 rounded-full text-xs font-bold ${
+                period === p ? "bg-card text-catcha-chocolate shadow-catcha-sm" : "text-brown-soft"
+              }`}
+            >
+              อัพเดท{DAILY_PERIOD_LABEL[p]}
+            </button>
+          ))}
         </div>
 
         {DAILY_GROUPS.map((g) => (
