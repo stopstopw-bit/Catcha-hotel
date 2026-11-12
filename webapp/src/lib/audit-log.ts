@@ -71,3 +71,23 @@ export async function listAudit(limit = 200): Promise<AuditRow[]> {
     return [];
   }
 }
+
+/**
+ * เคยบันทึกการกระทำนี้กับรายการนี้แล้วหรือยัง — ใช้กันส่งการ์ดซ้ำ (เช่น ใบเสร็จของบิลเดิม
+ * ตอนกดยกเลิกการชำระแล้วกดรับเงินใหม่) อ่านไม่ได้ = ถือว่ายังไม่เคย
+ */
+export async function hasAudit(action: string, resourceId: string): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) return false;
+  try {
+    const { data } = await sb
+      .from("audit_logs")
+      .select("id")
+      .eq("action", action)
+      .eq("resource_id", resourceId)
+      .limit(1);
+    return !!data && data.length > 0;
+  } catch {
+    return false;
+  }
+}

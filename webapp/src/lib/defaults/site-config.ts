@@ -54,6 +54,7 @@ export function getDefaultSiteConfig(): SiteConfig {
         checkoutReminderTime: "19:30",
         reviewRequestEnabled: true,
         reviewRequestDaysAfter: 1,
+        receiptOnPaidEnabled: true,
         groomInfoEnabled: true,
         intakeAutoEnabled: true,
         freeLitterMinNights: 3,

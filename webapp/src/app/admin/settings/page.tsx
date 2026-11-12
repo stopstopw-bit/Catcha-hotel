@@ -2184,6 +2184,7 @@ const AUTOMATION_DEFAULT = {
   checkoutReminderTime: "19:30",
   reviewRequestEnabled: true,
   reviewRequestDaysAfter: 1,
+  receiptOnPaidEnabled: true,
   groomInfoEnabled: true,
   intakeAutoEnabled: true,
   freeLitterMinNights: 3,
@@ -2457,6 +2458,17 @@ function AutomationTab({
             ใส่ 0 = ส่งวันเช็คเอาท์เลย (ไม่ต้องรอวันก่อนหน้า)
           </p>
         )}
+      </div>
+
+      <div className="rounded-catcha-sm border border-catcha-line p-3">
+        <Toggle
+          label="ส่งใบเสร็จทาง LINE ทันทีที่กดรับชำระเงิน"
+          checked={form.receiptOnPaidEnabled !== false}
+          onChange={(v) => set({ receiptOnPaidEnabled: v })}
+        />
+        <p className="mt-1 text-[10px] text-brown-soft">
+          ส่งเป็นการ์ดใบเสร็จ บิลละครั้งเดียว (กดยกเลิกการชำระแล้วรับใหม่ก็ไม่ส่งซ้ำ) — ลูกค้าที่ยังไม่ผูก LINE จะข้ามไป
+        </p>
       </div>
 
       <div className="rounded-catcha-sm border border-catcha-line p-3">

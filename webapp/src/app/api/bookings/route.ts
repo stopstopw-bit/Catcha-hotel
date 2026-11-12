@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { receiptCourseSummary } from "@/lib/packages-store";
+import { buildInvoiceReceiptFlex } from "@/lib/receipt-card";
 import { isDayCareStay } from "@/lib/day-care";
 import { resolveCustomerLineId } from "@/lib/customer-session";
 import {
@@ -40,7 +40,6 @@ import {
   buildBillSummaryFlex,
   buildReviewRequestFlex,
   reviewMessageFor,
-  buildReceiptFlex,
   buildReadyForPickupFlex,
   buildDailyUpdateFlex,
   buildDepositThanksFlex,
@@ -59,7 +58,6 @@ import {
   adjustDepositCredit,
   getCatGroomInfo,
   getCatStayInfo,
-  getCustomer,
   getIntakeStatus,
   copyBookingDocsToCustomer,
 } from "@/lib/customers-store";
@@ -73,7 +71,7 @@ import { stayForGroom } from "@/lib/booking-group";
 import { bangkokToday } from "@/lib/bangkok-date";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
 import { consentDates, consentTextFor, renderTemplate } from "@/lib/messages";
-import { listInvoices, getInvoice, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
+import { listInvoices, getInvoice, updateInvoice, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
 import {
   buildDepositReminderCard,
@@ -865,36 +863,8 @@ function groomInfoCardFor(
         if (!inv) skipped.push("หาบิลของนัดนี้ไม่เจอ — ข้าม" + (part === "receipt" ? "ใบเสร็จ" : "การ์ดขอบคุณมัดจำ"));
         else if (part === "receipt" && inv.status !== "paid") skipped.push("บิลยังไม่ปิด — ข้ามใบเสร็จ");
         if (inv && part === "receipt" && inv.status === "paid") {
-          const paidByCredit = inv.paymentMethod === "member_credit";
-          // เครดิตปัจจุบัน = ยอดหลังหักบิลนี้ไปแล้ว (บิลถูกปิดไปก่อนถึงจะส่งใบเสร็จได้)
-          const creditCustomer =
-            paidByCredit && inv.customerId ? await getCustomer(inv.customerId) : null;
-          // ลูกค้ามีคอร์สอยู่ → สรุปคอร์สที่เหลือทุกใบไปท้ายใบเสร็จด้วย (เหมือนส่งจากหน้าบิล)
-          const courses = await receiptCourseSummary(inv.customerId, inv.packageId, inv.packageUnits);
-          messages.push(
-            buildReceiptFlex({
-              invoiceId: inv.id,
-              customerName: inv.customerName,
-              catName: invoiceCatNames(inv),
-              total: inv.total,
-              discount: inv.discount,
-              promoLabel: inv.promoLabel,
-              pointsEarned: inv.pointsEarned || 0,
-              shopName: cfg.business.name,
-              items: (inv.items || []).map((it) => ({ label: it.label, amount: it.amount })),
-              memberCreditUsed: paidByCredit ? inv.total : undefined,
-              memberCreditLeft: creditCustomer?.memberCredit,
-              courses,
-              paymentMethod:
-                inv.paymentMethod === "member_credit"
-                  ? "Member Credit"
-                  : inv.paymentMethod === "cash"
-                    ? "เงินสด"
-                    : inv.paymentMethod === "package"
-                      ? "หักจากคอร์ส"
-                      : "โอนเงิน",
-            }, cfg.cards?.receipt)
-          );
+          // หน้าตาเดียวกับใบเสร็จที่ส่งอัตโนมัติตอนรับชำระ / ส่งจากหน้าบิล
+          messages.push(await buildInvoiceReceiptFlex(inv, cfg));
         }
         if (inv && part === "depositThanks" && (inv.deposit || 0) > 0) {
           messages.push(
