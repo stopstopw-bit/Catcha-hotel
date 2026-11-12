@@ -594,6 +594,31 @@ const CARDS: CardMeta[] = [
     hasTitleSize: true,
   },
   {
+    key: "dailyUpdate",
+    name: "อัปเดตน้องวันนี้ (AI ช่วยเขียน)",
+    desc: "ส่งจากปุ่ม ส่ง LINE › อัปเดตน้องวันนี้ — ติ๊กว่าน้องทำอะไร แล้ว AI เรียบเรียงข้อความให้",
+    colors: [
+      { key: "headerColor", label: "สีหัวข้อ", fallback: "#5C4033" },
+      { key: "accentColor", label: "สีชื่อน้อง", fallback: "#C4956A" },
+    ],
+    fields: [
+      { key: "customerName", label: "ชื่อลูกค้า" },
+      { key: "date", label: "วันที่" },
+    ],
+    texts: [],
+    styleTexts: [
+      { key: "title", label: "หัวข้อการ์ด", placeholder: "🐾 อัปเดตน้องวันนี้" },
+      {
+        key: "aiTone",
+        label: "สไตล์ภาษาที่ให้ AI เขียน (ไม่โชว์ในการ์ด)",
+        placeholder: 'อบอุ่น เป็นกันเอง สุภาพ แทนตัวว่า "แอดมิน" เรียกเจ้าของว่า "คุณพ่อคุณแม่" ลงท้ายด้วย ค่ะ',
+        multiline: true,
+      },
+    ],
+    closingLabel: "ข้อความปิดท้าย (ว่าง = ส่งความคิดถึงจาก…, ใส่ - = ไม่มี)",
+    hasTitleSize: true,
+  },
+  {
     key: "profileCheck",
     name: "ขอข้อมูลน้องที่ยังไม่ครบ",
     desc: "ส่งพร้อมการ์ดก่อนวันนัด เมื่อข้อมูลน้อง (พันธุ์ / อายุ / วันเกิด / โรคประจำตัว) ยังไม่ครบ",
@@ -1510,6 +1535,38 @@ function Preview({
           <p className="whitespace-pre-line pt-2 text-[10px] text-[#A2907E]">
             {st.closing || "ขอบคุณที่ไว้ใจ CatCha Hotel นะคะ 🧡"}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (meta.key === "dailyUpdate") {
+    return (
+      <div className={bubble}>
+        <div className="flex aspect-square items-center justify-center bg-[#F4ECE0] text-[10px] text-[#A2907E]">
+          (รูปน้อง ถ้าใส่)
+        </div>
+        <div className="space-y-1 px-4 py-4 text-[11px] text-[#4E3E32]">
+          <p className={`${titleCls} font-extrabold`} style={{ color: c("headerColor", "#5C4033") }}>
+            {t("title", "🐾 อัปเดตน้องวันนี้")}
+          </p>
+          {(show("customerName") || show("date")) && (
+            <p className="text-[10px] text-[#A2907E]">
+              {[show("customerName") ? "คุณตาล" : "", show("date") ? "12 พ.ย. 2026" : ""].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          <div className="mt-2 rounded-lg bg-[#F4ECE0] px-3 py-2.5">
+            <p className="font-extrabold" style={{ color: c("accentColor", "#C4956A") }}>น้อง Soju</p>
+            <p className="mt-0.5 whitespace-pre-line">
+              วันนี้น้อง Soju กินข้าวหมดชามเลยค่ะ ฉี่ปกติ ส่วนอึยังไม่อึ แอดมินจะคอยดูให้นะคะ
+              ช่วงบ่ายแอดมินพาออกมาชมวิว น้องเริ่มกล้าเดินสำรวจแล้ว เป็นสัญญาณที่ดีของการปรับตัวค่ะ
+            </p>
+          </div>
+          {st.closing !== "-" && (
+            <p className="whitespace-pre-line pt-2 text-[10px] text-[#A2907E]">
+              {st.closing || "ส่งความคิดถึงจาก CatCha Hotel 🧡"}
+            </p>
+          )}
         </div>
       </div>
     );
