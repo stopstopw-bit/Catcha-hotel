@@ -43,6 +43,7 @@ export async function generateAiText(opts: {
   system: string;
   prompt: string;
   maxTokens?: number;
+  temperature?: number;
 }): Promise<{ text: string; provider: AiProvider } | null> {
   const provider = aiProvider();
   if (!provider) return null;
@@ -55,7 +56,7 @@ export async function generateAiText(opts: {
       {
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",
         max_tokens: maxTokens,
-        temperature: 0.8,
+        temperature: opts.temperature ?? 1,
         messages: [
           { role: "system", content: opts.system },
           { role: "user", content: opts.prompt },
@@ -82,17 +83,34 @@ export async function generateAiText(opts: {
     return { text: text.trim(), provider };
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const d = await postJson(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    { "x-goog-api-key": String(process.env.GEMINI_API_KEY) },
-    {
-      systemInstruction: { parts: [{ text: opts.system }] },
-      contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 },
-    }
+  // Gemini 2.5 เป็นรุ่น "คิดก่อนตอบ" — ถ้าไม่ปิดการคิด มันใช้โควต้า token หมดไปกับการคิดแล้วคืนข้อความว่าง
+  // ลองรุ่นตาม GEMINI_MODEL ก่อน ถ้ารุ่นนั้นใช้ไม่ได้ (404/เลิกให้บริการ) ไล่ไปรุ่นถัดไป
+  const models = [process.env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"].filter(
+    (m, i, a): m is string => !!m && a.indexOf(m) === i
   );
-  const parts = d?.candidates?.[0]?.content?.parts;
-  const text = Array.isArray(parts) ? parts.map((p: { text?: string }) => p.text || "").join("") : "";
-  return { text: text.trim(), provider };
+  let lastErr: unknown = null;
+  for (const model of models) {
+    try {
+      const thinking = /2\.5|latest/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {};
+      const d = await postJson(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        { "x-goog-api-key": String(process.env.GEMINI_API_KEY) },
+        {
+          systemInstruction: { parts: [{ text: opts.system }] },
+          contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
+          generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: opts.temperature ?? 1, ...thinking },
+        }
+      );
+      const parts = d?.candidates?.[0]?.content?.parts;
+      const text = Array.isArray(parts) ? parts.map((p: { text?: string }) => p.text || "").join("").trim() : "";
+      if (text) return { text, provider };
+      lastErr = new Error(`Gemini ${model} ตอบว่าง (${d?.candidates?.[0]?.finishReason || d?.promptFeedback?.blockReason || "no text"})`);
+    } catch (e) {
+      lastErr = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      // คีย์ผิด/โควต้าหมด เปลี่ยนรุ่นก็ไม่ช่วย — หยุดเลย
+      if (/API key|PERMISSION|quota|RESOURCE_EXHAUSTED|billing/i.test(msg)) break;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Gemini error");
 }
