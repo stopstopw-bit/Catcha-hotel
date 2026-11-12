@@ -2462,12 +2462,12 @@ function AutomationTab({
 
       <div className="rounded-catcha-sm border border-catcha-line p-3">
         <Toggle
-          label="ส่งใบเสร็จทาง LINE ทันทีที่กดรับชำระเงิน"
+          label="ถามว่าจะส่งใบเสร็จทาง LINE ไหม ตอนกดรับชำระเงิน"
           checked={form.receiptOnPaidEnabled !== false}
           onChange={(v) => set({ receiptOnPaidEnabled: v })}
         />
         <p className="mt-1 text-[10px] text-brown-soft">
-          ส่งเป็นการ์ดใบเสร็จ บิลละครั้งเดียว (กดยกเลิกการชำระแล้วรับใหม่ก็ไม่ส่งซ้ำ) — ลูกค้าที่ยังไม่ผูก LINE จะข้ามไป
+          กดตกลง = ส่งการ์ดใบเสร็จ · บิลที่เคยส่งแล้วจะเตือนก่อนส่งซ้ำ · ปิดไว้ = ไม่ถาม ส่งเองที่ปุ่ม ส่ง LINE
         </p>
       </div>
 

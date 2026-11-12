@@ -686,37 +686,13 @@ export async function PATCH(req: NextRequest) {
     const customer = result.customer;
     const actor = await actorName(req);
 
-    // ── ส่งใบเสร็จ (การ์ด) ให้ลูกค้าอัตโนมัติ ── ปิดได้ที่ ตั้งค่า › อัตโนมัติ
-    // ส่งแค่ใบเสร็จ ไม่ขอรีวิว (ลูกค้าโรงแรมที่จ่ายก่อนเข้าพักจะได้ไม่ถูกขอรีวิวตอนจ่ายเงิน)
-    // กันส่งซ้ำ: บิลนี้เคยส่งใบเสร็จไปแล้ว (เช่น ยกเลิกการชำระแล้วกดรับใหม่) = ไม่ส่งอีก
-    const cfgPaid = await getSiteConfig();
-    let receiptSent = false;
-    let receiptSkip: string | undefined;
-    let paidNotifyErr: string | undefined;
-    if (cfgPaid.automation?.receiptOnPaidEnabled === false) {
-      receiptSkip = "ปิดส่งใบเสร็จอัตโนมัติไว้";
-    } else if (!paid.lineUserId) {
-      receiptSkip = "ลูกค้ายังไม่ได้ผูก LINE";
-    } else if (await hasAudit("send_receipt", paid.id)) {
-      receiptSkip = "เคยส่งใบเสร็จบิลนี้ไปแล้ว";
-    } else {
-      try {
-        const flex = await buildInvoiceReceiptFlex(paid, cfgPaid);
-        paidNotifyErr = await notifyCustomer(paid.lineUserId, [flex]);
-        receiptSent = !paidNotifyErr;
-      } catch (e) {
-        paidNotifyErr = e instanceof Error ? e.message : String(e);
-      }
-      if (receiptSent) {
-        await logAudit({
-          actor,
-          action: "send_receipt",
-          resourceType: "invoice",
-          resourceId: paid.id,
-          detail: { ลูกค้า: paid.customerName, ยอด: paid.total, วิธีส่ง: "อัตโนมัติตอนรับชำระ" },
-        });
-      }
-    }
+    // ── ใบเสร็จ: เซิร์ฟเวอร์ไม่ส่งเอง ── ร้านเปิด "ถามว่าจะส่งใบเสร็จไหม" (ค่าเริ่มต้น)
+    // → หน้าเว็บถามต่อ กดตกลงค่อยเรียก send_receipt · ไม่ขอรีวิวพร้อมกัน
+    // บิลที่เคยส่งใบเสร็จไปแล้ว (ยกเลิกการชำระแล้วรับใหม่) คำถามจะเตือนว่าเป็นการส่งซ้ำ
+    const receiptAsk =
+      (await getSiteConfig()).automation?.receiptOnPaidEnabled !== false && !!paid.lineUserId;
+    const receiptSentBefore = receiptAsk ? await hasAudit("send_receipt", paid.id) : false;
+    const paidNotifyErr: string | undefined = undefined;
 
     await logAudit({
       actor,
@@ -728,7 +704,6 @@ export async function PATCH(req: NextRequest) {
         ยอด: paid.total,
         เก็บรอบนี้: result.settleAmount,
         วิธีจ่าย: body.paymentMethod || "transfer",
-        ส่งใบเสร็จ: receiptSent ? "ส่งแล้ว" : receiptSkip || `ส่งไม่สำเร็จ (${paidNotifyErr})`,
       },
     });
 
@@ -802,8 +777,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       invoice: paid,
-      receiptSent,
-      receiptSkip,
+      receiptAsk,
+      receiptSentBefore,
       notifyError: paidNotifyErr,
     });
   }

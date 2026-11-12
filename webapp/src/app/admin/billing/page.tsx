@@ -57,7 +57,7 @@ import {
   type BookingTransport,
 } from "@/lib/transport";
 import { NumInput } from "@/components/NumInput";
-import { receiptNote } from "@/lib/receipt-note";
+import { askSendReceipt } from "@/lib/receipt-ask";
 
 type Customer = {
   id: string;
@@ -2007,14 +2007,16 @@ function BillsView({ tabs }: { tabs: React.ReactNode }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        // บอกร้านด้วยว่าใบเสร็จไปถึงลูกค้าแล้วหรือยัง (ส่งอัตโนมัติ ปิดได้ในตั้งค่า › อัตโนมัติ)
+        // ร้านเปิด "ถามว่าจะส่งใบเสร็จไหม" → ถามต่อ · ไม่งั้นบอกว่าใบเสร็จต้องกดส่งเอง
         toast(
-          (method === "package"
+          method === "package"
             ? "ปิดบิลแล้ว — หักจากคอร์ส ไม่มีเงินเข้า ✅"
-            : "รับเงินแล้ว — ลงบัญชี + แต้ม ✅") + receiptNote(data),
+            : "รับเงินแล้ว — ลงบัญชี + แต้ม ✅" +
+                (data.receiptAsk ? "" : " (ใบเสร็จกดส่งเองที่ปุ่ม ส่ง LINE)"),
           "success"
         );
         load();
+        await askSendReceipt(id, data);
       } else if (data.error === "package_not_covered") {
         toast("บิลนี้ยังมียอดต้องเก็บ หรือไม่ได้หักคอร์ส — ใช้รับเงินแบบปกติ", "error");
       } else if (data.error === "insufficient_credit") {

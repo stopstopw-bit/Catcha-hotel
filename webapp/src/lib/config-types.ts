@@ -135,7 +135,7 @@ export type AutomationConfig = {
   reviewRequestEnabled: boolean;
   /** ส่งขอรีวิวหลังเช็คเอาท์ (วัน) */
   reviewRequestDaysAfter: number;
-  /** ส่งใบเสร็จ (การ์ด) ให้ลูกค้าทันทีที่กดรับชำระเงิน — ไม่มีค่า = เปิด */
+  /** ตอนกดรับชำระเงิน ถามร้านว่าจะส่งใบเสร็จ (การ์ด LINE) ให้ลูกค้าเลยไหม — ไม่มีค่า = ถาม */
   receiptOnPaidEnabled?: boolean;
   /** ส่งการ์ดสอบถามประวัติน้องก่อนอาบน้ำ (พ่วงกับยืนยันนัด) */
   groomInfoEnabled: boolean;
