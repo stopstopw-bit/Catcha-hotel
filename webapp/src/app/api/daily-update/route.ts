@@ -80,8 +80,10 @@ export async function POST(req: NextRequest) {
   try {
     const ai = await generateAiText(dailyUpdatePrompt(input));
     if (ai?.text) return NextResponse.json({ text: ai.text, ai: ai.provider });
+    if (ai) console.error("[daily-update] AI returned empty text");
     return NextResponse.json({ text: dailyUpdateFallback(input), ai: null, reason: ai ? "empty" : "no_key" });
   } catch (e) {
+    console.error("[daily-update] AI error:", e instanceof Error ? e.message : e);
     // AI ล่ม/คีย์ผิด — ไม่ปล่อยให้พนักงานค้าง ให้ข้อความสำเร็จรูปไปแก้ต่อ
     return NextResponse.json({
       text: dailyUpdateFallback(input),
