@@ -3627,6 +3627,93 @@ export function buildReadyForPickupFlex(data: {
 }
 
 /**
+ * การ์ด "อัปเดตน้องวันนี้" — พนักงานติ๊กว่าน้องทำอะไรไปบ้าง ให้ AI เรียบเรียง แก้ได้ก่อนส่ง
+ * ข้อความอยู่ในการ์ดเสมอ (ร้านไม่ส่งข้อความเปล่า) · มีรูปน้อง = ขึ้นเป็นภาพหัวการ์ด
+ */
+export function buildDailyUpdateFlex(data: {
+  customerName: string;
+  catName: string;
+  text: string;
+  dateLabel?: string;
+  imageUrl?: string;
+  shopName?: string;
+}, style?: CardStyleConfig) {
+  const show = (k: string) => style?.show?.[k] !== false;
+  const contents: Record<string, unknown>[] = [
+    {
+      type: "text",
+      text: style?.texts?.title || "🐾 อัปเดตน้องวันนี้",
+      weight: "bold",
+      size: style?.titleSize || "lg",
+      color: style?.headerColor || "#5C4033",
+      wrap: true,
+    },
+  ];
+  const sub = [show("customerName") ? politeName(data.customerName) : "", show("date") ? data.dateLabel || "" : ""]
+    .filter(Boolean)
+    .join(" · ");
+  if (sub) {
+    contents.push({ type: "text", text: sub, size: "xs", color: "#A2907E", margin: "sm", wrap: true });
+  }
+  contents.push({
+    type: "box",
+    layout: "vertical",
+    margin: "lg",
+    paddingAll: "12px",
+    backgroundColor: "#F4ECE0",
+    cornerRadius: "10px",
+    contents: [
+      {
+        type: "text",
+        text: data.catName,
+        weight: "bold",
+        size: "md",
+        color: style?.accentColor || "#C4956A",
+        wrap: true,
+      },
+      {
+        type: "text",
+        text: data.text.slice(0, 1800) || "-",
+        size: "sm",
+        color: "#4E3E32",
+        margin: "sm",
+        wrap: true,
+      },
+    ],
+  });
+  if (style?.closing !== "-") {
+    contents.push({
+      type: "text",
+      text: style?.closing || `ส่งความคิดถึงจาก ${data.shopName || "CatCha Hotel"} 🧡`,
+      size: "xs",
+      color: "#A2907E",
+      margin: "lg",
+      wrap: true,
+    });
+  }
+
+  return {
+    type: "flex",
+    altText: `อัปเดต${data.catName}วันนี้ 🐾`.slice(0, 400),
+    contents: {
+      type: "bubble",
+      ...(data.imageUrl
+        ? {
+            hero: {
+              type: "image",
+              url: data.imageUrl,
+              size: "full",
+              aspectRatio: "1:1",
+              aspectMode: "cover",
+            },
+          }
+        : {}),
+      body: { type: "box", layout: "vertical", contents },
+    },
+  };
+}
+
+/**
  * การ์ดแจ้งเรื่องทั่วไป (ขอข้อมูลน้องที่ยังไม่ครบ / ได้คูปองชวนเพื่อน / อวยพรวันเกิด)
  * ร้านไม่ส่งข้อความเปล่าหาลูกค้าเลย — ทุกอย่างต้องเป็นการ์ด และแก้คำได้ที่ /admin/cards
  */

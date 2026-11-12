@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui";
 import { useConfig } from "@/components/ConfigProvider";
 import { cardOn } from "@/lib/features";
 import { INTAKE_LABEL } from "@/lib/intake-cards";
+import { DailyUpdateSheet } from "@/components/DailyUpdateSheet";
 
 type PendingSend = {
   url: string;
@@ -213,6 +214,7 @@ export function CustomerSendButtons({
         onDone?.();
         setPending(null);
         setSheetOpen(false);
+        setDailyOpen(false);
       } else {
         toast(d.error ? `ส่งไม่สำเร็จ: ${d.error}` : "ส่งไม่สำเร็จ — ตรวจ LINE / ตั้งค่า", "error");
       }
@@ -234,6 +236,16 @@ export function CustomerSendButtons({
       },
       okMsg,
       action
+    );
+
+  // 🐾 อัปเดตน้องวันนี้ — ติ๊กว่าน้องทำอะไร ให้ AI เขียน แก้ได้ แล้วพรีวิวการ์ดก่อนส่ง
+  const [dailyOpen, setDailyOpen] = useState(false);
+  const previewDaily = (text: string, imageUrl?: string) =>
+    requestPreview(
+      "/api/bookings",
+      { id: bookingId, action: "send_daily_update", lineUserId, ids: groomBookingIds, text, imageUrl },
+      "ส่งอัปเดตน้องวันนี้แล้ว 🐾",
+      "daily_update"
     );
 
   // นัดที่จองทั้งบ้าน (หลายตัวพร้อมกัน) — ส่งการ์ดเดียว ลิงก์เดียว ให้กรอกประวัติครบทุกตัวในหน้าเดียวกัน
@@ -681,6 +693,16 @@ export function CustomerSendButtons({
 
   return (
     <>
+      {dailyOpen && bookingId && (
+        <DailyUpdateSheet
+          bookingId={bookingId}
+          ids={groomBookingIds}
+          busy={busy === "daily_update"}
+          noLine={noLine}
+          onPreview={(text, imageUrl) => void previewDaily(text, imageUrl)}
+          onClose={() => setDailyOpen(false)}
+        />
+      )}
       {pending && (
         <PreviewSendModal
           messages={pending.messages}
@@ -849,6 +871,27 @@ export function CustomerSendButtons({
                   <span className="block text-[11px] font-bold text-white/80">เลือกเรื่อง · รวมการ์ด / แยกการ์ด</span>
                 </span>
                 <Icon name="chevron" size={16} />
+              </button>
+            )}
+
+            {/* อัปเดตน้องวันนี้ — ติ๊กว่าวันนี้น้องทำอะไร ให้ AI ช่วยเขียนข้อความ */}
+            {bookingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSheetOpen(false);
+                  setDailyOpen(true);
+                }}
+                className="mb-3 flex min-h-[56px] w-full items-center gap-3 rounded-catcha-sm border border-catcha-line bg-honey/15 px-3 py-2.5 text-left active:opacity-90 disabled:opacity-40"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-honey/30 text-catcha-chocolate">
+                  <Icon name="sparkle" size={18} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold text-catcha-chocolate">อัปเดตน้องวันนี้</span>
+                  <span className="block text-[11px] font-bold text-brown-soft">ติ๊กว่าน้องทำอะไร · AI ช่วยเขียนข้อความ</span>
+                </span>
+                <Icon name="chevron" size={16} className="text-brown-faint" />
               </button>
             )}
 

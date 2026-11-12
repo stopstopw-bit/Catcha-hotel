@@ -42,6 +42,7 @@ import {
   reviewMessageFor,
   buildReceiptFlex,
   buildReadyForPickupFlex,
+  buildDailyUpdateFlex,
   buildDepositThanksFlex,
   buildDocRequestFlex,
   mergeIntakeCards,
@@ -70,6 +71,7 @@ import { cardOn, cardsOff, CARD_FEATURE, featureLabel } from "@/lib/features";
 import { autoMuted } from "@/lib/auto-messages";
 import { stayForGroom } from "@/lib/booking-group";
 import { bangkokToday } from "@/lib/bangkok-date";
+import { formatThaiDateShort } from "@/lib/format-thai-date";
 import { consentDates, consentTextFor, renderTemplate } from "@/lib/messages";
 import { listInvoices, getInvoice, updateInvoice, invoiceCatNames, findOpenInvoiceForBooking } from "@/lib/invoices-store";
 import { getPaymentConfig } from "@/lib/payment-config";
@@ -1402,6 +1404,42 @@ function groomInfoCardFor(
     );
 
     return NextResponse.json({ ok: true, booking: toBooking(updated) });
+  }
+
+  // ── อัปเดตน้องวันนี้ — ข้อความที่ AI ช่วยเขียน (พนักงานแก้แล้ว) ใส่การ์ด ส่งหาลูกค้า ──
+  if (action === "send_daily_update") {
+    const text = String(body.text || "").trim().slice(0, 1800);
+    if (!text) return NextResponse.json({ error: "ยังไม่มีข้อความ" }, { status: 400 });
+    const imageUrl = /^https:\/\//.test(String(body.imageUrl || "")) ? String(body.imageUrl) : undefined;
+    const gb = await resolveGroupBooking(b, body.ids);
+    const cfg = await getSiteConfig();
+    const flex = buildDailyUpdateFlex(
+      {
+        customerName: String(b.customerName),
+        catName: String(gb.catName)
+          .split(",")
+          .map((n) => politeCat(n.trim()))
+          .filter(Boolean)
+          .join(", "),
+        text,
+        dateLabel: formatThaiDateShort(bangkokToday()),
+        imageUrl,
+        shopName: cfg.business.name,
+      },
+      cfg.cards?.dailyUpdate
+    );
+    if (preview) return NextResponse.json({ ok: true, preview: [flex] });
+    const to = await resolveRecipient(b, lineUserId);
+    if (!to) return NextResponse.json({ error: NO_LINE_ERROR }, { status: 400 });
+    try {
+      await pushLineMessage(to, [flex]);
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "ส่ง LINE ไม่สำเร็จ" },
+        { status: 502 }
+      );
+    }
+    return NextResponse.json({ ok: true, sent: true });
   }
 
   // ── น้องพร้อมกลับบ้าน — กดปุ่มเดียว ลูกค้ารู้ทันที ไม่ต้องโทรมาถามว่าเสร็จยัง ──
