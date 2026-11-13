@@ -1,7 +1,7 @@
 import { BUSINESS, ROOMS } from "@/lib/business";
 import { BLOG_POSTS } from "@/lib/blog-posts";
 import { HOME_FAQS } from "@/lib/home-faqs";
-import { SERVICE_AREAS } from "@/lib/seo-schema";
+import { SERVICE_AREAS, SHOP_ADDRESS } from "@/lib/seo-schema";
 import { getAppUrl } from "@/lib/app-url";
 import { isMarketingSite } from "@/lib/site-mode";
 
@@ -34,7 +34,8 @@ export function GET() {
 - ชื่อร้าน: CatCha Hotel (แคทฉะ โฮเทล)
 - บริการ: รับฝากแมว (โรงแรมแมว), อาบน้ำแมว-เป่าขน, รับ-ส่งน้องถึงบ้าน (คิดตามระยะทาง)
 - ไม่มีบริการ: ตัดขนแมว
-- ที่ตั้ง: หนามแดง–เทพารักษ์ สมุทรปราการ (ใกล้บางนา เมกาบางนา ศรีนครินทร์) มีที่จอดรถหน้าร้าน
+- ที่อยู่: ${SHOP_ADDRESS.full}
+- ย่าน: หนามแดง–เทพารักษ์ สมุทรปราการ (ใกล้บางนา เมกาบางนา ศรีนครินทร์) มีที่จอดรถหน้าร้าน
 - แผนที่ Google Maps: ${BUSINESS.maps}
 - เวลาเปิด: ทุกวัน 09:00–19:00 (เช็กอินเข้าพัก 09:00–18:00)
 - โทร: ${BUSINESS.phones.join(", ")}
