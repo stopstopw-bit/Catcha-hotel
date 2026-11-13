@@ -70,6 +70,24 @@ export default function DailyUpdatePage() {
     null
   );
   const [busy, setBusy] = useState(false);
+  const [demo, setDemo] = useState(false);
+  const [demoPreview, setDemoPreview] = useState<Record<string, unknown>[] | null>(null);
+
+  const previewDemo = async (text: string, imageUrl?: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/daily-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "preview_demo", text, imageUrl }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(d.preview)) setDemoPreview(d.preview);
+      else toast(d.error ? `โหลดตัวอย่างไม่สำเร็จ: ${d.error}` : "โหลดตัวอย่างไม่สำเร็จ", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -80,7 +98,8 @@ export default function DailyUpdatePage() {
       .catch(() => setRows([]));
   }, [today]);
 
-  // น้องที่พักอยู่วันนี้ (เช็คอินแล้ว ยังไม่ถึงวันออก) — บ้านเดียวกันเข้าพร้อมกัน = การ์ดเดียว
+  // น้องที่พักอยู่วันนี้ — นับวันออกด้วย (ยังไม่มารับก็ยังต้องอัปเดต) จนกว่าจะข้ามวัน หรือกดรับกลับแล้ว (done)
+  // บ้านเดียวกันเข้าพร้อมกัน = การ์ดเดียว
   const stays = useMemo<Stay[]>(() => {
     const map = new Map<string, Stay>();
     for (const b of rows || []) {
@@ -88,7 +107,7 @@ export default function DailyUpdatePage() {
       if (["cancelled", "no_show", "done"].includes(b.status)) continue;
       const checkin = (b.checkin || b.date || "").slice(0, 10);
       const checkout = (b.checkout || "").slice(0, 10);
-      if (!checkin || checkin > today || (checkout && checkout <= today)) continue;
+      if (!checkin || checkin > today || (checkout && checkout < today)) continue;
       const key = `${b.customerName}|${checkin}|${checkout}`;
       const roomId = b.room || b.roomType || "";
       const room = config.rooms?.find((r) => r.id === roomId)?.name || roomId;
@@ -189,6 +208,7 @@ export default function DailyUpdatePage() {
               const done = sent.has(s.key);
               const day = dayDiff(s.checkin, today) + 1;
               const nights = s.checkout ? dayDiff(s.checkin, s.checkout) : 0;
+              const leaving = s.checkout === today;
               return (
                 <li key={s.key}>
                   <button
@@ -204,7 +224,8 @@ export default function DailyUpdatePage() {
                       <span className="block truncate text-[11px] font-bold text-brown-soft">
                         {s.customerName}
                         {s.room && ` · ${s.room}`} · วันที่ {day}
-                        {nights > 0 && `/${nights}`}
+                        {!leaving && nights > 0 && `/${nights}`}
+                        {leaving && " · ออกวันนี้"}
                       </span>
                     </span>
                     {done ? (
@@ -228,6 +249,25 @@ export default function DailyUpdatePage() {
       <p className="mt-3 text-[11px] text-brown-soft">
         แตะบ้านไหนก็ได้ → ติ๊กว่าวันนี้น้องทำอะไร → AI เขียนข้อความ → ก๊อป หรือส่งเป็นการ์ด LINE
       </p>
+
+      <button
+        type="button"
+        onClick={() => setDemo(true)}
+        className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-catcha-sm border border-dashed border-catcha-line bg-card text-sm font-bold text-catcha-chocolate active:bg-paper"
+      >
+        <Icon name="sparkle" size={16} />
+        ลองเล่น · ทดสอบ AI + ดูการ์ดตัวอย่าง (ไม่ส่งจริง)
+      </button>
+
+      {demo && (
+        <DailyUpdateSheet
+          demo
+          busy={busy}
+          onPreview={(text, imageUrl) => void previewDemo(text, imageUrl)}
+          onClose={() => setDemo(false)}
+        />
+      )}
+      {demoPreview && <PreviewSendModal messages={demoPreview} sending={false} onCancel={() => setDemoPreview(null)} />}
 
       {open && (
         <DailyUpdateSheet

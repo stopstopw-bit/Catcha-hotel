@@ -3,7 +3,8 @@ import { randomUUID } from "crypto";
 import { getSessionFrom } from "@/lib/auth";
 import { getBooking } from "@/lib/bookings-store";
 import { getSiteConfig } from "@/lib/config-store";
-import { politeCat } from "@/lib/line";
+import { politeCat, buildDailyUpdateFlex } from "@/lib/line";
+import { formatThaiDateShort } from "@/lib/format-thai-date";
 import { bangkokToday } from "@/lib/bangkok-date";
 import { generateAiText } from "@/lib/ai-text";
 import { storeBroadcastImage } from "@/lib/broadcast-image-store";
@@ -18,6 +19,9 @@ import {
 } from "@/lib/daily-update";
 
 export const dynamic = "force-dynamic";
+
+/** ชื่อน้องในโหมดลองเล่น */
+const DEMO_CAT = "น้องมะลิ";
 
 /** วันที่เท่าไหร่ของการเข้าพัก (นับวันเช็คอิน = วันที่ 1) */
 function stayDayOf(checkin?: string): number | undefined {
@@ -51,22 +55,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: `${getAppUrlFromEnv()}/api/line/broadcast-image/${id}` });
   }
 
+  const cfg = await getSiteConfig();
+
+  // โหมดลองเล่น — ดูการ์ดตัวอย่างโดยไม่ต้องมีน้องพักอยู่ (ไม่ส่งหาใคร)
+  if (body.action === "preview_demo") {
+    const text = String(body.text || "").trim().slice(0, 1800);
+    if (!text) return NextResponse.json({ error: "ยังไม่มีข้อความ" }, { status: 400 });
+    const imageUrl = /^https:\/\//.test(String(body.imageUrl || "")) ? String(body.imageUrl) : undefined;
+    const flex = buildDailyUpdateFlex(
+      {
+        customerName: "ลูกค้าตัวอย่าง",
+        catName: DEMO_CAT,
+        text,
+        dateLabel: formatThaiDateShort(bangkokToday()),
+        imageUrl,
+        shopName: cfg.business.name,
+      },
+      cfg.cards?.dailyUpdate
+    );
+    return NextResponse.json({ ok: true, preview: [flex] });
+  }
+
   if (body.action !== "generate") {
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   }
 
-  const b = await getBooking(String(body.id || ""));
-  if (!b) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const ids: string[] = Array.isArray(body.ids) && body.ids.length ? body.ids.map(String) : [b.id];
-  const group = (await Promise.all(ids.map((x) => (x === b.id ? b : getBooking(x))))).filter(
-    (x): x is NonNullable<typeof x> => !!x && x.customerName === b.customerName
-  );
-  const cfg = await getSiteConfig();
+  const demo = body.demo === true;
+  const b = demo ? null : await getBooking(String(body.id || ""));
+  if (!demo && !b) return NextResponse.json({ error: "not found" }, { status: 404 });
+  let catNames = [DEMO_CAT];
+  if (b) {
+    const ids: string[] = Array.isArray(body.ids) && body.ids.length ? body.ids.map(String) : [b.id];
+    const group = (await Promise.all(ids.map((x) => (x === b.id ? b : getBooking(x))))).filter(
+      (x): x is NonNullable<typeof x> => !!x && x.customerName === b.customerName
+    );
+    catNames = [...new Set(group.map((x) => politeCat(x.catName)))];
+  }
   const input: DailyUpdateInput = {
-    catNames: [...new Set(group.map((x) => politeCat(x.catName)))],
+    catNames,
     picks: cleanDailyPicks(body.picks),
     note: String(body.note || "").slice(0, 500),
-    stayDay: b.service === "room" ? stayDayOf(b.checkin) : undefined,
+    stayDay: !b ? 2 : b.service === "room" ? stayDayOf(b.checkin) : undefined,
     shopName: cfg.business.name,
     tone: cfg.cards?.dailyUpdate?.texts?.aiTone,
     examples: cfg.cards?.dailyUpdate?.texts?.aiExamples,
