@@ -81,6 +81,15 @@ export default function SiteFooter() {
         <Link href="/cat-hotel-samutprakan" className="font-bold text-brown-soft underline">
           โรงแรมแมว เทพารักษ์–สมุทรปราการ
         </Link>
+        <Link href="/cat-hotel-bangphli" className="font-bold text-brown-soft underline">
+          โรงแรมแมว บางพลี
+        </Link>
+        <Link href="/cat-bath-bangphli" className="font-bold text-brown-soft underline">
+          อาบน้ำแมว บางพลี
+        </Link>
+        <Link href="/en" className="font-bold text-brown-soft underline">
+          English
+        </Link>
         <Link href="/cat-bath-bangna" className="font-bold text-brown-soft underline">
           อาบน้ำแมว บางนา–ศรีนครินทร์–พัฒนาการ
         </Link>

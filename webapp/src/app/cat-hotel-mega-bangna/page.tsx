@@ -103,7 +103,7 @@ export default async function CatHotelMegaBangnaPage() {
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-brown-soft">
         ทาสแมวที่อยู่<b className="text-catcha-chocolate">คอนโด-หมู่บ้านรอบเมกาบางนา อิเกียบางนา</b>{" "}
-        หรือแวะห้างเป็นประจำ — CatCha Hotel อยู่ถนนเทพารักษ์ ย่านหนามแดง ขับจากห้างประมาณ 10 นาที
+        หรือแวะห้างเป็นประจำ — CatCha Hotel อยู่บางแก้ว 9 ถนนเลียบคลองหลวงแพ่ง ย่านหนามแดง–เทพารักษ์ ขับจากห้างประมาณ 10 นาที
         ทุกห้องเป็นห้องแอร์ส่วนตัว มี CCTV ให้เปิดดูน้อง พี่เลี้ยงส่งรูป-วิดีโอรายงานเช้า-เย็นทุกวันทาง LINE
         และมี<b className="text-catcha-chocolate">บริการอาบน้ำแมว</b>ที่ร้านเดียวกัน
       </p>
