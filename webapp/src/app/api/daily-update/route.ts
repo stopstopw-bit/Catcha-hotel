@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       text: dailyUpdateFallback(input),
       ai: null,
       reason: "error",
-      error: e instanceof Error ? e.message.slice(0, 200) : "AI error",
+      error: e instanceof Error ? e.message.slice(0, 400) : "AI error",
     });
   }
 }
