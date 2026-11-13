@@ -1,4 +1,4 @@
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, ROOMS } from "@/lib/business";
 import { getAppUrl } from "@/lib/app-url";
 
 /**
@@ -41,6 +41,10 @@ export function localBusinessNode() {
       "โรงแรมแมวและอาบน้ำแมว ย่านเทพารักษ์ หนามแดง สมุทรปราการ ใกล้บางนา เมกาบางนา ห้องแอร์ส่วนตัว CCTV รายงานเช้า-เย็น",
     url: SITE_URL,
     telephone: "+66805498969",
+    contactPoint: [
+      { "@type": "ContactPoint", telephone: "+66805498969", contactType: "reservations", availableLanguage: ["th", "en"] },
+      { "@type": "ContactPoint", telephone: "+66953246989", contactType: "customer service", availableLanguage: ["th"] },
+    ],
     priceRange: "฿350-฿1,450",
     image: `${SITE_URL}/logo.jpg`,
     logo: `${SITE_URL}/logo.jpg`,
@@ -76,6 +80,23 @@ export function localBusinessNode() {
       BUSINESS.social.line,
     ],
     areaServed: SERVICE_AREAS.map((a) => ({ "@type": "Place", name: a })),
+    knowsAbout: ["รับฝากแมว", "โรงแรมแมว", "อาบน้ำแมว", "ดูแลแมวขี้กลัว", "ดูแลแมวสูงวัย/แมวที่ต้องกินยา"],
+    // ปุ่ม "จอง" ให้ Google/AI รู้ว่าจองทางไหน — LINE คือช่องทางหลัก
+    potentialAction: {
+      "@type": "ReserveAction",
+      target: BUSINESS.social.line,
+      name: "จองคิวทาง LINE @catchahotel",
+    },
+    hasOfferCatalog: {
+      "@type": "OfferCatalog",
+      name: "ห้องพักแมว",
+      itemListElement: ROOMS.map((r) => ({
+        "@type": "Offer",
+        name: `${r.name} (${r.cats.th})`,
+        price: String(r.price),
+        priceCurrency: "THB",
+      })),
+    },
     makesOffer: [
       { "@type": "Offer", name: "รับฝากแมว ห้องพักแมวห้องแอร์", price: "350", priceCurrency: "THB" },
       { "@type": "Offer", name: "อาบน้ำแมว เป่าขน", price: "400", priceCurrency: "THB" },
