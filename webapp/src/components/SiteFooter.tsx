@@ -62,6 +62,14 @@ export default function SiteFooter() {
       >
         🗺️ เปิด Google Maps นำทางมาที่ร้าน
       </a>
+      <a
+        href={BUSINESS.reviewUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mb-4 ml-2 inline-flex items-center gap-1.5 rounded-catcha-sm border border-latte/40 bg-white px-5 py-2.5 text-xs font-extrabold text-latte-deep shadow-catcha-sm transition hover:-translate-y-0.5 hover:border-latte"
+      >
+        ⭐ รีวิวเราบน Google
+      </a>
       <nav className="mb-3 flex flex-wrap justify-center gap-x-3 gap-y-1">
         <Link href="/cat-hotel-bangna" className="font-bold text-brown-soft underline">
           โรงแรมแมว บางนา–เมกาบางนา
