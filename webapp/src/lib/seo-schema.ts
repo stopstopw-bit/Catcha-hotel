@@ -10,6 +10,15 @@ import { getAppUrl } from "@/lib/app-url";
  */
 
 const SITE_URL = getAppUrl();
+
+/** ที่อยู่ร้าน — คัดลอกตรงจาก Google Maps (2026-11-13) ต้องตรงกับ Google Business Profile ทุกตัวอักษร */
+export const SHOP_ADDRESS = {
+  street: "96/9 บางแก้ว 9 ถนน เลียบคลองหลวงแพ่ง",
+  district: "อำเภอบางพลี",
+  province: "สมุทรปราการ",
+  postalCode: "10540",
+  full: "96/9 บางแก้ว 9 ถนน เลียบคลองหลวงแพ่ง อำเภอบางพลี สมุทรปราการ 10540",
+};
 export const BUSINESS_ID = `${SITE_URL}#business`;
 
 /** ทุกย่านที่ร้านให้บริการ — รวมคำสะกดที่คนพิมพ์ค้นจริง (เมกาบางนา/เมกะบางนา) */
@@ -36,7 +45,12 @@ export function localBusinessNode() {
     "@type": "LocalBusiness",
     "@id": BUSINESS_ID,
     name: "CatCha Hotel โรงแรมแมว อาบน้ำแมว",
-    alternateName: ["CatCha Hotel", "แคทฉะ โฮเทล", "Catcha Cat Hotel"],
+    alternateName: [
+      "CatCha Hotel",
+      "แคทฉะ โฮเทล",
+      "Catcha Cat Hotel",
+      "Catcha Hotel โรงแรมแมวแคทฉะ อาบน้ำแมว บางนา หนามแดง สมุทรปราการ",
+    ],
     description:
       "โรงแรมแมวและอาบน้ำแมว ย่านเทพารักษ์ หนามแดง สมุทรปราการ ใกล้บางนา เมกาบางนา ห้องแอร์ส่วนตัว CCTV รายงานเช้า-เย็น",
     url: SITE_URL,
@@ -50,8 +64,10 @@ export function localBusinessNode() {
     logo: `${SITE_URL}/logo.jpg`,
     address: {
       "@type": "PostalAddress",
-      addressLocality: "หนามแดง เทพารักษ์",
-      addressRegion: "สมุทรปราการ",
+      streetAddress: SHOP_ADDRESS.street,
+      addressLocality: SHOP_ADDRESS.district,
+      addressRegion: SHOP_ADDRESS.province,
+      postalCode: SHOP_ADDRESS.postalCode,
       addressCountry: "TH",
     },
     geo: { "@type": "GeoCoordinates", latitude: 13.6290175, longitude: 100.654973 },

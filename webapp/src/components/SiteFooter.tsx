@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SHOP_ADDRESS } from "@/lib/seo-schema";
 import { BUSINESS } from "@/lib/business";
 
 /** แถวปุ่มโซเชียล — ใช้ซ้ำได้ทั้ง hero และ footer ทุกหน้า */
@@ -96,6 +97,7 @@ export default function SiteFooter() {
       <p className="font-bold text-brown-soft">
         CatCha Hotel — โรงแรมแมว รับฝากแมว อาบน้ำแมว
       </p>
+      <p>{SHOP_ADDRESS.full}</p>
       <p>หนามแดง เทพารักษ์ สมุทรปราการ (ใกล้บางนา · เมกาบางนา · ศรีนครินทร์)</p>
       <p>
         โทร {BUSINESS.phones.join(" / ")} · LINE {BUSINESS.lineOa}
