@@ -66,6 +66,9 @@ ${rooms}
 - [โรงแรมแมว สมุทรปราการ](${url}/cat-hotel-samutprakan)
 - [อาบน้ำแมว บางนา](${url}/cat-bath-bangna)
 - [อาบน้ำแมว สมุทรปราการ](${url}/cat-bath-samutprakan)
+- [โรงแรมแมว บางพลี](${url}/cat-hotel-bangphli)
+- [อาบน้ำแมว บางพลี](${url}/cat-bath-bangphli)
+- [English page: cat hotel near Bang Na & Suvarnabhumi](${url}/en)
 - [คู่มือเลี้ยงแมว Catcha Cat Academy](https://guide.catchahotel.com)
 
 ## คำถามที่พบบ่อย

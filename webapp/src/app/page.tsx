@@ -6,6 +6,7 @@ import Link from "next/link";
 import { BUSINESS, ROOMS } from "@/lib/business";
 import { BLOG_POSTS } from "@/lib/blog-posts";
 import SiteFooter, { SocialLinks } from "@/components/SiteFooter";
+import MapEmbed from "@/components/MapEmbed";
 import PublicPromosCourses from "@/components/PublicPromosCourses";
 
 /**
@@ -52,7 +53,7 @@ export const metadata: Metadata = {
     "โรงแรมแมว พัฒนาการ",
     "รับฝากแมว พัฒนาการ",
   ],
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/", languages: { th: "/", en: "/en" } },
   openGraph: {
     type: "website",
     locale: "th_TH",
@@ -456,13 +457,8 @@ export default async function HomePage() {
               </span>
             ))}
           </div>
-          <a
-            href={MAPS_URL}
-            className="mt-5 inline-block rounded-catcha-sm bg-honey/40 px-6 py-3 text-sm font-extrabold text-catcha-chocolate"
-          >
-            🗺️ นำทางด้วย Google Maps
-          </a>
         </section>
+        <MapEmbed />
 
         {/* ── FAQ ── */}
         <section className="mt-14">
