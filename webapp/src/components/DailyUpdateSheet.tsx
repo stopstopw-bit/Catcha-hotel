@@ -14,14 +14,17 @@ import { copyText } from "@/lib/copy-text";
 export function DailyUpdateSheet({
   bookingId,
   ids,
+  demo,
   busy,
   noLine,
   onPreview,
   onCopied,
   onClose,
 }: {
-  bookingId: string;
+  bookingId?: string;
   ids?: string[];
+  /** โหมดลองเล่น — ใช้น้องตัวอย่าง ไม่ผูกกับการจอง ดูการ์ดได้แต่ไม่ส่งจริง */
+  demo?: boolean;
   busy?: boolean;
   /** ลูกค้ายังไม่ผูก LINE — ก๊อปข้อความไปส่งเองได้ แต่ส่งการ์ดไม่ได้ */
   noLine?: boolean;
@@ -51,7 +54,7 @@ export function DailyUpdateSheet({
       const res = await fetch("/api/daily-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate", id: bookingId, ids, picks, note, period }),
+        body: JSON.stringify({ action: "generate", id: bookingId, ids, demo: !!demo, picks, note, period }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.text) {
@@ -110,7 +113,9 @@ export function DailyUpdateSheet({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Daily update</p>
-            <p className="truncate text-sm font-extrabold text-catcha-chocolate">วันนี้น้องทำอะไรไปบ้าง</p>
+            <p className="truncate text-sm font-extrabold text-catcha-chocolate">
+              {demo ? "ลองเล่น · น้องมะลิ (ตัวอย่าง)" : "วันนี้น้องทำอะไรไปบ้าง"}
+            </p>
           </div>
           <button
             type="button"
@@ -255,7 +260,7 @@ export function DailyUpdateSheet({
             className="flex min-h-[48px] flex-[2] items-center justify-center gap-2 rounded-catcha-sm bg-latte-deep text-sm font-extrabold text-white disabled:opacity-40"
           >
             <Icon name={text ? "send" : "sparkle"} size={16} />
-            {writing ? "AI กำลังเขียน…" : !text && missing.length ? `เช็ค${missing.join(" + ")}ก่อน` : text ? (busy ? "กำลังโหลด…" : noLine ? "ยังไม่ผูก LINE" : "ส่งเป็นการ์ด LINE") : "ให้ AI เขียนข้อความ"}
+            {writing ? "AI กำลังเขียน…" : !text && missing.length ? `เช็ค${missing.join(" + ")}ก่อน` : text ? (busy ? "กำลังโหลด…" : demo ? "ดูตัวอย่างการ์ด" : noLine ? "ยังไม่ผูก LINE" : "ส่งเป็นการ์ด LINE") : "ให้ AI เขียนข้อความ"}
           </button>
         </div>
       </div>

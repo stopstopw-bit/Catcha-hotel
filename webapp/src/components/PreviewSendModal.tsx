@@ -17,7 +17,8 @@ export function PreviewSendModal({
   /** ส่งแบบกลุ่ม — ชื่อผู้รับที่เลือกไว้ แสดงใต้การ์ด */
   recipients?: string[];
   sending: boolean;
-  onConfirm: () => void;
+  /** ไม่ใส่ = ดูอย่างเดียว (โหมดลองเล่น) มีแค่ปุ่มปิด */
+  onConfirm?: () => void;
   onCancel: () => void;
 }) {
   return (
@@ -64,8 +65,9 @@ export function PreviewSendModal({
             disabled={sending}
             className="min-h-[44px] flex-1 rounded-catcha-sm bg-card py-3 text-sm font-bold text-brown shadow-catcha-sm disabled:opacity-50"
           >
-            ยกเลิก
+            {onConfirm ? "ยกเลิก" : "ปิด"}
           </button>
+          {onConfirm && (
           <button
             type="button"
             onClick={onConfirm}
@@ -75,6 +77,7 @@ export function PreviewSendModal({
             {!sending && <Icon name="send" size={16} />}
             {sending ? "กำลังส่ง…" : recipients ? `ยืนยันส่ง ${recipients.length} คน` : "ยืนยันส่งจริง"}
           </button>
+          )}
         </div>
       </div>
     </div>
