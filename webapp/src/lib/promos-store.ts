@@ -7,6 +7,8 @@ import {
 } from "./customers-store";
 import { addPoints } from "./points-store";
 import { getSupabase } from "./supabase/server";
+import { uploadDataUrlToStorage } from "./supabase/storage";
+import { createHash } from "crypto";
 import { seedEnabled } from "./demo-seed";
 import { billRuleLabel, promoAsLinePromo, type PromoBillRule } from "./line-discount";
 
@@ -209,6 +211,8 @@ async function writePromoRow(
   write: (row: Record<string, unknown>) => PromiseLike<{ error: { message?: string } | null }>,
   p: PromoRecord
 ) {
+  // รูปโปรที่แนบมาเป็น base64 → อัปขึ้น Storage แล้วเก็บแค่ URL (ดู offloadPromoImage)
+  p.imageUrl = await offloadPromoImage(p.id, p.imageUrl);
   const row: Record<string, unknown> = promoToRow(p);
   let { error } = await write(row);
   if (error && /bill_rule/.test(error.message || "")) {
@@ -220,6 +224,40 @@ async function writePromoRow(
     }
   }
   return !error;
+}
+
+/**
+ * รูปโปรเก็บเป็น base64 ยัดในแถวไม่ได้ — /api/promos กับหน้าแรกส่งรูปทั้งก้อน (หลายร้อย KB ต่อรูป)
+ * ทุกครั้งที่มีคนเปิด จนโควตา Fast Origin Transfer ของ Vercel เต็มและเว็บถูกหยุดทั้งบัญชี (14 พ.ย. 2026)
+ * อัปขึ้น Storage แล้วเก็บแค่ URL รูปจะโหลดจาก Supabase ตรงๆ ไม่ผ่านเว็บ
+ * ตั้งชื่อไฟล์จาก hash ของรูป บันทึกซ้ำโดยไม่เปลี่ยนรูปก็ไม่อัปซ้ำ · อัปไม่ได้ก็คงค่าเดิมไว้ ไม่ให้บันทึกพัง
+ */
+async function offloadPromoImage(id: string, imageUrl?: string) {
+  if (!imageUrl?.startsWith("data:image")) return imageUrl;
+  const hash = createHash("sha1").update(imageUrl).digest("hex").slice(0, 12);
+  return uploadDataUrlToStorage(`promos/${id}-${hash}`, imageUrl);
+}
+
+/** ย้ายรูปโปรเก่าที่ยังเป็น base64 ไป Storage — ครั้งเดียวต่อ instance ไม่ให้หลายคำขอแย่งกันย้าย */
+let promoImagesRepair: Promise<void> | null = null;
+function repairPromoImages(rows: PromoRow[]) {
+  const stale = rows.filter((r) => r.image_url?.startsWith("data:image"));
+  if (stale.length === 0 || promoImagesRepair) return promoImagesRepair;
+  const sb = getSupabase();
+  if (!sb) return null;
+  promoImagesRepair = (async () => {
+    for (const r of stale) {
+      const url = await offloadPromoImage(r.id, r.image_url ?? undefined);
+      if (!url || url.startsWith("data:")) continue;
+      const { error } = await sb.from("promos").update({ image_url: url }).eq("id", r.id);
+      if (!error) r.image_url = url;
+    }
+  })()
+    .catch(() => {})
+    .finally(() => {
+      promoImagesRepair = null;
+    });
+  return promoImagesRepair;
 }
 
 function rowToClaim(r: PromoClaimRow): PromoClaimRecord {
@@ -474,7 +512,9 @@ export async function listPromos() {
   const sb = getSupabase();
   if (sb) {
     const { data } = await sb.from("promos").select("*").order("until", { ascending: false });
-    return ((data as PromoRow[] | null) || []).map(rowToPromo);
+    const rows = (data as PromoRow[] | null) || [];
+    await repairPromoImages(rows);
+    return rows.map(rowToPromo);
   }
   return [...mem].sort((a, b) => (b.until || "9999-12-31").localeCompare(a.until || "9999-12-31"));
 }
@@ -633,7 +673,9 @@ export async function getPromo(id: string) {
   const sb = getSupabase();
   if (sb) {
     const { data } = await sb.from("promos").select("*").eq("id", id).maybeSingle();
-    return data ? rowToPromo(data as PromoRow) : undefined;
+    if (!data) return undefined;
+    await repairPromoImages([data as PromoRow]);
+    return rowToPromo(data as PromoRow);
   }
   return mem.find((p) => p.id === id);
 }
