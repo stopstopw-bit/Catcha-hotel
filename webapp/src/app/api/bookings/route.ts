@@ -215,7 +215,8 @@ async function customerTodos(list: StoredBooking[], lineUserId: string) {
       ...(room
         ? !st.stayInfo && !muted("stayInfo") && { info: "stay" as const }
         : !st.groomInfo && !muted("groomInfo") && { info: "groom" as const }),
-      ...(!b.vaccinePhotoUrl && !muted("vaccine") && { vaccine: true }),
+      // สมุดวัคซีน: เข้าพักทุกรอบ · อาบน้ำครั้งเดียว (น้องมีสมุดในบัญชีแล้วไม่ขอ)
+      ...(!b.vaccinePhotoUrl && (room || !st.vaccine) && !muted("vaccine") && { vaccine: true }),
       ...(room && !st.idCard && !muted("idcard") && { idcard: true }),
       ...(!b.consentAcceptedAt && !muted("consent") && { consent: true }),
     };
@@ -982,8 +983,13 @@ function groomInfoCardFor(
         const status = await Promise.all(household.map((x) => getIntakeStatus(to, String(x.catName))));
         let ask = household;
         if (part === "vaccine") {
-          ask = household.filter((x) => !x.vaccinePhotoUrl);
-          for (const x of household) if (!ask.includes(x)) skipped.push(`${x.catName}: นัดนี้แนบสมุดวัคซีนแล้ว ไม่ขอซ้ำ`);
+          // เข้าพักขอทุกรอบ · อาบน้ำขอครั้งเดียว (น้องมีสมุดในบัญชีแล้วไม่ขอ)
+          const groomOnce = (x: StoredBooking, i: number) => x.service !== "room" && status[i]?.vaccine;
+          ask = household.filter((x, i) => !x.vaccinePhotoUrl && !groomOnce(x, i));
+          household.forEach((x, i) => {
+            if (x.vaccinePhotoUrl) skipped.push(`${x.catName}: นัดนี้แนบสมุดวัคซีนแล้ว ไม่ขอซ้ำ`);
+            else if (groomOnce(x, i)) skipped.push(`${x.catName}: มีสมุดวัคซีนในบัญชีแล้ว (อาบน้ำขอครั้งเดียว)`);
+          });
         } else if (status[0]?.idCard) {
           ask = [];
           skipped.push("มีบัตรประชาชนแล้ว ไม่ขอซ้ำ");
