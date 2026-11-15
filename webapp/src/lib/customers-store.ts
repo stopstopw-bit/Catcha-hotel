@@ -1046,7 +1046,8 @@ export async function upsertCustomerFromBooking(data: {
   if (data.lineUserId) existing.lineUserId = data.lineUserId;
   if (data.phone) existing.phone = data.phone;
 
-  if (!existing.cats.some((cat) => cat.name === data.catName)) {
+  // เทียบแบบ normalize (เว้นวรรค/ตัวพิมพ์) — กันสร้างน้องตัวซ้ำที่ไม่มีประวัติเดิม แล้วโดนถามใหม่หมด
+  if (!existing.cats.some((cat) => catKey(cat.name.trim()) === catKey(data.catName.trim()))) {
     const catId = `CAT${Date.now()}`;
     existing.cats.push({ id: catId, name: data.catName, staffNote: catNote });
     if (sb) {
@@ -1057,10 +1058,10 @@ export async function upsertCustomerFromBooking(data: {
         staff_note: catNote || null,
       });
     }
-  } else if (catNote && !existing.cats.find((x) => x.name === data.catName)?.staffNote) {
+  } else if (catNote && !pickCatByKey(existing.cats, catKey(data.catName.trim()))?.staffNote) {
     // เติมโน้ตนิสัยให้เฉพาะตอนแมวยังไม่มีโน้ตเท่านั้น
     // ห้ามให้การจองครั้งใหม่ไปทับโน้ตนิสัยเดิมที่ร้านตั้งไว้
-    const cat = existing.cats.find((x) => x.name === data.catName);
+    const cat = pickCatByKey(existing.cats, catKey(data.catName.trim()));
     if (cat) {
       cat.staffNote = catNote;
       if (sb) {
@@ -1338,19 +1339,31 @@ const ZERO_WIDTH_RE = new RegExp(
   "g"
 );
 function catKey(name: string): string {
-  return name.normalize("NFC").replace(ZERO_WIDTH_RE, "").toLowerCase();
+  return name.normalize("NFC").replace(ZERO_WIDTH_RE, "").trim().toLowerCase();
 }
 
 /**
  * หาแมวจาก lineUserId + ชื่อ — ถ้าระบุ catName มาต้องหาตัวที่ตรงจริง (เทียบแบบ normalize แล้ว)
  * ไม่ fallback ไปแมวตัวแรกเงียบๆ เพราะเดาผิดตัวอันตรายกว่าไม่เจอเลย (ประวัติ/โน้ตเตือนของแมวคนละตัวกัน)
  */
+/**
+ * น้องชื่อเดียวกันซ้ำในบัญชีเดียว (เช่น จองด้วยชื่อสะกด/เว้นวรรคต่างนิดเดียว แล้วระบบเพิ่มตัวใหม่)
+ * ให้เลือกตัวที่มีข้อมูลที่ลูกค้าเคยกรอกไว้ก่อน — ไม่งั้นจะเจอตัวว่างแล้วถามประวัติซ้ำ
+ */
+function pickCatByKey(cats: CustomerRecord["cats"], key: string) {
+  const same = cats.filter((x) => catKey(x.name) === key);
+  if (same.length <= 1) return same[0];
+  const score = (x: (typeof same)[number]) =>
+    (x.groomHealthInfo ? 4 : 0) + (x.stayInfo ? 2 : 0) + (x.vaccinePhotos ? 1 : 0);
+  return [...same].sort((a, b) => score(b) - score(a))[0];
+}
+
 async function resolveCatByLine(lineUserId: string, catName?: string) {
   const c = await findCustomerByLine(lineUserId);
   if (!c || c.cats.length === 0) return null;
   if (catName) {
     const key = catKey(catName);
-    const cat = c.cats.find((x) => catKey(x.name) === key);
+    const cat = pickCatByKey(c.cats, key);
     if (!cat) return null;
     return { customerId: c.id, cat };
   }
@@ -1360,7 +1373,17 @@ async function resolveCatByLine(lineUserId: string, catName?: string) {
 /** อ่านประวัติน้องก่อนอาบน้ำ ที่เก็บไว้ที่แมว (คืน undefined ถ้ายังไม่เคยกรอก) */
 export async function getCatGroomInfo(lineUserId: string, catName?: string) {
   const r = await resolveCatByLine(lineUserId, catName);
-  return r?.cat.groomHealthInfo;
+  if (!r) return undefined;
+  if (r.cat.groomHealthInfo) return r.cat.groomHealthInfo;
+  // ข้อมูลรุ่นเก่า: ประวัติก่อนอาบน้ำเคยเก็บไว้ที่ "นัด" (bookings.groom_health_info) ไม่ใช่ที่ตัวน้อง
+  // ลูกค้าที่ตอบไว้สมัยนั้นจะถูกถามซ้ำทุกนัด — เจอคำตอบเก่าแล้วย้ายมาเก็บที่ตัวน้องให้เลย (ถามครั้งเดียวจริง)
+  const key = catKey(r.cat.name);
+  const legacy = (await listBookings(lineUserId))
+    .filter((b) => b.groomHealthInfo && catKey(String(b.catName || "")) === key)
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0]?.groomHealthInfo;
+  if (!legacy) return undefined;
+  await setCatGroomInfo(lineUserId, r.cat.name, legacy).catch(() => null);
+  return legacy;
 }
 
 /**
@@ -1370,10 +1393,11 @@ export async function getCatGroomInfo(lineUserId: string, catName?: string) {
 export async function getIntakeStatus(lineUserId: string, catName?: string) {
   const c = await findCustomerByLine(lineUserId);
   const key = catName ? catKey(catName) : "";
-  const cat = c?.cats.find((x) => !key || catKey(x.name) === key);
+  const cat = c ? (key ? pickCatByKey(c.cats, key) : c.cats[0]) : undefined;
   return {
     stayInfo: Boolean(cat?.stayInfo),
-    groomInfo: Boolean(cat?.groomHealthInfo),
+    // ไม่มีที่ตัวน้อง → ลองคำตอบรุ่นเก่าที่เก็บไว้ที่นัด (getCatGroomInfo ย้ายมาให้)
+    groomInfo: Boolean(cat?.groomHealthInfo) || Boolean(cat && (await getCatGroomInfo(lineUserId, cat.name))),
     vaccine: splitVaccinePhotos(cat?.vaccinePhotos).length > 0,
     idCard: Boolean(c?.idCardUrl),
   };

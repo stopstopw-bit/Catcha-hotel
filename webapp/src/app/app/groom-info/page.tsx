@@ -7,7 +7,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
-import { resolveGroomForm, type GroomField } from "@/lib/groom-form";
+import { isOtherOption, otherTextKey, pickedOther, resolveGroomForm, type GroomField } from "@/lib/groom-form";
 import { BATH_SHARED_WITH_STAY, resolveStayForm } from "@/lib/stay-form";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
@@ -37,7 +37,10 @@ const BATH_PREFIX = "g:";
 
 function emptyAnswers(fields: GroomField[]): Answers {
   const a: Answers = {};
-  for (const f of fields) a[f.key] = f.type === "multi" ? [] : "";
+  for (const f of fields) {
+    a[f.key] = f.type === "multi" ? [] : "";
+    if (f.options.some(isOtherOption)) a[otherTextKey(f.key)] = "";
+  }
   return a;
 }
 
@@ -46,6 +49,8 @@ function loadAnswers(fields: GroomField[], info: Record<string, unknown> | null)
   const a = emptyAnswers(fields);
   if (!info) return a;
   for (const f of fields) {
+    const other = info[otherTextKey(f.key)];
+    if (typeof other === "string") a[otherTextKey(f.key)] = other;
     const v = info[f.key];
     if (v == null) continue;
     if (f.type === "multi") {
@@ -167,6 +172,8 @@ function GroomInfoContent() {
           if (fd.hasUnknownToggle || !(fd.key in prev[0].answers)) continue;
           const v = prev[0].answers[fd.key];
           answers[fd.key] = Array.isArray(v) ? [...v] : v;
+          const ok = otherTextKey(fd.key);
+          if (ok in prev[0].answers) answers[ok] = prev[0].answers[ok];
         }
         return { ...f, answers };
       })
@@ -196,6 +203,7 @@ function GroomInfoContent() {
         if (!fd.required || f.skip.includes(fd.key)) return false;
         if (fd.hasUnknownToggle && f.weightUnknown) return false;
         const v = f.answers[fd.key];
+        if (pickedOther(fd, v) && !String(f.answers[otherTextKey(fd.key)] || "").trim()) return true;
         return Array.isArray(v) ? v.length === 0 : !String(v || "").trim();
       })
       .map((fd) => fd.key);
@@ -221,12 +229,14 @@ function GroomInfoContent() {
       const row = (fd: GroomField) => {
         const v = f.answers[fd.key];
         const label = fd.label;
-        if (fd.type === "single") return { label, value: fd.options.find((o) => o.key === v)?.label || "" };
-        if (fd.type === "multi")
-          return {
-            label,
-            value: ((v as string[]) || []).map((k) => fd.options.find((o) => o.key === k)?.label || k),
-          };
+        const other = String(f.answers[otherTextKey(fd.key)] || "").trim();
+        const optLabel = (k: string) => {
+          const o = fd.options.find((x) => x.key === k);
+          if (!o) return k;
+          return isOtherOption(o) && other ? `${o.label}: ${other}` : o.label;
+        };
+        if (fd.type === "single") return { label, value: v ? optLabel(String(v)) : "" };
+        if (fd.type === "multi") return { label, value: ((v as string[]) || []).map(optLabel) };
         if (fd.hasUnknownToggle && f.weightUnknown) return { label, value: "ไม่ทราบ" };
         return { label, value: String(v || "") };
       };
@@ -444,7 +454,9 @@ function GroomInfoContent() {
                         {fd.label}
                         {fd.required && " *"}
                         {isMissing &&
-                          (fd.type === "multi"
+                          (pickedOther(fd, value)
+                            ? " — กรุณาพิมพ์รายละเอียดในช่อง อื่นๆ"
+                            : fd.type === "multi"
                             ? " — กรุณาเลือกอย่างน้อย 1 ข้อ"
                             : fd.type === "single"
                               ? " — กรุณาเลือก"
@@ -475,6 +487,17 @@ function GroomInfoContent() {
                             />
                           ))}
                         </div>
+                      )}
+
+                      {pickedOther(fd, value) && (
+                        <input
+                          value={String(f.answers[otherTextKey(fd.key)] || "")}
+                          onChange={(e) => setAnswer(idx, otherTextKey(fd.key), e.target.value)}
+                          placeholder="พิมพ์เพิ่มเติม (อื่นๆ)"
+                          maxLength={300}
+                          autoFocus
+                          className={`${inputClass} mt-2`}
+                        />
                       )}
 
                       {fd.type === "text" && (

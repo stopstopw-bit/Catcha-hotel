@@ -1,3 +1,4 @@
+import { isOtherOption, otherTextKey } from "./groom-form";
 /** ป้ายกำกับคำตอบประวัติน้องก่อนอาบน้ำ — ใช้ร่วมกันทั้งฟอร์ม, Telegram brief, แอดมิน */
 export const GROOM_TEMPERAMENT_LABELS: Record<string, string> = {
   normal: "ปกติ",
@@ -96,8 +97,12 @@ export function groomInfoSummary(
     for (const f of fields) {
       const raw = val(f.key);
       if (f.type === "multi" || f.type === "single") {
-        const label = (k: string) =>
-          f.options.find((o) => o.key === k)?.label || LEGACY_LABELS[k] || k;
+        const other = String(val(otherTextKey(f.key)) ?? "").trim();
+        const label = (k: string) => {
+          const o = f.options.find((x) => x.key === k);
+          const text = o?.label || LEGACY_LABELS[k] || k;
+          return other && (o ? isOtherOption(o) : k === "other") ? `${text}: ${other}` : text;
+        };
         out[f.label] = asList(raw).map(label).join(", ") || "-";
       } else {
         const s = String(raw ?? "").trim();
@@ -109,14 +114,18 @@ export function groomInfoSummary(
 
   // ค่าเริ่มต้นของระบบ (ไม่ได้ส่ง fields มา)
   const g = info as GroomHealthInfo;
+  const withOther = (field: string, k: string, text: string) => {
+    const other = String(val(otherTextKey(field)) ?? "").trim();
+    return k === "other" && other ? `${text}: ${other}` : text;
+  };
   return {
     เคยอาบน้ำที่อื่นมาก่อน:
       g.bathedBefore === "yes" ? "เคย" : g.bathedBefore === "no" ? "ครั้งแรก" : "-",
     นิสัย:
-      (g.temperament || []).map((t) => GROOM_TEMPERAMENT_LABELS[t] || t).join(", ") ||
+      (g.temperament || []).map((t) => withOther("temperament", t, GROOM_TEMPERAMENT_LABELS[t] || t)).join(", ") ||
       "-",
     สุขภาพ:
-      (g.health || []).map((h) => GROOM_HEALTH_LABELS[h] || h).join(", ") || "-",
+      (g.health || []).map((h) => withOther("health", h, GROOM_HEALTH_LABELS[h] || h)).join(", ") || "-",
     โรคหัวใจ: GROOM_HEART_LABELS[g.heartDisease || ""] || "-",
     ได้รับวัคซีนครบ:
       g.vaccinated === "yes" ? "ครบแล้ว" : g.vaccinated === "no" ? "ยังไม่ครบ" : "-",

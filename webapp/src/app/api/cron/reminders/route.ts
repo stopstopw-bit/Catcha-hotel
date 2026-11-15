@@ -112,8 +112,10 @@ async function intakeCardsFor(
     }
   }
 
-  // สมุดวัคซีนขอทุกรอบเข้าพัก (วัคซีนหมดอายุได้) — ข้ามเฉพาะนัดที่แนบมาแล้ว
-  const needVaccine = group.filter((x) => !autoMuted(x, "vaccine") && !x.vaccinePhotoUrl);
+  // สมุดวัคซีน: เข้าพักขอทุกรอบ (วัคซีนหมดอายุได้) · อาบน้ำขอครั้งเดียว — น้องมีสมุดในบัญชีแล้วไม่ขออีก (เจ้าของสั่ง 2026-11-15)
+  const needVaccine = group.filter(
+    (x, i) => !autoMuted(x, "vaccine") && !x.vaccinePhotoUrl && (mode === "room" || !status[i].vaccine)
+  );
   if (needVaccine.length > 0) {
     const url = await getPetDocsUrl(needVaccine.map((x) => x.id), "vaccine");
     if (url) {
