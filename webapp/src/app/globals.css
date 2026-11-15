@@ -87,3 +87,22 @@ body {
     color: var(--brown-faint);
   }
 }
+
+/*
+ * หน้าลูกค้า (/app) — ลูกค้าบอกตัวหนังสือเล็ก อ่านยาก (เจ้าของขอ 2026-11-15)
+ * ฟอนต์มีหัวสมัยใหม่ + ขยายตัวเล็กขึ้น + สีเทาอ่อนเข้มขึ้น (เฉพาะหน้าลูกค้า หลังบ้านเหมือนเดิม)
+ */
+.customer-app {
+  font-family: var(--font-customer), "Sukhumvit Set", -apple-system, "Leelawadee UI", "Noto Sans Thai", sans-serif;
+}
+.customer-app .text-sm { font-size: 15px; line-height: 1.6; }
+.customer-app .text-xs { font-size: 13.5px; line-height: 1.55; }
+.customer-app .text-\[12px\],
+.customer-app .text-\[11px\] { font-size: 13px; line-height: 1.5; }
+.customer-app .text-\[10px\] { font-size: 12px; line-height: 1.45; }
+.customer-app .text-\[9\.5px\],
+.customer-app .text-\[9px\],
+.customer-app .text-\[8px\] { font-size: 11.5px; line-height: 1.4; }
+.customer-app .text-brown-soft { color: #6b5848; }
+.customer-app .text-brown-faint { color: #8a7562; }
+.customer-app .text-brown { color: #3d2f25; }
