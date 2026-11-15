@@ -183,3 +183,26 @@ export function resolveGroomForm(config?: GroomFormConfig): GroomField[] {
     };
   }).filter((f) => f.enabled);
 }
+
+/**
+ * ตัวเลือก "อื่นๆ" — เลือกแล้วต้องมีช่องให้ลูกค้าพิมพ์เอง (เจ้าของขอ 2026-11-15)
+ * นับทั้ง key "other" ของระบบ และตัวเลือกที่ร้านเพิ่มเองที่ชื่อมีคำว่า "อื่น"/other
+ */
+export function isOtherOption(o: { key: string; label: string }): boolean {
+  return o.key === "other" || /อื่น|other/i.test(o.label);
+}
+
+/** key ที่เก็บข้อความที่ลูกค้าพิมพ์ในช่อง "อื่นๆ" ของคำถามนั้น เช่น temperamentOther */
+export function otherTextKey(fieldKey: string): string {
+  return `${fieldKey}Other`;
+}
+
+/** คำถามนี้ลูกค้าเลือกตัวเลือก "อื่นๆ" อยู่ไหม */
+export function pickedOther(
+  field: { type: string; options: { key: string; label: string }[] },
+  value: unknown
+): boolean {
+  if (field.type !== "single" && field.type !== "multi") return false;
+  const picked = Array.isArray(value) ? (value as string[]) : value ? [String(value)] : [];
+  return field.options.some((o) => isOtherOption(o) && picked.includes(o.key));
+}

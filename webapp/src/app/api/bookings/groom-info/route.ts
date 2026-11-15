@@ -16,7 +16,7 @@ import { sendTelegramLater } from "@/lib/after-response";
 import { parseGroomInfo, groomInfoSummary } from "@/lib/groom-info";
 import { getSiteConfig } from "@/lib/config-store";
 import { isFeatureOn } from "@/lib/features";
-import { resolveGroomForm } from "@/lib/groom-form";
+import { isOtherOption, otherTextKey, pickedOther, resolveGroomForm } from "@/lib/groom-form";
 import { BATH_SHARED_WITH_STAY, resolveStayForm } from "@/lib/stay-form";
 import { requireCustomerSession, noCustomerSessionResponse } from "@/lib/customer-session";
 
@@ -186,6 +186,11 @@ function sanitizeInfo(fields: ReturnType<typeof resolveStayForm>, info: unknown)
   const payload: Record<string, unknown> = { submittedAt: new Date().toISOString() };
   for (const f of fields) {
     const raw = (info as Record<string, unknown>)[f.key];
+    // ตัวเลือก "อื่นๆ" — เก็บข้อความที่ลูกค้าพิมพ์เองด้วย (เฉพาะตอนเลือกอื่นๆ อยู่)
+    if (f.options.some(isOtherOption)) {
+      const other = String((info as Record<string, unknown>)[otherTextKey(f.key)] ?? "").trim().slice(0, 300);
+      if (other && pickedOther(f, raw)) payload[otherTextKey(f.key)] = other;
+    }
     if (f.type === "multi") {
       payload[f.key] = Array.isArray(raw)
         ? raw.map((v) => String(v).slice(0, 120))
