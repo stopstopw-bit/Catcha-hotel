@@ -94,6 +94,8 @@ export type CustomerRecord = {
   addressMapUrl?: string;
   /** รหัสไปรษณีย์ — ไว้ดูว่าลูกค้าส่วนใหญ่อยู่แถวไหนสำหรับทำการตลาด */
   postalCode?: string;
+  /** ภาษาที่ลูกค้าใช้ — "en" = ส่งการ์ด LINE ภาษาอังกฤษ (ไม่มี = ไทย) */
+  language?: "th" | "en";
   /** รูปบัตรประชาชนผู้ปกครอง (มีข้อความขีดทับ "ใช้ลงทะเบียน CatCha" ฝังในรูปแล้ว) */
   idCardUrl?: string;
   /** ลูกค้ากดยอมรับข้อตกลงของร้านล่าสุด (ส่งจากหน้าลูกค้า ยังไม่ต้องมีนัด) */
@@ -209,6 +211,7 @@ type CustomerRow = {
   address?: string | null;
   address_map_url?: string | null;
   postal_code?: string | null;
+  language?: string | null;
   id_card_url?: string | null;
   consent_accepted_at?: string | null;
   consent_signature?: string | null;
@@ -309,6 +312,7 @@ function mapCustomer(row: CustomerRow): CustomerRecord {
     address: row.address ?? undefined,
     addressMapUrl: row.address_map_url ?? undefined,
     postalCode: row.postal_code ?? undefined,
+    language: row.language === "en" ? "en" : row.language === "th" ? "th" : undefined,
     idCardUrl: row.id_card_url ?? undefined,
     consentAcceptedAt: row.consent_accepted_at ?? undefined,
     consentSignature: row.consent_signature ?? undefined,
@@ -1111,6 +1115,7 @@ export async function updateCustomer(
       | "address"
       | "addressMapUrl"
       | "postalCode"
+      | "language"
       | "isMember"
       | "memberCredit"
       | "memberSince"
@@ -1157,6 +1162,9 @@ export async function updateCustomer(
     ) {
       // คอลัมน์ใหม่ — best-effort เผื่อยังไม่ได้รัน migration
       await healWrite("customers", ["address", "address_map_url", "postal_code"], () => sb.from("customers").update({ address: c.address || null, address_map_url: c.addressMapUrl || null, postal_code: c.postalCode || null, }).eq("id", id));
+    }
+    if (patch.language !== undefined) {
+      await healWrite("customers", ["language"], () => sb.from("customers").update({ language: c.language || null }).eq("id", id));
     }
   } else {
     memCustomers.set(id, c);
@@ -2508,6 +2516,7 @@ export async function registerCustomerFromLine(data: {
   addressMapUrl?: string;
   postalCode?: string;
   marketingConsent?: boolean;
+  language?: "th" | "en";
   cats: {
     name: string;
     gender?: CatGender;
@@ -2599,6 +2608,7 @@ export async function registerCustomerFromLine(data: {
     addressMapUrl: data.addressMapUrl?.trim() || undefined,
     postalCode: data.postalCode?.trim() || undefined,
     marketingConsent: data.marketingConsent ?? true,
+    ...(data.language ? { language: data.language } : {}),
   });
 
   for (const cat of cats) {

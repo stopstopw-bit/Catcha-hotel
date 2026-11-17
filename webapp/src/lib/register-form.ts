@@ -77,3 +77,35 @@ export function resolveRegisterForm(config?: RegisterFormConfig): Record<Registe
   }
   return out;
 }
+
+/** ชื่อช่องภาษาอังกฤษ — ใช้ตอนลูกค้าสลับฟอร์มเป็น EN (ชื่อที่ร้านแก้เองเป็นภาษาไทย จึงใช้ชุดนี้แทน) */
+export const REGISTER_LABELS_EN: Record<RegisterFieldKey, string> = {
+  ownerName: "Your name",
+  phone: "Phone number",
+  email: "Email",
+  ownerBirthday: "Your birthday",
+  postalCode: "Postal code",
+  catName: "Cat's name",
+  gender: "Sex",
+  breed: "Breed",
+  furLength: "Coat",
+  neutered: "Neutered / spayed",
+  color: "Colour / markings",
+  age: "Age / birthday",
+  weight: "Weight (kg)",
+  medical: "Health conditions / things our staff should know",
+  seizure: "History of seizures / collapse",
+  allergy: "Allergies (food / medicine / shampoo)",
+  referral: "How did you hear about us?",
+};
+
+/** ใส่ป้ายภาษาอังกฤษทับทุกช่อง (เปิด/บังคับตามที่ร้านตั้งเหมือนเดิม) */
+export function localizeRegisterForm(
+  rf: Record<RegisterFieldKey, RegisterFieldDef>,
+  locale: "th" | "en"
+): Record<RegisterFieldKey, RegisterFieldDef> {
+  if (locale !== "en") return rf;
+  const out = {} as Record<RegisterFieldKey, RegisterFieldDef>;
+  for (const k of Object.keys(rf) as RegisterFieldKey[]) out[k] = { ...rf[k], label: REGISTER_LABELS_EN[k] };
+  return out;
+}

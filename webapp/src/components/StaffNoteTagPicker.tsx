@@ -21,14 +21,22 @@ export function StaffNoteTagPicker({
   medicalValue,
   noteValue,
   onChange,
-  label = "เรื่องที่ช่างต้องรู้",
+  label,
+  locale = "th",
 }: {
   medicalValue: string;
   noteValue: string;
   onChange: (medical: string, note: string) => void;
   /** หัวข้อบนปุ่ม — ฟอร์มสมัครใช้ "โรคประจำตัว / เรื่องที่ช่างต้องรู้" ให้ลูกค้ารู้ว่าตอบโรคประจำตัวตรงนี้ */
   label?: string;
+  /** ลูกค้าสลับเป็น EN — โชว์ชื่อแท็กภาษาอังกฤษ แต่ค่าที่บันทึกยังเป็นไทย (ช่างอ่านเหมือนเดิม) */
+  locale?: "th" | "en";
 }) {
+  const en = locale === "en";
+  const tagName = (t: { label: string; labelEn: string }) => (en ? t.labelEn : t.label);
+  /** ข้อความที่บันทึกเป็นไทย → โชว์อังกฤษถ้าตรงแท็ก */
+  const showTag = (s: string) => (en ? STAFF_NOTE_TAGS.find((t) => t.label === s)?.labelEn ?? s : s);
+  const heading = label ?? (en ? "Things our staff should know" : "เรื่องที่ช่างต้องรู้");
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [custom, setCustom] = useState("");
@@ -53,7 +61,9 @@ export function StaffNoteTagPicker({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return STAFF_NOTE_TAGS;
-    return STAFF_NOTE_TAGS.filter((t) => t.label.toLowerCase().includes(q));
+    return STAFF_NOTE_TAGS.filter(
+      (t) => t.label.toLowerCase().includes(q) || t.labelEn.toLowerCase().includes(q)
+    );
   }, [search]);
 
   const toggle = (id: string) => {
@@ -80,9 +90,11 @@ export function StaffNoteTagPicker({
   };
 
   const summary = useMemo(() => {
-    const parts = [...parseTags(medicalValue), ...parseTags(noteValue)];
-    return parts.length ? parts.join(", ") : "แตะเพื่อเลือก · ไม่มีก็ข้ามได้";
-  }, [medicalValue, noteValue]);
+    const parts = [...parseTags(medicalValue), ...parseTags(noteValue)].map(showTag);
+    if (parts.length) return parts.join(", ");
+    return en ? "Tap to choose · skip if none" : "แตะเพื่อเลือก · ไม่มีก็ข้ามได้";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medicalValue, noteValue, en]);
 
   const hasValue = parseTags(medicalValue).length > 0 || parseTags(noteValue).length > 0;
 
@@ -98,7 +110,7 @@ export function StaffNoteTagPicker({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[10px] font-bold text-brown-soft">
-            {label}
+            {heading}
           </span>
           <span
             className={`block truncate ${hasValue ? "text-brown" : "font-bold text-latte-deep"}`}
@@ -108,7 +120,7 @@ export function StaffNoteTagPicker({
         </span>
         {/* ป้าย "เลือก" ชัดๆ — ลูกค้าเคยไม่รู้ว่าแถวนี้แตะเลือกได้ */}
         <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-honey/40 py-1.5 pl-3 pr-2 text-xs font-bold text-catcha-chocolate">
-          {hasValue ? "แก้ไข" : "เลือก"}
+          {hasValue ? (en ? "Edit" : "แก้ไข") : en ? "Choose" : "เลือก"}
           <Icon name="chevron" size={14} />
         </span>
       </button>
@@ -121,16 +133,18 @@ export function StaffNoteTagPicker({
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">Staff notes</p>
                   <h2 className="text-base font-extrabold text-catcha-chocolate">
-                    เรื่องที่ช่างต้องรู้
+                    {en ? "Things our staff should know" : "เรื่องที่ช่างต้องรู้"}
                   </h2>
                   <p className="mt-0.5 text-[10px] text-brown-soft">
-                    พฤติกรรม โรคประจำตัว เรื่องผิวหนัง · เลือกได้หลายข้อ ไม่มีก็ข้ามได้
+                    {en
+                      ? "Behaviour, health conditions, skin · pick as many as apply, skip if none"
+                      : "พฤติกรรม โรคประจำตัว เรื่องผิวหนัง · เลือกได้หลายข้อ ไม่มีก็ข้ามได้"}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  aria-label="ปิด"
+                  aria-label={en ? "Close" : "ปิด"}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-brown"
                 >
                   <Icon name="x" size={16} />
@@ -139,14 +153,14 @@ export function StaffNoteTagPicker({
               <SearchField
                 value={search}
                 onChange={setSearch}
-                placeholder="พิมพ์เพื่อค้นหา"
+                placeholder={en ? "Type to search" : "พิมพ์เพื่อค้นหา"}
                 className="mt-3"
               />
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-2">
               {filtered.length === 0 ? (
-                <p className="py-8 text-center text-xs text-brown-faint">ไม่พบรายการที่ตรงกัน</p>
+                <p className="py-8 text-center text-xs text-brown-faint">{en ? "No matches" : "ไม่พบรายการที่ตรงกัน"}</p>
               ) : (
                 <ul className="divide-y divide-catcha-line/60">
                   {filtered.map((t) => {
@@ -170,7 +184,7 @@ export function StaffNoteTagPicker({
                           >
                             {active && <Icon name="check" size={14} strokeWidth={2.6} />}
                           </span>
-                          <span>{t.label}</span>
+                          <span>{tagName(t)}</span>
                         </button>
                       </li>
                     );
@@ -180,12 +194,12 @@ export function StaffNoteTagPicker({
 
               <div className="py-3">
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-brown-soft">
-                  Other · อื่นๆ (พิมพ์เอง)
+                  {en ? "Other (type your own)" : "Other · อื่นๆ (พิมพ์เอง)"}
                 </p>
                 <input
                   value={custom}
                   onChange={(e) => setCustom(e.target.value)}
-                  placeholder="เช่น แพ้ยาสลบ"
+                  placeholder={en ? "e.g. reacts badly to anaesthesia" : "เช่น แพ้ยาสลบ"}
                   className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-3 text-sm"
                 />
               </div>
@@ -197,7 +211,7 @@ export function StaffNoteTagPicker({
                 onClick={save}
                 className="min-h-[48px] w-full rounded-catcha-sm bg-gradient-to-r from-honey to-honey-deep py-3 text-sm font-extrabold text-catcha-chocolate shadow-catcha-sm"
               >
-                เสร็จสิ้น{selected.size > 0 ? ` (${selected.size})` : ""}
+                {en ? "Done" : "เสร็จสิ้น"}{selected.size > 0 ? ` (${selected.size})` : ""}
               </button>
             </div>
           </div>
