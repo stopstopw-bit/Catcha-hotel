@@ -1,5 +1,8 @@
 /**
- * การ์ด LINE ภาษาอังกฤษ — แปลข้อความในการ์ด (Flex/ข้อความ) ตอนส่ง สำหรับลูกค้าที่ใช้ภาษาอังกฤษ
+ * การ์ด LINE ภาษาอังกฤษ — สลับข้อความในการ์ด (Flex/ข้อความ) เป็นอังกฤษตอนส่ง สำหรับลูกค้าที่ใช้ภาษาอังกฤษ
+ *
+ * ข้อความของระบบใช้ฉบับอังกฤษตายตัวใน lib/card-en.ts (ทันที ได้คำเดิมทุกครั้ง)
+ * AI แปลเฉพาะส่วนที่ไม่มีในตาราง เช่น ชื่อโปร/ข้อความที่ร้านพิมพ์เอง
  *
  * ทำไมแปลตอนส่ง (ไม่เขียนการ์ดอังกฤษแยกทุกใบ):
  * - การ์ดมีหลายสิบแบบ + ข้อความที่ร้านแก้เองใน /admin/cards → แปลจุดเดียวครอบคลุมทุกใบ รวมใบที่เพิ่มในอนาคต
@@ -10,6 +13,7 @@
  * - ปุ่มแบบ "ส่งข้อความ" (action type message) ไม่แปลข้อความที่ส่งกลับ — ระบบแชทจับคำไทยอยู่ แปลแค่ป้ายปุ่ม
  */
 import { aiProvider, generateAiText } from "./ai-text";
+import { cardTextToEnglish } from "./card-en";
 
 export type CardLang = "th" | "en";
 
@@ -200,15 +204,26 @@ export async function translateMessagesInfo<T>(
   timeoutMs?: number
 ): Promise<{ messages: T[]; total: number; translated: number }> {
   const copy = JSON.parse(JSON.stringify(messages)) as T[];
-  const found: string[] = [];
-  walk(copy, (_h, _k, v) => found.push(v));
-  if (found.length === 0) return { messages: copy, total: 0, translated: 0 };
-  const map = await translateStrings(found, timeoutMs);
-  walk(copy, (h, k, v) => {
-    const t = map.get(v);
-    if (t !== undefined) h[k] = t;
+  // 1) ฉบับอังกฤษตายตัว (lib/card-en.ts) — ทันที ไม่ต้องรอ AI
+  const fixed = new Map<string, { text: string; done: boolean }>();
+  walk(copy, (_h, _k, v) => {
+    if (!fixed.has(v)) fixed.set(v, cardTextToEnglish(v));
   });
-  return { messages: copy, total: found.length, translated: found.filter((s) => map.has(s)).length };
+  if (fixed.size === 0) return { messages: copy, total: 0, translated: 0 };
+  // 2) เหลือไทย (ข้อความที่ร้านพิมพ์เอง เช่น ชื่อโปร) — ให้ AI แปลเฉพาะส่วนนั้น
+  const rest = [...fixed].filter(([, r]) => !r.done).map(([s]) => s);
+  // รอ AI ไม่นาน — ช้าเกินก็ส่งฉบับตายตัว (ส่วนที่ร้านพิมพ์เองคงไทย)
+  const ai = rest.length ? await translateStrings(rest, timeoutMs ?? 10_000) : new Map<string, string>();
+  let total = 0;
+  let translated = 0;
+  walk(copy, (h, k, v) => {
+    total++;
+    const r = fixed.get(v)!;
+    const t = r.done ? r.text : ai.get(v) ?? r.text;
+    if (r.done || ai.has(v)) translated++;
+    h[k] = t;
+  });
+  return { messages: copy, total, translated };
 }
 
 /** ข้อความชุดนี้สำหรับภาษานี้ */
