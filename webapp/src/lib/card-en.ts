@@ -460,6 +460,9 @@ export function cardTextToEnglish(s: string, depth = 0): { text: string; done: b
     return { text: exact.has(s) ? hit : lead + hit + tail, done: true };
   }
   if (depth < 4) {
+    /** แม่แบบที่ตรงแต่ยังเหลือไทย — เก็บไว้ใช้ถ้าวิธีอื่น (แยกบรรทัด/ช่วง) ไม่ได้ผลดีกว่า */
+    let partial: { text: string; done: boolean } | undefined;
+    const settle = (r: { text: string; done: boolean }) => (r.done || !partial ? r : partial);
     for (const t of templates) {
       const m = s.match(t.re);
       if (!m) continue;
@@ -483,29 +486,31 @@ export function cardTextToEnglish(s: string, depth = 0): { text: string; done: b
         for (const n of names) rest = rest.split(n).join("");
         done = !THAI.test(rest);
       }
-      return { text, done };
+      if (done) return { text, done };
+      partial ??= { text, done };
     }
     // อีโมจิ/สัญลักษณ์นำหน้า เช่น "🐱 น้องมะลิ" "• แถมตัดเล็บ"
     const lead = s.match(/^((?:\d+\.\s*)?[^\p{L}\p{N}\s]*\s*)([\s\S]+)$/u);
     if (lead && lead[1] && THAI.test(lead[2])) {
       const r = cardTextToEnglish(lead[2], depth + 1);
-      return { text: lead[1] + r.text, done: r.done };
+      return settle({ text: lead[1] + r.text, done: r.done });
     }
     // แยกบรรทัด
     if (s.includes("\n")) {
       const lines = s.split("\n").map((l) => cardTextToEnglish(l, depth + 1));
-      return { text: lines.map((l) => l.text).join("\n"), done: lines.every((l) => l.done) };
+      return settle({ text: lines.map((l) => l.text).join("\n"), done: lines.every((l) => l.done) });
     }
     // แยกช่วง " · "
     if (s.includes(" · ")) {
       const parts = s.split(" · ").map((p) => cardTextToEnglish(p, depth + 1));
-      return { text: parts.map((p) => p.text).join(" · "), done: parts.every((p) => p.done) };
+      return settle({ text: parts.map((p) => p.text).join(" · "), done: parts.every((p) => p.done) });
     }
     // แยก " → "
     if (s.includes(" → ")) {
       const parts = s.split(" → ").map((p) => cardTextToEnglish(p, depth + 1));
-      return { text: parts.map((p) => p.text).join(" → "), done: parts.every((p) => p.done) };
+      return settle({ text: parts.map((p) => p.text).join(" → "), done: parts.every((p) => p.done) });
     }
+    if (partial) return partial;
   }
   const t = tokenRules(s);
   return { text: t, done: !THAI.test(t) };
