@@ -28,6 +28,7 @@ export function PreviewSendModal({
   const [enMessages, setEnMessages] = useState<Record<string, unknown>[] | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translateFailed, setTranslateFailed] = useState(false);
+  const [failReason, setFailReason] = useState("");
   /** แปลได้บางข้อความ — ที่เหลือยังเป็นไทย */
   const [partial, setPartial] = useState(false);
 
@@ -45,8 +46,9 @@ export function PreviewSendModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages }),
     })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => r.json().catch(() => null))
       .then((d) => {
+        if (d?.reason) setFailReason(String(d.reason));
         if (Array.isArray(d?.messages)) {
           setEnMessages(d.messages);
           setPartial(typeof d.translated === "number" && d.translated < d.total);
@@ -109,7 +111,7 @@ export function PreviewSendModal({
                   ? translating
                     ? "กำลังแปลเป็นภาษาอังกฤษ… (ราว 5–20 วินาที)"
                     : translateFailed
-                      ? "⚠️ แปลไม่สำเร็จตอนนี้ — ถ้าส่ง ระบบจะลองแปลอีกครั้ง แปลไม่ได้จะส่งภาษาไทย"
+                      ? `⚠️ แปลไม่สำเร็จ${failReason ? ` (${failReason})` : ""} — ถ้าส่ง ระบบจะลองแปลอีกครั้ง แปลไม่ได้จะส่งภาษาไทย`
                       : partial
                         ? "แปลได้เกือบหมด บางบรรทัดยังเป็นไทย (ตัวเลขไม่ตรงจึงคงไทยไว้)"
                         : "ส่งการ์ดภาษาอังกฤษ (ตามตัวอย่างนี้)"
