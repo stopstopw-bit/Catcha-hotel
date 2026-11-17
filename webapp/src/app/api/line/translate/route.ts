@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   }
   const messages = Array.isArray(body.messages) ? body.messages.slice(0, 5) : [];
   if (messages.length === 0) return NextResponse.json({ error: "no_messages" }, { status: 400 });
-  const r = await translateMessagesInfo(messages, 45_000);
+  const r = await translateMessagesInfo(messages, 15_000);
   // แปลไม่ได้เลย (ไม่มีคีย์ AI / โควต้าหมด / ช้าเกิน) — บอกหน้าพรีวิวให้ขึ้นเตือน
   if (r.total > 0 && r.translated === 0) {
     return NextResponse.json({ error: "translate_failed", reason: lastTranslateError() }, { status: 502 });
