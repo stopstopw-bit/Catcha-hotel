@@ -46,6 +46,7 @@ import { STAFF_NOTE_TAGS } from "@/lib/staff-note-tags";
 import { customerFetch } from "@/lib/customer-fetch";
 import { localizeRegisterForm, resolveRegisterForm } from "@/lib/register-form";
 import { useLocale } from "@/components/LocaleProvider";
+import { LanguagePicker } from "@/components/LangSwitch";
 import { REFERRAL_OPTIONS_EN } from "@/lib/referral-options";
 import { NumInput } from "@/components/NumInput";
 import { ReviewSheet, reviewDate as thaiDate, type ReviewSection } from "@/components/ReviewSheet";
@@ -381,6 +382,9 @@ export default function RegisterPage() {
         back="/app"
         backLabel={L("กลับหน้าแรก", "Back to home")}
       />
+
+      {/* ถามภาษาก่อนเลย — เลือกแล้วฟอร์มเปลี่ยนภาษาทันที และร้านจำไว้ส่งการ์ด LINE ภาษานี้ */}
+      <LanguagePicker className="mb-4" />
 
       {fromLink && referralOn && (
         <div className="mb-4 flex items-start gap-2 rounded-catcha border border-honey/50 bg-honey/20 px-4 py-3 text-xs font-extrabold text-catcha-chocolate">
