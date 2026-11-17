@@ -28,11 +28,14 @@ export function PreviewSendModal({
   const [enMessages, setEnMessages] = useState<Record<string, unknown>[] | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translateFailed, setTranslateFailed] = useState(false);
+  /** แปลได้บางข้อความ — ที่เหลือยังเป็นไทย */
+  const [partial, setPartial] = useState(false);
 
   // เลือก EN → ขอฉบับแปลมาโชว์ให้เห็นก่อนส่ง
   useEffect(() => {
     setEnMessages(null);
     setTranslateFailed(false);
+    setPartial(false);
   }, [messages]);
   useEffect(() => {
     if (lang !== "en" || enMessages || translating) return;
@@ -44,8 +47,10 @@ export function PreviewSendModal({
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (Array.isArray(d?.messages)) setEnMessages(d.messages);
-        else setTranslateFailed(true);
+        if (Array.isArray(d?.messages)) {
+          setEnMessages(d.messages);
+          setPartial(typeof d.translated === "number" && d.translated < d.total);
+        } else setTranslateFailed(true);
       })
       .catch(() => setTranslateFailed(true))
       .finally(() => setTranslating(false));
@@ -102,10 +107,12 @@ export function PreviewSendModal({
                 ? "ลูกค้าที่ตั้งภาษาอังกฤษไว้จะได้การ์ดภาษาอังกฤษ คนอื่นได้ภาษาไทย"
                 : lang === "en"
                   ? translating
-                    ? "กำลังแปลเป็นภาษาอังกฤษ…"
+                    ? "กำลังแปลเป็นภาษาอังกฤษ… (ราว 5–20 วินาที)"
                     : translateFailed
-                      ? "แปลไม่สำเร็จตอนนี้ — ถ้าส่ง ระบบจะลองแปลอีกครั้ง แปลไม่ได้จะส่งภาษาไทย"
-                      : "ส่งการ์ดภาษาอังกฤษ (ตามตัวอย่างนี้)"
+                      ? "⚠️ แปลไม่สำเร็จตอนนี้ — ถ้าส่ง ระบบจะลองแปลอีกครั้ง แปลไม่ได้จะส่งภาษาไทย"
+                      : partial
+                        ? "แปลได้เกือบหมด บางบรรทัดยังเป็นไทย (ตัวเลขไม่ตรงจึงคงไทยไว้)"
+                        : "ส่งการ์ดภาษาอังกฤษ (ตามตัวอย่างนี้)"
                   : "ส่งการ์ดภาษาไทย ทุกคน"}
             </p>
           </div>

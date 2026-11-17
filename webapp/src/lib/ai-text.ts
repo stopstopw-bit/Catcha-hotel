@@ -44,6 +44,8 @@ export async function generateAiText(opts: {
   prompt: string;
   maxTokens?: number;
   temperature?: number;
+  /** งานแปล/งานที่ต้องเร็ว — Gemini รุ่นใหม่คิดน้อยลง (ตอบเร็วขึ้นมาก) */
+  fast?: boolean;
 }): Promise<{ text: string; provider: AiProvider } | null> {
   const provider = aiProvider();
   if (!provider) return null;
@@ -83,7 +85,7 @@ export async function generateAiText(opts: {
     return { text: text.trim(), provider };
   }
 
-  return generateGemini(opts.system, opts.prompt, maxTokens, opts.temperature ?? 1);
+  return generateGemini(opts.system, opts.prompt, maxTokens, opts.temperature ?? 1, opts.fast);
 }
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -115,7 +117,16 @@ async function discoverGeminiModels(key: string): Promise<string[]> {
   }
 }
 
-async function callGemini(model: string, key: string, system: string, prompt: string, maxTokens: number, temperature: number, thinkingOff: boolean) {
+async function callGemini(
+  model: string,
+  key: string,
+  system: string,
+  prompt: string,
+  maxTokens: number,
+  temperature: number,
+  thinkingOff: boolean,
+  thinkingLow = false
+) {
   const d = await postJson(
     `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`,
     { "x-goog-api-key": key },
@@ -126,7 +137,11 @@ async function callGemini(model: string, key: string, system: string, prompt: st
         maxOutputTokens: Math.max(maxTokens, 4096),
         temperature,
         // รุ่น 2.5 ปิดโหมดคิดได้ (ไม่งั้นกิน token จนตอบว่าง) · รุ่นใหม่กว่าไม่ส่งค่านี้ กันโดนปฏิเสธ
-        ...(thinkingOff ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+        ...(thinkingOff
+          ? { thinkingConfig: { thinkingBudget: 0 } }
+          : thinkingLow
+            ? { thinkingConfig: { thinkingLevel: "low" } }
+            : {}),
       },
     }
   );
@@ -148,7 +163,7 @@ async function callGemini(model: string, key: string, system: string, prompt: st
  * Gemini — ลองตามลำดับ: GEMINI_MODEL → รุ่นที่ใช้ได้ครั้งก่อน → gemini-flash-latest → รุ่นที่ Google แนะนำในข้อความ error
  * → รุ่น flash ใหม่สุดจากรายชื่อของ Google เอง · Google เลิกรุ่นเก่าเมื่อไหร่ก็ไม่ต้องแก้โค้ด
  */
-async function generateGemini(system: string, prompt: string, maxTokens: number, temperature: number) {
+async function generateGemini(system: string, prompt: string, maxTokens: number, temperature: number, fast = false) {
   const key = String(process.env.GEMINI_API_KEY);
   const tried = new Set<string>();
   const errors: string[] = [];
@@ -166,13 +181,15 @@ async function generateGemini(system: string, prompt: string, maxTokens: number,
     if (tried.has(model)) continue;
     tried.add(model);
     const thinkingOff = /^gemini-2\.5/.test(model);
+    // งานเร็ว (เช่นแปลการ์ด) รุ่นใหม่กว่า 2.5 → ขอคิดน้อย
+    const thinkingLow = fast && !thinkingOff;
     try {
       let text: string;
       try {
-        text = await callGemini(model, key, system, prompt, maxTokens, temperature, thinkingOff);
+        text = await callGemini(model, key, system, prompt, maxTokens, temperature, thinkingOff, thinkingLow);
       } catch (e) {
-        // รุ่นไหนไม่ยอมให้ปิดโหมดคิด → ลองใหม่แบบไม่ส่งค่านั้น
-        if (thinkingOff && /thinking/i.test(e instanceof Error ? e.message : "")) {
+        // รุ่นไหนไม่ยอมให้ปิด/ลดโหมดคิด → ลองใหม่แบบไม่ส่งค่านั้น
+        if ((thinkingOff || thinkingLow) && /thinking/i.test(e instanceof Error ? e.message : "")) {
           text = await callGemini(model, key, system, prompt, maxTokens, temperature, false);
         } else throw e;
       }
