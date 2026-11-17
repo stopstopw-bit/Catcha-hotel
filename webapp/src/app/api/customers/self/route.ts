@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       idCardUrl: c.idCardUrl || "",
       consentAcceptedAt: c.consentAcceptedAt || "",
       marketingConsent: c.marketingConsent !== false,
+      language: c.language || "th",
       cats: c.cats.map((x) => ({
         id: x.id,
         name: x.name,
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
     addressMapUrl?: string;
     postalCode?: string;
     marketingConsent?: boolean;
+    language?: "th" | "en";
   } = {};
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.phone === "string") patch.phone = body.phone.trim() || undefined;
@@ -95,6 +97,8 @@ export async function POST(req: NextRequest) {
     patch.postalCode = body.postalCode.trim() || undefined;
   if (typeof body.marketingConsent === "boolean")
     patch.marketingConsent = body.marketingConsent;
+  // ลูกค้าสลับภาษาในแอป → การ์ด LINE ต่อจากนี้ใช้ภาษานั้น
+  if (body.language === "en" || body.language === "th") patch.language = body.language;
   await updateCustomer(c.id, patch);
 
   // id ของน้องที่เพิ่งสร้าง เรียงตามลำดับใน body.cats — หน้าโปรไฟล์ใช้อัปรูปที่เลือกไว้ก่อนบันทึก
@@ -147,6 +151,10 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+
+  // แค่สลับภาษาในแอป — ไม่ต้องแจ้งร้าน
+  const onlyLanguage = Object.keys(patch).every((k) => k === "language") && !Array.isArray(body.cats);
+  if (onlyLanguage) return NextResponse.json({ ok: true, created });
 
   sendTelegramLater(
     formatBookingTelegram("✏️ ลูกค้าแก้ไขข้อมูลตัวเอง", {
