@@ -108,7 +108,7 @@ function parseArray(text: string): unknown[] | null {
 }
 
 /** แปลหลายข้อความในครั้งเดียว — คืน map ไทย→อังกฤษ (ข้อความที่แปลไม่ผ่านจะไม่อยู่ใน map) */
-export async function translateStrings(list: string[]): Promise<Map<string, string>> {
+export async function translateStrings(list: string[], timeoutMs = 25_000): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const todo: string[] = [];
   for (const s of new Set(list)) {
@@ -116,22 +116,28 @@ export async function translateStrings(list: string[]): Promise<Map<string, stri
     if (hit !== undefined) out.set(s, hit);
     else todo.push(s);
   }
-  // ทีละก้อน กันคำตอบยาวเกิน
-  for (let i = 0; i < todo.length; i += 60) {
-    const batch = todo.slice(i, i + 60);
+  // แบ่งก้อนเล็ก ๆ แล้วแปลพร้อมกัน — เร็วกว่ารอทีละก้อน และคำตอบไม่ยาวจนขาด
+  const batches: string[][] = [];
+  for (let i = 0; i < todo.length; i += 20) batches.push(todo.slice(i, i + 20));
+  await Promise.all(batches.map(async (batch) => {
     try {
-      // รอไม่เกิน 20 วิ — ช้ากว่านั้นส่งไทยไปก่อน ลูกค้าไม่ต้องรอการ์ดนาน
+      // รอไม่เกินที่กำหนด — ช้ากว่านั้นส่งไทยไปก่อน ลูกค้าไม่ต้องรอการ์ดนาน
       const res = await Promise.race([
         generateAiText({
           system: SYSTEM,
           prompt: JSON.stringify(batch),
           maxTokens: 4000,
           temperature: 0,
+          fast: true,
         }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
       ]);
       const arr = res ? parseArray(res.text) : null;
-      if (!arr || arr.length !== batch.length) continue;
+      if (!res) console.warn("[line-i18n] translate timeout/no AI", batch.length);
+      if (!arr || arr.length !== batch.length) {
+        if (res) console.warn("[line-i18n] bad translate reply:", res.text.slice(0, 200));
+        return;
+      }
       batch.forEach((src, j) => {
         const v = arr[j];
         if (typeof v !== "string" || !v.trim() || !numbersKept(src, v)) return;
@@ -142,7 +148,7 @@ export async function translateStrings(list: string[]): Promise<Map<string, stri
     } catch (e) {
       console.warn("[line-i18n] translate failed:", e instanceof Error ? e.message : e);
     }
-  }
+  }));
   return out;
 }
 
@@ -170,17 +176,25 @@ function walk(node: unknown, visit: Visit) {
 }
 
 /** แปลการ์ด/ข้อความทั้งชุดเป็นภาษาอังกฤษ (สำเนาใหม่ ไม่แก้ของเดิม) — แปลไม่ได้ตรงไหนคงไทยไว้ */
-export async function translateMessages<T>(messages: T[]): Promise<T[]> {
+export async function translateMessages<T>(messages: T[], timeoutMs?: number): Promise<T[]> {
+  return (await translateMessagesInfo(messages, timeoutMs)).messages;
+}
+
+/** แปล + บอกว่าแปลได้กี่ข้อความจากทั้งหมด (พรีวิวหลังบ้านใช้บอกว่าแปลไม่สำเร็จ) */
+export async function translateMessagesInfo<T>(
+  messages: T[],
+  timeoutMs?: number
+): Promise<{ messages: T[]; total: number; translated: number }> {
   const copy = JSON.parse(JSON.stringify(messages)) as T[];
   const found: string[] = [];
   walk(copy, (_h, _k, v) => found.push(v));
-  if (found.length === 0) return copy;
-  const map = await translateStrings(found);
+  if (found.length === 0) return { messages: copy, total: 0, translated: 0 };
+  const map = await translateStrings(found, timeoutMs);
   walk(copy, (h, k, v) => {
     const t = map.get(v);
     if (t !== undefined) h[k] = t;
   });
-  return copy;
+  return { messages: copy, total: found.length, translated: found.filter((s) => map.has(s)).length };
 }
 
 /** ข้อความชุดนี้สำหรับภาษานี้ */
