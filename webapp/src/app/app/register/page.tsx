@@ -42,8 +42,11 @@ import { REFERRAL_OPTIONS } from "@/lib/referral-options";
 import { isFeatureOn } from "@/lib/features";
 import { referralReward } from "@/lib/referral";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
+import { STAFF_NOTE_TAGS } from "@/lib/staff-note-tags";
 import { customerFetch } from "@/lib/customer-fetch";
-import { resolveRegisterForm } from "@/lib/register-form";
+import { localizeRegisterForm, resolveRegisterForm } from "@/lib/register-form";
+import { useLocale } from "@/components/LocaleProvider";
+import { REFERRAL_OPTIONS_EN } from "@/lib/referral-options";
 import { NumInput } from "@/components/NumInput";
 import { ReviewSheet, reviewDate as thaiDate, type ReviewSection } from "@/components/ReviewSheet";
 
@@ -72,16 +75,32 @@ export default function RegisterPage() {
   const router = useRouter();
   const { profile, ready, customer, refreshCustomer, refreshAccount } = useLiff();
   const { config } = useConfig();
+  // ปุ่ม TH/EN มุมขวาบน — ใช้ภาษาเดียวกับทั้งแอป (จำไว้ในเครื่อง) + บันทึกเป็นภาษาลูกค้าตอนสมัคร
+  const { locale } = useLocale();
+  const en = locale === "en";
+  const L = (th: string, eng: string) => (en ? eng : th);
   const breeds = config.options?.catBreeds?.length ? config.options.catBreeds : BREED_OPTIONS;
   const referralOn = isFeatureOn(config, "referral");
   // ช่องไหนแสดง/บังคับ/ชื่อช่อง — ร้านตั้งเองในหลังบ้าน › การ์ด › ฟอร์มสมัครสมาชิก
-  const rf = resolveRegisterForm(config.registerForm);
+  const rf = localizeRegisterForm(resolveRegisterForm(config.registerForm), locale);
   /** ป้าย (ไม่บังคับ) ต่อท้ายชื่อช่องที่ร้านตั้งว่าไม่บังคับ */
   const optTag = (on: boolean) =>
-    on ? null : <span className="font-normal text-brown-faint"> (ไม่บังคับ)</span>;
+    on ? null : <span className="font-normal text-brown-faint"> {L("(ไม่บังคับ)", "(optional)")}</span>;
   const referrals = config.options?.referralOptions?.length
     ? config.options.referralOptions
     : REFERRAL_OPTIONS;
+  /** ค่าที่บันทึกยังเป็นไทยเสมอ (สถิติ/ตัวกรองหลังบ้านไม่แตก) — แค่โชว์อังกฤษตอน EN */
+  const referralName = (v: string) => (en ? REFERRAL_OPTIONS_EN[v] ?? v : v);
+  /** "แร็กดอลล์ (Ragdoll)" → "Ragdoll" ตอน EN */
+  const breedName = (b: string) => (en ? b.match(/\(([^)]+)\)\s*$/)?.[1] ?? b : b);
+  /** แท็กโรคประจำตัว (บันทึกเป็นไทย) → อังกฤษตอน EN */
+  const showTags = (v: string) =>
+    v
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => (en ? STAFF_NOTE_TAGS.find((t) => t.label === x)?.labelEn ?? x : x))
+      .join(", ");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -131,51 +150,54 @@ export default function RegisterPage() {
     if (!profile?.lineUserId) return;
 
     // บังคับเฉพาะช่องที่ร้านตั้งว่าบังคับ (ค่าเริ่มต้น: ทุกช่อง ยกเว้นสี/อายุ/โรคประจำตัว/ชัก/แพ้)
+    // n = "" (ตัวเดียว) หรือ " ตัวที่ 2" / " #2"
     const catProblem = (c: CatInput, n: string): string => {
-      if (!c.name.trim()) return `กรอกชื่อน้องแมว${n}ด้วยนะคะ`;
-      if (rf.gender.required && !c.gender) return `เลือกเพศน้องแมว${n}ด้วยนะคะ 🐱`;
+      const cat = `cat${n}`;
+      if (!c.name.trim()) return L(`กรอกชื่อน้องแมว${n}ด้วยนะคะ`, `Please enter your ${cat}'s name.`);
+      if (rf.gender.required && !c.gender) return L(`เลือกเพศน้องแมว${n}ด้วยนะคะ 🐱`, `Please choose your ${cat}'s sex 🐱`);
       if (rf.breed.required && (!c.breed || (c.breed === OTHER_BREED && !c.breedOther.trim())))
-        return `เลือกสายพันธุ์น้องแมว${n}ด้วยนะคะ`;
-      if (rf.furLength.required && !c.furLength) return `เลือกลักษณะขนน้องแมว${n}ด้วยนะคะ`;
-      if (rf.neutered.required && !c.neutered) return `เลือกว่าน้องแมว${n}ทำหมันแล้วหรือยังด้วยนะคะ`;
-      if (rf.color.required && !c.color.trim()) return `กรอกสี/ลักษณะเด่นน้องแมว${n}ด้วยนะคะ`;
+        return L(`เลือกสายพันธุ์น้องแมว${n}ด้วยนะคะ`, `Please choose your ${cat}'s breed.`);
+      if (rf.furLength.required && !c.furLength) return L(`เลือกลักษณะขนน้องแมว${n}ด้วยนะคะ`, `Please choose your ${cat}'s coat length.`);
+      if (rf.neutered.required && !c.neutered)
+        return L(`เลือกว่าน้องแมว${n}ทำหมันแล้วหรือยังด้วยนะคะ`, `Please tell us whether your ${cat} is neutered/spayed.`);
+      if (rf.color.required && !c.color.trim()) return L(`กรอกสี/ลักษณะเด่นน้องแมว${n}ด้วยนะคะ`, `Please enter your ${cat}'s colour/markings.`);
       if (rf.age.required && !c.ageUnknown && !(Number(c.ageValue) > 0))
-        return `กรอกอายุน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`;
+        return L(`กรอกอายุน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`, `Please enter your ${cat}'s age, or tick "Unknown".`);
       if (rf.weight.required && !c.weightUnknown && !(Number(c.weightKg) > 0))
-        return `กรอกน้ำหนักน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`;
+        return L(`กรอกน้ำหนักน้องแมว${n} หรือติ๊ก "ไม่ทราบ" ด้วยนะคะ`, `Please enter your ${cat}'s weight, or tick "Unknown".`);
       if (rf.medical.required && !c.medical.trim() && !c.note.trim())
-        return `เลือกโรคประจำตัวน้องแมว${n} (ไม่มีก็เลือก/พิมพ์ว่า "ไม่มี") ด้วยนะคะ`;
+        return L(`เลือกโรคประจำตัวน้องแมว${n} (ไม่มีก็เลือก/พิมพ์ว่า "ไม่มี") ด้วยนะคะ`, `Please fill in your ${cat}'s health conditions (type "None" if none).`);
       if (rf.seizure.required && !c.seizureHistory.trim())
-        return `กรอกประวัติการชัก/ช็อคน้องแมว${n} (ไม่มีพิมพ์ว่า "ไม่มี") ด้วยนะคะ`;
+        return L(`กรอกประวัติการชัก/ช็อคน้องแมว${n} (ไม่มีพิมพ์ว่า "ไม่มี") ด้วยนะคะ`, `Please fill in your ${cat}'s seizure history (type "None" if none).`);
       if (rf.allergy.required && !c.allergy.trim())
-        return `กรอกประวัติการแพ้น้องแมว${n} (ไม่มีพิมพ์ว่า "ไม่มี") ด้วยนะคะ`;
+        return L(`กรอกประวัติการแพ้น้องแมว${n} (ไม่มีพิมพ์ว่า "ไม่มี") ด้วยนะคะ`, `Please fill in your ${cat}'s allergies (type "None" if none).`);
       return "";
     };
     for (let i = 0; i < cats.length; i++) {
-      const problem = catProblem(cats[i], cats.length > 1 ? ` ตัวที่ ${i + 1}` : "");
+      const problem = catProblem(cats[i], cats.length > 1 ? (en ? ` #${i + 1}` : ` ตัวที่ ${i + 1}`) : "");
       if (problem) {
         setError(problem);
         return;
       }
     }
     if (rf.email.required && !email.trim()) {
-      setError("กรอกอีเมลด้วยนะคะ");
+      setError(L("กรอกอีเมลด้วยนะคะ", "Please enter your email."));
       return;
     }
     if (rf.ownerBirthday.required && !birthday) {
-      setError("เลือกวันเกิดผู้ปกครองด้วยนะคะ");
+      setError(L("เลือกวันเกิดผู้ปกครองด้วยนะคะ", "Please choose your birthday."));
       return;
     }
     if (rf.postalCode.required ? !/^\d{5}$/.test(postalCode) : postalCode && !/^\d{5}$/.test(postalCode)) {
-      setError("กรอกรหัสไปรษณีย์ 5 หลักด้วยนะคะ");
+      setError(L("กรอกรหัสไปรษณีย์ 5 หลักด้วยนะคะ", "Please enter a 5-digit postal code."));
       return;
     }
     if (rf.referral.enabled && rf.referral.required && !referral) {
-      setError("เลือกช่องทางที่รู้จักเราด้วยนะคะ");
+      setError(L("เลือกช่องทางที่รู้จักเราด้วยนะคะ", "Please tell us how you heard about us."));
       return;
     }
     if (referralOn && hasReferralCode && !referralCode.trim()) {
-      setError("กรอกโค้ดเพื่อนแนะนำ หรือเอาติ๊กออกถ้าไม่มีโค้ดนะคะ");
+      setError(L("กรอกโค้ดเพื่อนแนะนำ หรือเอาติ๊กออกถ้าไม่มีโค้ดนะคะ", "Please enter the referral code, or untick the box if you don't have one."));
       return;
     }
 
@@ -187,33 +209,35 @@ export default function RegisterPage() {
   /** สรุปทุกช่องที่ร้านเปิดไว้ — ให้ลูกค้าเห็นภาพเดียวกับที่ร้านจะได้ */
   const reviewSections = (): ReviewSection[] => {
     const owner: ReviewSection = {
-      title: "ข้อมูลผู้ปกครอง",
+      title: L("ข้อมูลผู้ปกครอง", "Your details"),
       icon: "user",
       rows: [
         { label: rf.ownerName.label, value: name },
         { label: rf.phone.label, value: phone },
         ...(rf.email.enabled ? [{ label: rf.email.label, value: email }] : []),
-        ...(rf.ownerBirthday.enabled ? [{ label: rf.ownerBirthday.label, value: thaiDate(birthday) }] : []),
+        ...(rf.ownerBirthday.enabled ? [{ label: rf.ownerBirthday.label, value: thaiDate(birthday, locale) }] : []),
         ...(rf.postalCode.enabled ? [{ label: rf.postalCode.label, value: postalCode }] : []),
       ],
     };
     const catSections: ReviewSection[] = cats
       .filter((c) => c.name.trim())
       .map((c, i, arr) => ({
-        title: arr.length > 1 ? `น้องแมวตัวที่ ${i + 1} · ${c.name.trim()}` : `น้องแมว · ${c.name.trim()}`,
+        title: arr.length > 1
+          ? `${L("น้องแมวตัวที่", "Cat #")}${en ? "" : " "}${i + 1} · ${c.name.trim()}`
+          : `${L("น้องแมว", "Cat")} · ${c.name.trim()}`,
         icon: "paw",
         rows: [
           ...(rf.gender.enabled
-            ? [{ label: rf.gender.label, value: c.gender === "male" ? "♂ ผู้" : c.gender === "female" ? "♀ เมีย" : "" }]
+            ? [{ label: rf.gender.label, value: c.gender === "male" ? L("♂ ผู้", "♂ Male") : c.gender === "female" ? L("♀ เมีย", "♀ Female") : "" }]
             : []),
           ...(rf.breed.enabled
             ? [{ label: rf.breed.label, value: c.breed === OTHER_BREED ? c.breedOther : c.breed }]
             : []),
           ...(rf.furLength.enabled
-            ? [{ label: rf.furLength.label, value: c.furLength === "long" ? "ขนยาว" : c.furLength === "short" ? "ขนสั้น" : "" }]
+            ? [{ label: rf.furLength.label, value: c.furLength === "long" ? L("ขนยาว", "Long hair") : c.furLength === "short" ? L("ขนสั้น", "Short hair") : "" }]
             : []),
           ...(rf.neutered.enabled
-            ? [{ label: rf.neutered.label, value: c.neutered === "yes" ? "ทำหมันแล้ว" : c.neutered === "no" ? "ยังไม่ทำหมัน" : "" }]
+            ? [{ label: rf.neutered.label, value: c.neutered === "yes" ? L("ทำหมันแล้ว", "Yes") : c.neutered === "no" ? L("ยังไม่ทำหมัน", "Not yet") : "" }]
             : []),
           ...(rf.color.enabled ? [{ label: rf.color.label, value: c.color }] : []),
           ...(rf.age.enabled
@@ -221,30 +245,35 @@ export default function RegisterPage() {
                 {
                   label: rf.age.label,
                   value: c.ageUnknown
-                    ? "ไม่ทราบ"
-                    : [c.ageValue ? `${c.ageValue} ${c.ageUnit === "month" ? "เดือน" : "ปี"}` : "", c.birthday ? `เกิด ${thaiDate(c.birthday)}` : ""]
+                    ? L("ไม่ทราบ", "Unknown")
+                    : [
+                        c.ageValue
+                          ? `${c.ageValue} ${c.ageUnit === "month" ? L("เดือน", "months") : L("ปี", "years")}`
+                          : "",
+                        c.birthday ? `${L("เกิด", "Born")} ${thaiDate(c.birthday, locale)}` : "",
+                      ]
                         .filter(Boolean)
                         .join(" · "),
                 },
               ]
             : []),
           ...(rf.weight.enabled
-            ? [{ label: rf.weight.label, value: c.weightUnknown ? "ไม่ทราบ" : c.weightKg ? `${c.weightKg} กก.` : "" }]
+            ? [{ label: rf.weight.label, value: c.weightUnknown ? L("ไม่ทราบ", "Unknown") : c.weightKg ? `${c.weightKg} ${L("กก.", "kg")}` : "" }]
             : []),
           ...(rf.medical.enabled
-            ? [{ label: rf.medical.label, value: [c.medical, c.note].map((x) => x.trim()).filter(Boolean).join("\n") }]
+            ? [{ label: rf.medical.label, value: [c.medical, c.note].map((x) => showTags(x)).filter(Boolean).join("\n") }]
             : []),
           ...(rf.seizure.enabled ? [{ label: rf.seizure.label, value: c.seizureHistory }] : []),
           ...(rf.allergy.enabled ? [{ label: rf.allergy.label, value: c.allergy }] : []),
         ],
       }));
     const other: ReviewSection = {
-      title: "อื่น ๆ",
+      title: L("อื่น ๆ", "Other"),
       icon: "sparkle",
       rows: [
-        ...(rf.referral.enabled ? [{ label: rf.referral.label, value: referral }] : []),
-        ...(referralOn && hasReferralCode ? [{ label: "โค้ดเพื่อนแนะนำ", value: referralCode }] : []),
-        { label: "รับข่าวสาร/โปรโมชั่น", value: consent ? "ยินยอม" : "ไม่ยินยอม" },
+        ...(rf.referral.enabled ? [{ label: rf.referral.label, value: referralName(referral) }] : []),
+        ...(referralOn && hasReferralCode ? [{ label: L("โค้ดเพื่อนแนะนำ", "Referral code"), value: referralCode }] : []),
+        { label: L("รับข่าวสาร/โปรโมชั่น", "News & promotions"), value: consent ? L("ยินยอม", "Yes, send me") : L("ไม่ยินยอม", "No thanks") },
       ],
     };
     return [owner, ...catSections, other];
@@ -269,6 +298,7 @@ export default function RegisterPage() {
           referralCode: (referralOn && hasReferralCode && referralCode.trim()) || undefined,
           postalCode: postalCode || undefined,
           marketingConsent: consent,
+          language: locale,
           cats: cats
             .filter((c) => c.name.trim())
             .map((c) => ({
@@ -295,7 +325,14 @@ export default function RegisterPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data.error || "ลงทะเบียนไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ");
+        // ข้อความจากเซิร์ฟเวอร์เป็นไทย — ฟอร์ม EN แปลเคสที่เจอบ่อย
+        if (en) {
+          setError(
+            /โค้ดเพื่อนแนะนำ/.test(String(data.error || ""))
+              ? `Referral code "${referralCode}" not found — check the spelling, or untick the box if you don't have one.`
+              : "Sign-up failed — please try again."
+          );
+        } else setError(data.error || "ลงทะเบียนไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ");
         return;
       }
 
@@ -303,15 +340,20 @@ export default function RegisterPage() {
       await Promise.all([refreshCustomer(), refreshAccount()]);
       const petNames = cats.map((c) => c.name.trim()).filter(Boolean);
       savedPopup(
-        "สมัครสมาชิกสำเร็จ 🎉",
-        [petNames.length ? `ลงทะเบียนน้อง ${petNames.join(", ")} เรียบร้อยแล้วค่ะ` : "", "จองคิวและดูข้อมูลน้องได้ที่หน้าแรกเลยค่ะ"],
+        L("สมัครสมาชิกสำเร็จ 🎉", "You're signed up 🎉"),
+        en
+          ? [petNames.length ? `${petNames.join(", ")} ${petNames.length > 1 ? "are" : "is"} registered.` : "", "You can book and see your cat's details on the home page."]
+          : [petNames.length ? `ลงทะเบียนน้อง ${petNames.join(", ")} เรียบร้อยแล้วค่ะ` : "", "จองคิวและดูข้อมูลน้องได้ที่หน้าแรกเลยค่ะ"],
         { afterNav: true }
       );
       setReviewing(false);
       router.replace("/app");
     } catch {
       setError(
-        "เชื่อมต่อไม่สำเร็จ — เช็คสัญญาณอินเทอร์เน็ตแล้วลองกดบันทึกอีกครั้งนะคะ"
+        L(
+          "เชื่อมต่อไม่สำเร็จ — เช็คสัญญาณอินเทอร์เน็ตแล้วลองกดบันทึกอีกครั้งนะคะ",
+          "Couldn't connect — check your internet and tap save again."
+        )
       );
     } finally {
       setSaving(false);
@@ -319,7 +361,7 @@ export default function RegisterPage() {
   };
 
   if (!ready) {
-    return <LoadingScreen message="กำลังเชื่อมต่อ LINE…" />;
+    return <LoadingScreen message={L("กำลังเชื่อมต่อ LINE…", "Connecting to LINE…")} />;
   }
 
   const fieldClass =
@@ -331,40 +373,48 @@ export default function RegisterPage() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow="Sign up"
-        title="สมัครสมาชิก เพื่อรับสิทธิพิเศษ"
-        subtitle="กรอกข้อมูลครั้งเดียว — ใช้ยืนยันนัด แต้มสะสม และโปรโมชั่น"
+        title={L("สมัครสมาชิก เพื่อรับสิทธิพิเศษ", "Become a member")}
+        subtitle={L(
+          "กรอกข้อมูลครั้งเดียว — ใช้ยืนยันนัด แต้มสะสม และโปรโมชั่น",
+          "Fill this in once — used for bookings, points and promotions"
+        )}
         back="/app"
-        backLabel="กลับหน้าแรก"
-        showLang={false}
+        backLabel={L("กลับหน้าแรก", "Back to home")}
       />
 
       {fromLink && referralOn && (
         <div className="mb-4 flex items-start gap-2 rounded-catcha border border-honey/50 bg-honey/20 px-4 py-3 text-xs font-extrabold text-catcha-chocolate">
           <Icon name="gift" size={16} className="mt-px" />
-          <span>สมัครผ่านเพื่อนแนะนำ — สมัครเสร็จรับคูปองส่วนลด <span className="text-latte-deep">{referralReward(config).amount}฿</span> ทั้งคุณและเพื่อนทันที!</span>
+          <span>
+            {en ? (
+              <>Invited by a friend — once you sign up, you and your friend both get a <span className="text-latte-deep">{referralReward(config).amount}฿</span> coupon!</>
+            ) : (
+              <>สมัครผ่านเพื่อนแนะนำ — สมัครเสร็จรับคูปองส่วนลด <span className="text-latte-deep">{referralReward(config).amount}฿</span> ทั้งคุณและเพื่อนทันที!</>
+            )}
+          </span>
         </div>
       )}
 
       {/* รูปที่ร้านตั้งไว้ในหลังบ้าน (การ์ด & ฟอร์ม › ฟอร์มสมัครสมาชิก) */}
-      <FormPosters images={resolveFormPosters(config.formPosters, "register")} alt="ข้อมูลจากร้าน" className="mb-5" />
+      <FormPosters images={resolveFormPosters(config.formPosters, "register")} alt={L("ข้อมูลจากร้าน", "Shop information")} className="mb-5" />
 
       <form onSubmit={submit} className="space-y-6">
         {/* ── ข้อมูลผู้ปกครอง ── */}
         <section>
-        <SectionLabel>Owner · ข้อมูลผู้ปกครอง</SectionLabel>
+        <SectionLabel>{L("Owner · ข้อมูลผู้ปกครอง", "Owner")}</SectionLabel>
         <div className="space-y-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
         <label className="block">
           <span className="mb-1 block text-xs font-bold text-brown">
             {rf.ownerName.label}{" "}
             <span className="font-normal text-brown-faint">
-              (ชื่อเล่นหรือชื่อจริงก็ได้นะคะ)
+              {L("(ชื่อเล่นหรือชื่อจริงก็ได้นะคะ)", "(nickname or full name)")}
             </span>
           </span>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="เช่น คุณมาย"
+            placeholder={L("เช่น คุณมาย", "e.g. May")}
             className={fieldClass}
           />
         </label>
@@ -407,6 +457,7 @@ export default function RegisterPage() {
               value={birthday}
               onChange={setBirthday}
               yearsBack={90}
+              locale={locale}
             />
           </label>
           )}
@@ -426,7 +477,7 @@ export default function RegisterPage() {
               setPostalCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))
             }
             inputMode="numeric"
-            placeholder="เช่น 10540"
+            placeholder={L("เช่น 10540", "e.g. 10540")}
             className={fieldClass}
           />
         </label>
@@ -436,7 +487,7 @@ export default function RegisterPage() {
 
         {/* ── น้องแมว ── */}
         <section>
-          <SectionLabel>My cats · น้องแมว</SectionLabel>
+          <SectionLabel>{L("My cats · น้องแมว", "My cats")}</SectionLabel>
           <ul className="space-y-3">
             {cats.map((cat, idx) => (
               <li
@@ -446,7 +497,7 @@ export default function RegisterPage() {
                 {cats.length > 1 && (
                   <p className="flex items-center gap-1.5 text-xs font-extrabold text-catcha-chocolate">
                     <Icon name="paw" size={14} />
-                    ตัวที่ {idx + 1}
+                    {L("ตัวที่", "Cat #")}{en ? "" : " "}{idx + 1}
                   </p>
                 )}
                 <input
@@ -465,8 +516,8 @@ export default function RegisterPage() {
                 <div className="flex gap-1 rounded-full bg-paper p-1">
                   {(
                     [
-                      ["male", "♂ ผู้"],
-                      ["female", "♀ เมีย"],
+                      ["male", L("♂ ผู้", "♂ Male")],
+                      ["female", L("♀ เมีย", "♀ Female")],
                     ] as const
                   ).map(([value, label]) => (
                     <button
@@ -504,14 +555,14 @@ export default function RegisterPage() {
                     cat.breed ? "text-brown" : "text-brown-faint"
                   }`}
                 >
-                  <option value="">เลือกสายพันธุ์…</option>
+                  <option value="">{L("เลือกสายพันธุ์…", "Choose a breed…")}</option>
                   {breeds.map((b) => (
                     <option key={b} value={b} className="text-brown">
-                      {b}
+                      {breedName(b)}
                     </option>
                   ))}
                   <option value={OTHER_BREED} className="text-brown">
-                    {OTHER_BREED}
+                    {breedName(OTHER_BREED)}
                   </option>
                 </select>
                 {cat.breed === OTHER_BREED && (
@@ -519,7 +570,7 @@ export default function RegisterPage() {
                     required
                     value={cat.breedOther}
                     onChange={(e) => updateCat(idx, { breedOther: e.target.value })}
-                    placeholder="ระบุสายพันธุ์"
+                    placeholder={L("ระบุสายพันธุ์", "Type the breed")}
                     className={`${subFieldClass} mt-2`}
                   />
                 )}
@@ -533,8 +584,8 @@ export default function RegisterPage() {
                   <div className="flex gap-1 rounded-full bg-paper p-1">
                     {(
                       [
-                        ["short", "ขนสั้น"],
-                        ["long", "ขนยาว"],
+                        ["short", L("ขนสั้น", "Short hair")],
+                        ["long", L("ขนยาว", "Long hair")],
                       ] as const
                     ).map(([value, label]) => (
                       <button
@@ -562,8 +613,8 @@ export default function RegisterPage() {
                   <div className="flex gap-1 rounded-full bg-paper p-1">
                     {(
                       [
-                        ["yes", "ทำหมันแล้ว"],
-                        ["no", "ยังไม่ทำ"],
+                        ["yes", L("ทำหมันแล้ว", "Yes")],
+                        ["no", L("ยังไม่ทำ", "Not yet")],
                       ] as const
                     ).map(([value, label]) => (
                       <button
@@ -589,7 +640,7 @@ export default function RegisterPage() {
                 <input
                   value={cat.color}
                   onChange={(e) => updateCat(idx, { color: e.target.value })}
-                  placeholder="เช่น สีขาวสลับดำ"
+                  placeholder={L("เช่น สีขาวสลับดำ", "e.g. black and white")}
                   className={`${subFieldClass} mt-0.5 font-normal text-brown`}
                 />
                 </div>
@@ -606,7 +657,7 @@ export default function RegisterPage() {
                       inputMode="numeric"
                       value={cat.ageUnknown ? "" : cat.ageValue}
                       onChange={(e) => updateCat(idx, { ageValue: e.target.value })}
-                      placeholder={cat.ageUnknown ? "ไม่ทราบอายุ" : "อายุ"}
+                      placeholder={cat.ageUnknown ? L("ไม่ทราบอายุ", "Age unknown") : L("อายุ", "Age")}
                       className={`${subFieldClass} min-w-0 flex-1 disabled:opacity-50`}
                     />
                     {!cat.ageUnknown && (
@@ -619,8 +670,8 @@ export default function RegisterPage() {
                         }
                         className="min-h-[44px] w-20 shrink-0 rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm font-normal text-brown"
                       >
-                        <option value="year">ปี</option>
-                        <option value="month">เดือน</option>
+                        <option value="year">{L("ปี", "years")}</option>
+                        <option value="month">{L("เดือน", "months")}</option>
                       </select>
                     )}
                     <label className="flex min-h-[44px] shrink-0 cursor-pointer items-center gap-1.5 text-xs font-bold text-brown">
@@ -636,15 +687,15 @@ export default function RegisterPage() {
                         }
                         className="h-5 w-5 accent-latte-deep"
                       />
-                      ไม่ทราบ
+                      {L("ไม่ทราบ", "Unknown")}
                     </label>
                   </div>
                 </div>
                 {!cat.ageUnknown && (
                   <div className="text-[11px] font-bold text-brown-soft">
-                    วันเกิดน้องแมว{" "}
+                    {L("วันเกิดน้องแมว", "Cat's birthday")}{" "}
                     <span className="font-normal text-brown-faint">
-                      (ถ้าทราบ · ไม่บังคับ)
+                      {L("(ถ้าทราบ · ไม่บังคับ)", "(if known · optional)")}
                     </span>
                     <div className="mt-0.5">
                       <BirthdayPicker
@@ -652,6 +703,7 @@ export default function RegisterPage() {
                         onChange={(iso) => updateCat(idx, { birthday: iso })}
                         yearsBack={25}
                         allowUnknown
+                        locale={locale}
                       />
                     </div>
                   </div>
@@ -671,7 +723,7 @@ export default function RegisterPage() {
                       inputMode="decimal"
                       value={cat.weightUnknown ? "" : cat.weightKg}
                       onChange={(e) => updateCat(idx, { weightKg: e.target.value })}
-                      placeholder={cat.weightUnknown ? "ไม่ทราบน้ำหนัก" : "เช่น 4.5"}
+                      placeholder={cat.weightUnknown ? L("ไม่ทราบน้ำหนัก", "Weight unknown") : L("เช่น 4.5", "e.g. 4.5")}
                       className={`${subFieldClass} min-w-0 flex-1 disabled:opacity-50`}
                     />
                     <label className="flex min-h-[44px] shrink-0 cursor-pointer items-center gap-1.5 text-xs font-bold text-brown">
@@ -683,7 +735,7 @@ export default function RegisterPage() {
                         }
                         className="h-5 w-5 accent-latte-deep"
                       />
-                      ไม่ทราบ
+                      {L("ไม่ทราบ", "Unknown")}
                     </label>
                   </div>
                 </div>
@@ -695,18 +747,19 @@ export default function RegisterPage() {
                   medicalValue={cat.medical}
                   noteValue={cat.note}
                   onChange={(medical, note) => updateCat(idx, { medical, note })}
+                  locale={locale}
                 />
                 )}
                 {rf.seizure.enabled && (
                 <label className="block text-[11px] font-bold text-brown-soft">
                   {rf.seizure.label}{" "}
                   <span className="font-normal text-brown-faint">
-                    {rf.seizure.required ? "(ไม่มีพิมพ์ว่า ไม่มี)" : "(ไม่มีเว้นว่างได้)"}
+                    {rf.seizure.required ? L("(ไม่มีพิมพ์ว่า ไม่มี)", '(type "None" if none)') : L("(ไม่มีเว้นว่างได้)", "(leave blank if none)")}
                   </span>
                   <input
                     value={cat.seizureHistory}
                     onChange={(e) => updateCat(idx, { seizureHistory: e.target.value })}
-                    placeholder="เช่น ไม่เคย · หรือ เคยชักตอนตกใจ"
+                    placeholder={L("เช่น ไม่เคย · หรือ เคยชักตอนตกใจ", "e.g. Never · or had a seizure when frightened")}
                     className={`${subFieldClass} mt-0.5 font-normal text-brown`}
                   />
                 </label>
@@ -715,12 +768,12 @@ export default function RegisterPage() {
                 <label className="block text-[11px] font-bold text-brown-soft">
                   {rf.allergy.label}{" "}
                   <span className="font-normal text-brown-faint">
-                    {rf.allergy.required ? "(ไม่มีพิมพ์ว่า ไม่มี)" : "(ไม่มีเว้นว่างได้)"}
+                    {rf.allergy.required ? L("(ไม่มีพิมพ์ว่า ไม่มี)", '(type "None" if none)') : L("(ไม่มีเว้นว่างได้)", "(leave blank if none)")}
                   </span>
                   <input
                     value={cat.allergy}
                     onChange={(e) => updateCat(idx, { allergy: e.target.value })}
-                    placeholder="เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ"
+                    placeholder={L("เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ", "e.g. None · or chicken, some shampoos")}
                     className={`${subFieldClass} mt-0.5 font-normal text-brown`}
                   />
                 </label>
@@ -733,7 +786,7 @@ export default function RegisterPage() {
                     className="-ml-1 flex min-h-[44px] items-center gap-1.5 px-1 text-xs font-bold text-brown-soft"
                   >
                     <Icon name="trash" size={15} />
-                    ลบน้องแมวตัวนี้
+                    {L("ลบน้องแมวตัวนี้", "Remove this cat")}
                   </button>
                 )}
               </li>
@@ -749,8 +802,8 @@ export default function RegisterPage() {
               <Icon name="plus" size={20} strokeWidth={2.4} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold">เพิ่มน้องแมวอีกตัว</span>
-              <span className="block text-[11px] text-catcha-chocolate/70">มีหลายตัว เพิ่มได้ทุกตัวเลยค่ะ</span>
+              <span className="block text-sm font-extrabold">{L("เพิ่มน้องแมวอีกตัว", "Add another cat")}</span>
+              <span className="block text-[11px] text-catcha-chocolate/70">{L("มีหลายตัว เพิ่มได้ทุกตัวเลยค่ะ", "Have more than one? Add them all here.")}</span>
             </span>
             <Icon name="paw" size={22} className="text-catcha-chocolate/60" />
           </button>
@@ -760,7 +813,7 @@ export default function RegisterPage() {
         {rf.referral.enabled && (
         <section>
           <SectionLabel>
-            Referral · {rf.referral.label}{" "}
+            {en ? rf.referral.label : <>Referral · {rf.referral.label}</>}{" "}
             {rf.referral.required && <span className="text-red-600">*</span>}
           </SectionLabel>
           <div className="flex flex-wrap gap-2 rounded-catcha border border-catcha-line bg-card p-3 shadow-catcha-sm">
@@ -776,7 +829,7 @@ export default function RegisterPage() {
                     : "bg-paper text-brown-soft"
                 }`}
               >
-                {opt}
+                {referralName(opt)}
               </button>
             ))}
           </div>
@@ -794,9 +847,11 @@ export default function RegisterPage() {
               className="h-5 w-5 flex-none accent-[#4A7348]"
             />
             <span className="text-xs font-bold text-brown">
-              มีโค้ดเพื่อนแนะนำ
+              {L("มีโค้ดเพื่อนแนะนำ", "I have a referral code")}
               <span className="block text-[11px] font-normal text-brown-faint">
-                กรอกโค้ด รับคูปอง {referralReward(config).amount}฿ ทั้งคุณและเพื่อน
+                {en
+                  ? `Enter the code — you and your friend both get a ${referralReward(config).amount}฿ coupon`
+                  : `กรอกโค้ด รับคูปอง ${referralReward(config).amount}฿ ทั้งคุณและเพื่อน`}
               </span>
             </span>
           </label>
@@ -804,7 +859,7 @@ export default function RegisterPage() {
             <input
               value={referralCode}
               onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/\s+/g, ""))}
-              placeholder="เช่น CAT1A2B3C"
+              placeholder={L("เช่น CAT1A2B3C", "e.g. CAT1A2B3C")}
               autoCapitalize="characters"
               autoComplete="off"
               className={`mt-3 ${fieldClass} font-extrabold tracking-wider`}
@@ -822,9 +877,12 @@ export default function RegisterPage() {
             className="mt-0.5 h-5 w-5 flex-none accent-[#4A7348]"
           />
           <span className="text-xs text-brown">
-            ยินยอมให้ส่งข่าวสาร โปรโมชั่น และสิทธิพิเศษ
+            {L("ยินยอมให้ส่งข่าวสาร โปรโมชั่น และสิทธิพิเศษ", "Send me news, promotions and member offers")}
             <span className="mt-0.5 block text-[11px] text-brown-faint">
-              ถ้าไม่ยินยอม จะไม่ได้รับโปร/ข่าวสาร แต่ยังได้รับการยืนยันนัดและแจ้งชำระเงินตามปกติ
+              {L(
+                "ถ้าไม่ยินยอม จะไม่ได้รับโปร/ข่าวสาร แต่ยังได้รับการยืนยันนัดและแจ้งชำระเงินตามปกติ",
+                "If you untick this, you won't get promotions, but you'll still get booking and payment messages."
+              )}
             </span>
           </span>
         </label>
@@ -840,7 +898,7 @@ export default function RegisterPage() {
           disabled={saving}
           className={BTN_PRIMARY}
         >
-          {saving ? "กำลังบันทึก…" : "บันทึกข้อมูล"}
+          {saving ? L("กำลังบันทึก…", "Saving…") : L("บันทึกข้อมูล", "Save")}
         </button>
       </form>
       <ReviewSheet
@@ -848,7 +906,8 @@ export default function RegisterPage() {
         sections={reviewing ? reviewSections() : []}
         saving={saving}
         error={error}
-        confirmLabel="ยืนยัน สมัครสมาชิก"
+        locale={locale}
+        confirmLabel={L("ยืนยัน สมัครสมาชิก", "Confirm sign-up")}
         onEdit={() => {
           setReviewing(false);
           setError("");

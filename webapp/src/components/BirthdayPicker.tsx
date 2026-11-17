@@ -28,6 +28,11 @@ const THAI_MONTHS = [
   "ธันวาคม",
 ];
 
+const EN_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -39,6 +44,7 @@ export function BirthdayPicker({
   required = false,
   selectClass,
   allowUnknown = false,
+  locale = "th",
 }: {
   value: string;
   onChange: (iso: string, info?: { unknown: boolean }) => void;
@@ -46,7 +52,10 @@ export function BirthdayPicker({
   required?: boolean;
   selectClass?: string;
   allowUnknown?: boolean;
+  /** ฟอร์มที่สลับภาษาได้ — EN ใช้ชื่อเดือน/ป้ายอังกฤษ (ค่าที่ส่งออกเหมือนเดิม) */
+  locale?: "th" | "en";
 }) {
+  const en = locale === "en";
   const [unknown, setUnknown] = useState(false);
   const [d, setD] = useState(0);
   const [m, setM] = useState(0);
@@ -113,7 +122,7 @@ export function BirthdayPicker({
         onChange={(e) => toggleUnknown(e.target.checked)}
         className="h-5 w-5 accent-latte-deep"
       />
-      ไม่ทราบวันเกิด
+      {en ? "Birthday unknown" : "ไม่ทราบวันเกิด"}
     </label>
   );
 
@@ -128,9 +137,9 @@ export function BirthdayPicker({
             value={d || ""}
             onChange={(e) => commit(y, m, Number(e.target.value))}
             className={cls(!!d)}
-            aria-label="วันเกิด — วันที่"
+            aria-label={en ? "Birthday — day" : "วันเกิด — วันที่"}
           >
-            <option value="">วัน</option>
+            <option value="">{en ? "Day" : "วัน"}</option>
             {days.map((dd) => (
               <option key={dd} value={dd}>
                 {dd}
@@ -145,10 +154,10 @@ export function BirthdayPicker({
             value={m || ""}
             onChange={(e) => commit(y, Number(e.target.value), d)}
             className={cls(!!m)}
-            aria-label="วันเกิด — เดือน"
+            aria-label={en ? "Birthday — month" : "วันเกิด — เดือน"}
           >
-            <option value="">เดือน</option>
-            {THAI_MONTHS.map((name, i) => (
+            <option value="">{en ? "Month" : "เดือน"}</option>
+            {(en ? EN_MONTHS : THAI_MONTHS).map((name, i) => (
               <option key={i} value={i + 1}>
                 {name}
               </option>
@@ -162,9 +171,9 @@ export function BirthdayPicker({
             value={y || ""}
             onChange={(e) => commit(Number(e.target.value), m, d)}
             className={cls(!!y)}
-            aria-label="วันเกิด — ปี ค.ศ."
+            aria-label={en ? "Birthday — year" : "วันเกิด — ปี ค.ศ."}
           >
-            <option value="">ปี</option>
+            <option value="">{en ? "Year" : "ปี"}</option>
             {years.map((yy) => (
               <option key={yy} value={yy}>
                 {yy}

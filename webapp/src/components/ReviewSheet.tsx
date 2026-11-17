@@ -12,11 +12,11 @@ export type ReviewRow = {
 export type ReviewSection = { title: string; icon?: string; rows: ReviewRow[] };
 
 /** "2020-05-01" → "1 พ.ค. 2563" (ว่าง = ว่าง) */
-export function reviewDate(iso: string): string {
+export function reviewDate(iso: string, locale: "th" | "en" = "th"): string {
   if (!iso) return "";
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  return d.toLocaleDateString(locale === "en" ? "en-GB" : "th-TH", { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** ทำค่าให้อ่านง่าย — อาเรย์ต่อด้วย "," ตัดช่องว่าง */
@@ -31,16 +31,21 @@ function show(v: ReviewRow["value"]): string {
  */
 export function ReviewSheet({
   open,
-  title = "เช็คข้อมูลอีกครั้งนะคะ",
-  subtitle = "ถ้าถูกต้องแล้วกดยืนยันได้เลย ถ้ามีจุดไหนผิดกดแก้ไขค่ะ",
+  locale = "th",
+  title = locale === "en" ? "Please check your details" : "เช็คข้อมูลอีกครั้งนะคะ",
+  subtitle = locale === "en"
+    ? "If everything is correct, tap confirm. If something is wrong, tap edit."
+    : "ถ้าถูกต้องแล้วกดยืนยันได้เลย ถ้ามีจุดไหนผิดกดแก้ไขค่ะ",
   sections,
-  confirmLabel = "ยืนยัน ส่งข้อมูล",
+  confirmLabel = locale === "en" ? "Confirm and send" : "ยืนยัน ส่งข้อมูล",
   saving = false,
   error,
   onEdit,
   onConfirm,
 }: {
   open: boolean;
+  /** ภาษาของป๊อปอัป (ค่าเริ่มต้นไทย) */
+  locale?: "th" | "en";
   title?: string;
   subtitle?: string;
   sections: ReviewSection[];
@@ -104,7 +109,7 @@ export function ReviewSheet({
                           v ? "text-catcha-chocolate" : "font-normal text-brown-faint"
                         }`}
                       >
-                        {v || "ไม่ได้ระบุ"}
+                        {v || (locale === "en" ? "Not given" : "ไม่ได้ระบุ")}
                       </dd>
                     </div>
                   );
@@ -123,11 +128,11 @@ export function ReviewSheet({
           )}
           <button type="button" onClick={onConfirm} disabled={saving} className={BTN_PRIMARY}>
             {!saving && <Icon name="check" size={18} strokeWidth={2.4} />}
-            {saving ? "กำลังบันทึก…" : confirmLabel}
+            {saving ? (locale === "en" ? "Saving…" : "กำลังบันทึก…") : confirmLabel}
           </button>
           <button type="button" onClick={onEdit} disabled={saving} className={BTN_SECONDARY}>
             <Icon name="edit" size={16} />
-            แก้ไขข้อมูล
+            {locale === "en" ? "Edit details" : "แก้ไขข้อมูล"}
           </button>
         </div>
       </div>

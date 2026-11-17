@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
   const addressMapUrl = String(body.addressMapUrl || "").trim();
   const postalCode = String(body.postalCode || "").trim();
   const marketingConsent = body.marketingConsent !== false;
+  // ภาษาที่ลูกค้าใช้กรอกฟอร์ม — ใช้เลือกภาษาการ์ด LINE ต่อไป
+  const language = body.language === "en" ? "en" : body.language === "th" ? "th" : undefined;
   const cats = Array.isArray(body.cats)
     ? body.cats.map(parseCatInput)
     : [];
@@ -74,6 +76,7 @@ export async function POST(req: NextRequest) {
       addressMapUrl: addressMapUrl || undefined,
       postalCode: postalCode || undefined,
       marketingConsent,
+      language,
       cats,
     });
   } catch (e) {
