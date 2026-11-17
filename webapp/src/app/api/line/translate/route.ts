@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { customerLangFor, translateMessagesInfo } from "@/lib/line-i18n";
+import { customerLangFor, lastTranslateError, translateMessagesInfo } from "@/lib/line-i18n";
 
 export const runtime = "nodejs";
 // แปลการ์ดยาว ๆ อาจใช้เวลา — ให้เวลาเกินค่าเริ่มต้น
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const r = await translateMessagesInfo(messages, 45_000);
   // แปลไม่ได้เลย (ไม่มีคีย์ AI / โควต้าหมด / ช้าเกิน) — บอกหน้าพรีวิวให้ขึ้นเตือน
   if (r.total > 0 && r.translated === 0) {
-    return NextResponse.json({ error: "translate_failed" }, { status: 502 });
+    return NextResponse.json({ error: "translate_failed", reason: lastTranslateError() }, { status: 502 });
   }
   return NextResponse.json({ messages: r.messages, total: r.total, translated: r.translated });
 }

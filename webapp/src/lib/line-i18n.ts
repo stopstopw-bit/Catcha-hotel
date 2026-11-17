@@ -9,7 +9,7 @@
  *   แปลไม่ได้ (ไม่มีคีย์ AI / โควต้าหมด / ช้า) = ส่งไทยเหมือนเดิม การ์ดไม่หาย
  * - ปุ่มแบบ "ส่งข้อความ" (action type message) ไม่แปลข้อความที่ส่งกลับ — ระบบแชทจับคำไทยอยู่ แปลแค่ป้ายปุ่ม
  */
-import { generateAiText } from "./ai-text";
+import { aiProvider, generateAiText } from "./ai-text";
 
 export type CardLang = "th" | "en";
 
@@ -108,7 +108,14 @@ function parseArray(text: string): unknown[] | null {
 }
 
 /** แปลหลายข้อความในครั้งเดียว — คืน map ไทย→อังกฤษ (ข้อความที่แปลไม่ผ่านจะไม่อยู่ใน map) */
+/** สาเหตุล่าสุดที่แปลไม่ได้ (พรีวิวหลังบ้านโชว์ให้ร้านเห็น) */
+let lastError = "";
+export function lastTranslateError() {
+  return lastError;
+}
+
 export async function translateStrings(list: string[], timeoutMs = 25_000): Promise<Map<string, string>> {
+  lastError = "";
   const out = new Map<string, string>();
   const todo: string[] = [];
   for (const s of new Set(list)) {
@@ -133,9 +140,15 @@ export async function translateStrings(list: string[], timeoutMs = 25_000): Prom
         new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
       ]);
       const arr = res ? parseArray(res.text) : null;
-      if (!res) console.warn("[line-i18n] translate timeout/no AI", batch.length);
+      if (!res) {
+        lastError = aiProvider() ? `AI ตอบช้าเกิน ${Math.round(timeoutMs / 1000)} วินาที` : "ยังไม่ได้ใส่คีย์ AI ใน Vercel";
+        console.warn("[line-i18n]", lastError, batch.length);
+      }
       if (!arr || arr.length !== batch.length) {
-        if (res) console.warn("[line-i18n] bad translate reply:", res.text.slice(0, 200));
+        if (res) {
+          lastError = `AI ตอบผิดรูปแบบ (${res.provider})`;
+          console.warn("[line-i18n] bad translate reply:", res.text.slice(0, 200));
+        }
         return;
       }
       batch.forEach((src, j) => {
@@ -146,7 +159,8 @@ export async function translateStrings(list: string[], timeoutMs = 25_000): Prom
         cache.set(src, v);
       });
     } catch (e) {
-      console.warn("[line-i18n] translate failed:", e instanceof Error ? e.message : e);
+      lastError = `AI error: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`;
+      console.warn("[line-i18n] translate failed:", lastError);
     }
   }));
   return out;
