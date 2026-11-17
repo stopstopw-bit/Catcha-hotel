@@ -15,6 +15,7 @@ import { DEPOSIT_REMINDER_DEFAULTS, DOC_REQUEST_DEFAULTS, INTAKE_CARD_DEFAULTS }
 import { encodeFlow, type FlowBy, type FlowStep, type FlowToken } from "./intake-flow";
 import { buildLiffUrl } from "./liff-urls";
 import { splitDiscountTag } from "./line-discount";
+import { localizeMessages, resolveCardLang, splitByCardLang } from "./line-i18n";
 
 export { DOC_REQUEST_DEFAULTS, INTAKE_CARD_DEFAULTS };
 
@@ -94,6 +95,8 @@ function flexDetailRow(icon: string, label: string, value: string) {
 
 export async function pushLineMessage(to: string, messages: object[]) {
   const token = await lineChannelToken();
+  // ลูกค้าที่ใช้ภาษาอังกฤษ (หรือแอดมินเลือก EN ตอนส่ง) → แปลการ์ดก่อนส่ง
+  messages = await localizeMessages(messages, await resolveCardLang(to));
 
   const res = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
@@ -127,13 +130,21 @@ export async function multicastLineMessage(to: string[], messages: object[]) {
   const token = await lineChannelToken();
   if (to.length === 0) return { ok: true, sent: 0 };
 
-  const chunks: string[][] = [];
-  for (let i = 0; i < to.length; i += 500) {
-    chunks.push(to.slice(i, i + 500));
+  // แบ่งผู้รับตามภาษา — กลุ่มภาษาอังกฤษได้การ์ดฉบับแปล
+  const byLang = await splitByCardLang(to);
+  const groups: { ids: string[]; messages: object[] }[] = [];
+  if (byLang.th.length) groups.push({ ids: byLang.th, messages });
+  if (byLang.en.length) groups.push({ ids: byLang.en, messages: await localizeMessages(messages, "en") });
+
+  const chunks: { batch: string[]; messages: object[] }[] = [];
+  for (const g of groups) {
+    for (let i = 0; i < g.ids.length; i += 500) {
+      chunks.push({ batch: g.ids.slice(i, i + 500), messages: g.messages });
+    }
   }
 
   let sent = 0;
-  for (const batch of chunks) {
+  for (const { batch, messages } of chunks) {
     const res = await fetch("https://api.line.me/v2/bot/message/multicast", {
       method: "POST",
       headers: {
