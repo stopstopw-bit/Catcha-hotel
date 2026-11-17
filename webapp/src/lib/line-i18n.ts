@@ -42,9 +42,22 @@ export async function customerLangFor(lineUserId: string): Promise<CardLang> {
   }
 }
 
-/** ภาษาที่จะใช้ส่งหาคนนี้: แอดมินเลือก > ภาษาลูกค้า */
+/**
+ * ภาษาที่จะใช้ส่งหาคนนี้: แอดมินเลือก > ภาษาลูกค้า
+ * แอดมินเลือกไทย/อังกฤษเองตอนส่งหาลูกค้าคนเดียว = จำไว้เป็นภาษาของลูกค้าคนนี้
+ * การ์ดอัตโนมัติ (cron) ครั้งต่อไปจะส่งภาษานี้ด้วย
+ */
 export async function resolveCardLang(lineUserId: string): Promise<CardLang> {
-  return (await cardLangOverride()) ?? (await customerLangFor(lineUserId));
+  const forced = await cardLangOverride();
+  if (!forced) return customerLangFor(lineUserId);
+  try {
+    const { findCustomerByLine, updateCustomer } = await import("./customers-store");
+    const c = await findCustomerByLine(lineUserId);
+    if (c && (c.language || "th") !== forced) await updateCustomer(c.id, { language: forced });
+  } catch {
+    // จำไม่สำเร็จไม่เป็นไร — ส่งการ์ดต่อได้
+  }
+  return forced;
 }
 
 /** แบ่งผู้รับตามภาษา (ส่งกลุ่ม) — แอดมินเลือกภาษาไว้ = ทุกคนภาษานั้น */
