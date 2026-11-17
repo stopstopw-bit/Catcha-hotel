@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLiff } from "@/components/LiffProvider";
 import { customerFetch } from "@/lib/customer-fetch";
+import { thaiDateRange } from "@/lib/service-history-rows";
 
 type CourseUse = {
   /** วันที่หัก (วันจ่ายบิล) */
@@ -55,9 +56,9 @@ function thaiDate(d?: string, withYear = true) {
 function describeUse(u: CourseUse, unit: string) {
   const amount = `${u.units} ${unit}`;
   if (u.checkin && u.checkout) {
-    return { main: `${thaiDate(u.checkin, false)} → ${thaiDate(u.checkout)}`, amount };
+    return { main: `เข้าพัก ${thaiDateRange(u.checkin, u.checkout)}`, amount };
   }
-  return { main: thaiDate(u.date), amount };
+  return { main: `ใช้วันที่ ${thaiDate(u.date)}`, amount };
 }
 
 /**
