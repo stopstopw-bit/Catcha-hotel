@@ -14,7 +14,8 @@ export const EN_POSTERS: Record<string, string> = {
   "/catalog/rooms/cat-hotel-bangna-mini-duo.jpg": `${D}/room-mini-duo.jpg`,
   "/catalog/rooms/cat-hotel-bangna-cozy-duo.jpg": `${D}/room-cozy-duo.jpg`,
   "/catalog/rooms/cat-hotel-bangna-cat-tower.jpg": `${D}/room-cat-tower.jpg`,
-  // ข้อมูลก่อนอาบน้ำ
+  // เมนู/ข้อมูลก่อนอาบน้ำ
+  "/catalog/grooming/grooming-menu.jpg": `${D}/grooming-menu.jpg`,
   "/catalog/grooming/bath-prep.jpg": `${D}/before-grooming.jpg`,
   "/info/bath-info.jpg": `${D}/before-grooming.jpg`,
   // ฝากพัก
@@ -24,6 +25,11 @@ export const EN_POSTERS: Record<string, string> = {
   "/info/flea-rules-before-stay.jpg": `${D}/before-check-in.jpg`,
   "/info/prepare-checkin.jpg": `${D}/prepare-check-in.jpg`,
   "/info/hours.jpg": `${D}/hours.jpg`,
+  "/info/booking-steps.jpg": `${D}/booking-steps.jpg`,
+  // สมาชิก/คะแนน
+  "/info/new-member.jpg": `${D}/new-member.jpg`,
+  "/info/rewards.jpg": `${D}/rewards.jpg`,
+  "/catalog/services/points.jpg": `${D}/rewards.jpg`,
   // รับ-ส่ง
   "/info/transport.jpg": `${D}/transport.jpg`,
   "/catalog/services/transport.jpg": `${D}/transport.jpg`,

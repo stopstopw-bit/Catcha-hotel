@@ -165,11 +165,12 @@ export default async function EnglishPage() {
         })}
       </div>
 
-      <h2 className="mt-10 text-lg font-extrabold text-catcha-chocolate">Service hours</h2>
+      <h2 className="mt-10 text-lg font-extrabold text-catcha-chocolate">How to book &amp; service hours</h2>
       <p className="mt-2 text-sm leading-relaxed text-brown-soft">
         Open daily 09:00–19:00. Check-in 09:00–18:00, check-out 09:00–19:00.
       </p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <EnPoster src="/catalog/en/booking-steps.jpg" alt="How to book a room at CatCha Hotel in 4 easy steps: check availability, send cat details, pay a deposit, receive booking confirmation on LINE" />
         <EnPoster src="/catalog/en/hours.jpg" alt="CatCha Hotel service hours: open daily 09:00–19:00, check-in 09:00–18:00, check-out 09:00–19:00" />
       </div>
 
@@ -191,7 +192,17 @@ export default async function EnglishPage() {
         No haircuts/shaving. A 200 THB deposit holds your booking.
       </p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <EnPoster src="/catalog/en/grooming-menu.jpg" alt="Catcha Grooming menu: bath and blow-dry, degreasing bath, Catcha Premium and anti-fungal Malaseb programs, prices by cat type and size" />
         <EnPoster src="/catalog/en/before-grooming.jpg" alt="Important information before grooming: withhold food 2–3 hours, tell us about medical conditions, bring your cat in a carrier" />
+      </div>
+
+      <h2 className="mt-10 text-lg font-extrabold text-catcha-chocolate">Members &amp; rewards</h2>
+      <p className="mt-2 text-sm leading-relaxed text-brown-soft">
+        Sign up as a member on LINE, collect points every visit and redeem them for treats or discounts.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <EnPoster src="/catalog/en/new-member.jpg" alt="New member: get 5% off when you sign up and leave a review on Google Maps" />
+        <EnPoster src="/catalog/en/rewards.jpg" alt="Stay more, earn more: collect points and redeem rewards for grooming or cat hotel services" />
       </div>
 
       <h2 className="mt-10 text-lg font-extrabold text-catcha-chocolate">Pick-up &amp; delivery</h2>

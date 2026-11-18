@@ -2,6 +2,7 @@
 
 import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/LocaleProvider";
+import { posterFor } from "@/lib/en-posters";
 import { useConfig } from "@/components/ConfigProvider";
 import { BookingOnlyNotice, LineBookingCta, PageHeader } from "@/components/PageHeader";
 import { ContentBlocks } from "@/components/ContentBlocks";
@@ -47,7 +48,7 @@ export default function GroomingPage() {
             className="overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt="" className="block w-full h-auto" />
+            <img src={posterFor(src, locale)} alt="" className="block w-full h-auto" />
           </div>
         ))}
         {/* ก่อนอาบน้ำต้องฉีดวัคซีนให้ครบ — นัดอาบน้ำขอสมุดวัคซีนทุกครั้ง */}
