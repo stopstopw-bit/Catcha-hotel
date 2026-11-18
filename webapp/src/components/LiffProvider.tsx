@@ -115,17 +115,13 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [customer, setCustomer] = useState<LineCustomer | null>(null);
-  const { setLocale } = useLocale();
-  // ลูกค้าตั้งภาษาอังกฤษไว้ (สมัครด้วยฟอร์ม EN) แต่เครื่องนี้ยังไม่เคยเลือกภาษา → เปิดแอปเป็นภาษาอังกฤษ
+  const { adoptServerLocale } = useLocale();
+  // ภาษาที่ร้านจำไว้ของลูกค้า (เลือกตอนสมัคร/กดสลับภาษา — บันทึกที่ร้านทุกครั้ง) → ทุกหน้าเปิดเป็นภาษานั้น
+  // แม้เปิดจากลิงก์/เครื่อง/โดเมนอื่นที่ยังไม่เคยเลือก · ถ้ารอบนี้ลูกค้ากดเลือกเองแล้ว ใช้ที่กดเลือก
   useEffect(() => {
-    if (customer?.language !== "en") return;
-    try {
-      if (!localStorage.getItem("catcha-locale")) setLocale("en");
-    } catch {
-      /* storage ใช้ไม่ได้ — ไม่เป็นไร */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customer?.language]);
+    const lang = customer?.language;
+    if (lang === "en" || lang === "th") adoptServerLocale(lang);
+  }, [customer?.language, adoptServerLocale]);
   const [needsRegistration, setNeedsRegistration] = useState(false);
   const [history, setHistory] = useState<PointsHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);

@@ -35,6 +35,21 @@ export const EN_POSTERS: Record<string, string> = {
   "/catalog/services/transport.jpg": `${D}/transport.jpg`,
 };
 
+/** รูปห้องอังกฤษตาม id ห้อง — ใช้ตอนร้านเปลี่ยนรูปไทยเป็นไฟล์อัปโหลด (path ไม่ตรงกับรูปเริ่มต้น) */
+export const ROOM_EN_POSTERS: Record<string, string> = {
+  "mini-meow": `${D}/room-mini-meow.jpg`,
+  "mid-cozy": `${D}/room-mid-cozy.jpg`,
+  catflix: `${D}/room-catflix.jpg`,
+  "mini-duo": `${D}/room-mini-duo.jpg`,
+  "cozy-duo": `${D}/room-cozy-duo.jpg`,
+  "cat-tower": `${D}/room-cat-tower.jpg`,
+};
+
+/** รูปอังกฤษของห้อง: ร้านตั้งเอง > รูปเริ่มต้นตาม id ห้อง > (posterFor จับคู่ด้วย path รูปไทย) */
+export function roomEnPoster(room: { id: string; imageEn?: string }): string | undefined {
+  return room.imageEn?.trim() || ROOM_EN_POSTERS[room.id];
+}
+
 /** รูปอังกฤษเริ่มต้นของรูปไทยนี้ (ไม่มี = "") — ใช้โชว์ในหลังบ้านว่าตอนนี้ลูกค้า English เห็นรูปอะไร */
 export function defaultEnPoster(src: string | undefined): string {
   if (!src) return "";

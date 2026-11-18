@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
-import Link from "next/link";
+import { LangLink, RememberLang } from "@/components/LangLink";
 import { BUSINESS } from "@/lib/business";
 import { getSiteConfig } from "@/lib/config-store";
 import { resolveGroomPrograms } from "@/lib/grooming-prices";
 import SiteFooter from "@/components/SiteFooter";
 import { getAppUrl } from "@/lib/app-url";
-import { posterFor } from "@/lib/en-posters";
+import { posterFor, roomEnPoster } from "@/lib/en-posters";
 import { localBusinessNode, breadcrumbNode, faqNode, SHOP_ADDRESS } from "@/lib/seo-schema";
 
 /**
@@ -101,14 +101,14 @@ export default async function EnglishPage() {
     <main lang="en" className="mx-auto max-w-3xl px-5 pb-16 pt-4">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="flex justify-end">
-        <Link
+        <RememberLang lang="en" />
+        <LangLink
           href="/"
-          hrefLang="th"
           lang="th"
           className="rounded-full border border-catcha-line bg-card px-3 py-1.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
         >
           🇹🇭 ภาษาไทย
-        </Link>
+        </LangLink>
       </div>
 
       <header className="mt-2 text-center sm:text-left">
@@ -145,7 +145,7 @@ export default async function EnglishPage() {
       <p className="mt-1 text-xs text-brown-soft">Tap a picture to enlarge.</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {rooms.map((r) => {
-          const src = posterFor(r.image, "en", r.imageEn);
+          const src = posterFor(r.image, "en", roomEnPoster(r));
           return (
             <a
               key={r.id}
