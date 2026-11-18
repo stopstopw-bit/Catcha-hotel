@@ -51,6 +51,8 @@ export type RoomType = {
   config?: { th: string; en: string };
   note?: { th: string; en: string };
   image: string;
+  /** รูปโปสเตอร์ภาษาอังกฤษ (ลูกค้า English เห็นแทน) — ว่าง = ใช้รูปอังกฤษเริ่มต้นของห้องนั้น ถ้ามี */
+  imageEn?: string;
   amenities: { th: string[]; en: string[] };
 };
 

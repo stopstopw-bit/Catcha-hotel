@@ -16,6 +16,7 @@ import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/fe
 import { GROOM_EXTRA_CARDS, groomCardsOf } from "@/lib/intake-rules";
 import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
 import { NumInput } from "@/components/NumInput";
+import { defaultEnPoster } from "@/lib/en-posters";
 
 type Tab =
   | "features"
@@ -952,6 +953,28 @@ function RoomsTab({
               updateRoom(idx, { note: { th: v, en: room.note?.en || v } })
             }
           />
+          <EnSection filled={!!room.imageEn}>
+            <EnPosterField
+              value={room.imageEn || ""}
+              thSrc={room.image}
+              onChange={(v) => updateRoom(idx, { imageEn: v || undefined })}
+            />
+            <Field
+              label="Cats (e.g. 1–2 cats)"
+              value={room.cats?.en || ""}
+              onChange={(v) => updateRoom(idx, { cats: { th: room.cats?.th || "", en: v } })}
+            />
+            <Field
+              label="Extra cat (e.g. 3rd cat +50)"
+              value={room.extra?.en || ""}
+              onChange={(v) => updateRoom(idx, { extra: { th: room.extra?.th || "", en: v } })}
+            />
+            <Field
+              label="Note"
+              value={room.note?.en || ""}
+              onChange={(v) => updateRoom(idx, { note: { th: room.note?.th || "", en: v } })}
+            />
+          </EnSection>
         </div>
       ))}
       <button
@@ -1266,6 +1289,22 @@ function ContentBlocksTab({
               className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
             />
           </label>
+          <EnSection filled={!!(b.imageEn || b.textEn)}>
+            <EnPosterField
+              value={b.imageEn || ""}
+              thSrc={b.image}
+              onChange={(v) => updateBlock(idx, { imageEn: v || undefined })}
+            />
+            <label className="block text-[10px] font-bold text-brown-soft">
+              English text (ว่าง = ใช้ข้อความไทย)
+              <textarea
+                value={b.textEn || ""}
+                onChange={(e) => updateBlock(idx, { textEn: e.target.value || undefined })}
+                rows={3}
+                className="mt-1 w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2.5 text-sm"
+              />
+            </label>
+          </EnSection>
         </div>
       ))}
       <button
@@ -1298,8 +1337,8 @@ function GroomingTab({
   onSave: (p: Partial<SiteConfig>) => void;
 }) {
   const menus = config.grooming.menus as {
-    bath?: { poster?: string };
-    advance?: { poster?: string };
+    bath?: { poster?: string; posterEn?: string };
+    advance?: { poster?: string; posterEn?: string };
   };
   const [slots, setSlots] = useState(config.groomSlots.join(", "));
   const [closedWeekdays, setClosedWeekdays] = useState<number[]>(
@@ -1310,6 +1349,8 @@ function GroomingTab({
   );
   const [bathPoster, setBathPoster] = useState(menus.bath?.poster || "");
   const [advancePoster, setAdvancePoster] = useState(menus.advance?.poster || "");
+  const [bathPosterEn, setBathPosterEn] = useState(menus.bath?.posterEn || "");
+  const [advancePosterEn, setAdvancePosterEn] = useState(menus.advance?.posterEn || "");
   const [transportTh, setTransportTh] = useState(config.transport.th.join("\n"));
   const [transportEn, setTransportEn] = useState(config.transport.en.join("\n"));
 
@@ -1325,9 +1366,18 @@ function GroomingTab({
 
   const submit = () => {
     const grooming = JSON.parse(JSON.stringify(config.grooming)) as SiteConfig["grooming"];
-    const m = grooming.menus as { bath?: { poster?: string }; advance?: { poster?: string } };
-    if (m.bath) m.bath.poster = bathPoster;
-    if (m.advance) m.advance.poster = advancePoster;
+    const m = grooming.menus as {
+      bath?: { poster?: string; posterEn?: string };
+      advance?: { poster?: string; posterEn?: string };
+    };
+    if (m.bath) {
+      m.bath.poster = bathPoster;
+      m.bath.posterEn = bathPosterEn;
+    }
+    if (m.advance) {
+      m.advance.poster = advancePoster;
+      m.advance.posterEn = advancePosterEn;
+    }
     onSave({
       groomSlots: slots.split(",").map((s) => s.trim()).filter(Boolean),
       closedWeekdays,
@@ -1432,6 +1482,18 @@ function GroomingTab({
         onChange={setAdvancePoster}
         onUpload={(f) => onPoster("advance", f)}
       />
+      <EnSection filled={!!(bathPosterEn || advancePosterEn)}>
+        <p className="text-[10px] text-brown-faint">
+          ว่างทั้ง 2 ช่อง = ใช้เมนูภาษาอังกฤษเริ่มต้นของร้าน
+        </p>
+        <EnPosterField
+          value={bathPosterEn}
+          thSrc={!bathPoster || bathPoster.startsWith("/catalog/grooming/") ? "/catalog/grooming/grooming-menu.jpg" : bathPoster}
+          onChange={setBathPosterEn}
+        />
+        <p className="text-[10px] font-bold text-brown-soft">รูปที่ 2 (ไม่บังคับ)</p>
+        <PosterField label="รูปเมนูภาษาอังกฤษ รูปที่ 2" value={advancePosterEn} onChange={setAdvancePosterEn} onUpload={(f) => readImage(f, setAdvancePosterEn)} />
+      </EnSection>
 
       <label className="block text-xs font-bold text-brown-soft">
         รับส่ง (ไทย) — หนึ่งบรรทัดต่อข้อ
@@ -2020,11 +2082,14 @@ function PosterField({
   value,
   onChange,
   onUpload,
+  fallback,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   onUpload: (f: File) => void;
+  /** รูปที่ใช้อยู่ตอนช่องนี้ว่าง (โชว์จางๆ แทน "ยังไม่มี") */
+  fallback?: string;
 }) {
   const hasImage = value.startsWith("data:") || value.startsWith("http") || value.startsWith("/");
 
@@ -2041,6 +2106,9 @@ function PosterField({
             className="h-24 w-[72px] shrink-0 rounded-catcha-sm object-cover bg-card"
             unoptimized
           />
+        ) : fallback ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={fallback} alt="" className="h-24 w-[72px] shrink-0 rounded-catcha-sm bg-card object-cover opacity-70" />
         ) : (
           <div className="flex h-24 w-[72px] shrink-0 items-center justify-center rounded-catcha-sm bg-card text-[9px] text-brown-faint">
             ยังไม่มี
@@ -2067,6 +2135,48 @@ function PosterField({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** กล่อง "ฉบับภาษาอังกฤษ" — ของที่ลูกค้าเห็น ตั้งแยกให้ลูกค้าที่ใช้ภาษาอังกฤษได้ (พับไว้ก่อน) */
+function EnSection({ children, filled }: { children: React.ReactNode; filled?: boolean }) {
+  return (
+    <details className="mt-3 rounded-catcha-sm border border-catcha-line bg-paper/60 p-3">
+      <summary className="cursor-pointer list-none text-xs font-extrabold text-catcha-chocolate">
+        🇬🇧 English — ลูกค้าที่ใช้ภาษาอังกฤษเห็น
+        <span className="ml-1 font-bold text-brown-faint">{filled ? "· ตั้งแล้ว" : "· แตะเพื่อตั้ง"}</span>
+      </summary>
+      <div className="mt-3 space-y-2">{children}</div>
+    </details>
+  );
+}
+
+function readImage(file: File, done: (url: string) => void) {
+  const reader = new FileReader();
+  reader.onload = () => done(String(reader.result));
+  reader.readAsDataURL(file);
+}
+
+/** ช่องรูปภาษาอังกฤษ — ว่างไว้ = ใช้รูปอังกฤษเริ่มต้น (ถ้ามี) ไม่งั้นใช้รูปไทย */
+function EnPosterField({ value, thSrc, onChange }: { value: string; thSrc?: string; onChange: (v: string) => void }) {
+  const fallback = defaultEnPoster(thSrc);
+  return (
+    <div>
+      <PosterField
+        label="รูปภาษาอังกฤษ"
+        value={value || ""}
+        onChange={onChange}
+        onUpload={(f) => readImage(f, onChange)}
+        fallback={fallback}
+      />
+      <p className="mt-1 text-[10px] text-brown-faint">
+        {value
+          ? "ลูกค้าภาษาอังกฤษเห็นรูปนี้ · ลบ URL ออก = กลับไปใช้รูปเริ่มต้น"
+          : fallback
+            ? "ยังไม่ได้ตั้ง — ตอนนี้ใช้รูปภาษาอังกฤษเริ่มต้นของร้าน (รูปจางด้านบน)"
+            : "ยังไม่ได้ตั้ง — ลูกค้าภาษาอังกฤษเห็นรูปไทย"}
+      </p>
     </div>
   );
 }

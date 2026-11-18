@@ -12,6 +12,9 @@ export type BoardingRuleBlock = {
   /** URL รูป หรือ data: URL ที่อัปโหลดไว้ — ไม่ใส่ก็ได้ถ้าบล็อกนี้มีแต่ข้อความ */
   image?: string;
   text?: string;
+  /** ฉบับภาษาอังกฤษ — ลูกค้าที่ใช้ภาษาอังกฤษเห็นแทน (ว่าง = ใช้รูป/ข้อความไทย) */
+  imageEn?: string;
+  textEn?: string;
 };
 
 export type LocalizedLines = { th: string[]; en: string[] };

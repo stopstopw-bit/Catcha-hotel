@@ -19,6 +19,8 @@ import { FormPosters } from "@/components/FormPosters";
 import {
   DEFAULT_FORM_POSTERS,
   resolveFormPosters,
+  resolveFormPostersEn,
+  type FormPosterBaseKey,
   type FormPosterKey,
   type FormPostersConfig,
 } from "@/lib/form-posters";
@@ -1820,7 +1822,7 @@ export default function CardsStudioPage() {
   const meta = useMemo(() => CARDS.find((c) => c.key === activeKey)!, [activeKey]);
   const st = cards[activeKey] || {};
   // หน้าตั้งค่าฟอร์มลูกค้า → ฟอร์มไหน (ใช้กับตัวแก้รูปในฟอร์ม)
-  const posterKey: FormPosterKey | null =
+  const posterKey: FormPosterBaseKey | null =
     activeKey === "groomFormFields"
       ? "groom"
       : activeKey === "stayFormFields"
@@ -2000,6 +2002,24 @@ export default function CardsStudioPage() {
               }}
               onUseDefault={() => {
                 setFormPosters((prev) => ({ ...prev, [posterKey]: null }));
+                setDirty(true);
+              }}
+            />
+          )}
+          {posterKey && (
+            <FormPosterEditor
+              title="🇬🇧 รูปในฟอร์ม — ลูกค้าภาษาอังกฤษ"
+              images={resolveFormPostersEn(formPosters, posterKey)}
+              hint="ลูกค้าที่ใช้ภาษาอังกฤษเห็นชุดนี้แทน — ยังไม่เคยตั้ง = ใช้รูปไทยด้านบน แต่รูปที่มีฉบับอังกฤษจะเปลี่ยนเป็นรูปอังกฤษให้เอง"
+              emptyText="ยังไม่มีรูป — ลูกค้าภาษาอังกฤษจะเข้าหน้าคำถามเลย"
+              isDefault={!Array.isArray(formPosters[`${posterKey}En` as FormPosterKey])}
+              hasDefault
+              onChange={(next) => {
+                setFormPosters((prev) => ({ ...prev, [`${posterKey}En`]: next }));
+                setDirty(true);
+              }}
+              onUseDefault={() => {
+                setFormPosters((prev) => ({ ...prev, [`${posterKey}En`]: null }));
                 setDirty(true);
               }}
             />

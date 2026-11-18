@@ -20,8 +20,8 @@ export default function GroomingPage() {
   const m = t(locale).grooming;
 
   const menus = config.grooming.menus as {
-    bath?: { poster?: string };
-    advance?: { poster?: string };
+    bath?: { poster?: string; posterEn?: string };
+    advance?: { poster?: string; posterEn?: string };
   };
 
   // เมนูชุดใหม่รวมทุกโปรแกรมไว้ในรูปเดียว — รูปเก่า 2 ใบที่ติดมากับระบบถือว่า "ไม่ได้ตั้ง"
@@ -29,7 +29,11 @@ export default function GroomingPage() {
   const custom = [menus.bath?.poster, menus.advance?.poster].filter(
     (p): p is string => !!p && !LEGACY_POSTERS.has(p)
   );
-  const posters = custom.length ? custom : [GROOMING_MENU_POSTER];
+  const thPosters = custom.length ? custom : [GROOMING_MENU_POSTER];
+  // ลูกค้าภาษาอังกฤษ: รูปเมนูอังกฤษที่ร้านตั้ง > รูปอังกฤษเริ่มต้นของรูปไทย > รูปไทย
+  const enCustom = [menus.bath?.posterEn, menus.advance?.posterEn].filter((p): p is string => !!p?.trim());
+  const posters =
+    locale === "en" ? (enCustom.length ? enCustom : thPosters.map((p) => posterFor(p, "en"))) : thPosters;
 
   return (
     <div className="px-4 pb-6 pt-5">
@@ -48,14 +52,14 @@ export default function GroomingPage() {
             className="overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={posterFor(src, locale)} alt="" className="block w-full h-auto" />
+            <img src={src} alt="" className="block w-full h-auto" />
           </div>
         ))}
         {/* ก่อนอาบน้ำต้องฉีดวัคซีนให้ครบ — นัดอาบน้ำขอสมุดวัคซีนทุกครั้ง */}
         <VaccinePoster />
       </div>
 
-      <ContentBlocks blocks={config.groomingPageBlocks} />
+      <ContentBlocks blocks={config.groomingPageBlocks} locale={locale} />
 
       <LineBookingCta locale={locale} />
     </div>

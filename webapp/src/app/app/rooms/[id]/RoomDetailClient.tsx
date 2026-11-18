@@ -39,7 +39,7 @@ export default function RoomDetailClient({ roomId }: { roomId: string }) {
         backLabel={m.back}
       />
 
-      <RoomPoster src={room.image} alt={room.name} priority className="shadow-catcha-sm" />
+      <RoomPoster src={room.image} srcEn={room.imageEn} alt={room.name} priority className="shadow-catcha-sm" />
       <p className="mt-2 text-center text-[11px] text-brown-faint">{m.posterHint}</p>
 
       <LineBookingCta locale={locale} />
