@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n";
 import type { CustomerPromoView } from "@/lib/promos-store";
 import { Icon } from "@/components/Icon";
 import { EmptyState, SectionLabel } from "@/components/ui";
+import { useCatalogEn } from "@/components/useCatalogEn";
 
 type Props = {
   compact?: boolean;
@@ -18,6 +19,7 @@ type Props = {
 export function CustomerExclusivePromos({ compact, onHasPromos }: Props) {
   const { locale } = useLocale();
   const { profile, refreshAccount, setPoints } = useLiff();
+  const T = useCatalogEn();
   const m = t(locale).customerPromos;
   const [promos, setPromos] = useState<CustomerPromoView[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,7 +64,7 @@ export function CustomerExclusivePromos({ compact, onHasPromos }: Props) {
       if (typeof data.newPoints === "number") setPoints(data.newPoints);
       else await refreshAccount();
       setClaimedInfo({
-        title: promo.title[locale],
+        title: T(promo.title.th),
         code: data.couponCode,
         pointsAwarded: data.pointsAwarded,
       });
@@ -94,7 +96,7 @@ export function CustomerExclusivePromos({ compact, onHasPromos }: Props) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={promo.imageUrl}
-                    alt={promo.title[locale]}
+                    alt={T(promo.title.th)}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -104,7 +106,7 @@ export function CustomerExclusivePromos({ compact, onHasPromos }: Props) {
                 )}
               </div>
               <p className="mt-1.5 truncate text-center text-xs font-bold text-brown">
-                {promo.title[locale]}
+                {T(promo.title.th)}
               </p>
             </Link>
           ))}
@@ -143,19 +145,19 @@ export function CustomerExclusivePromos({ compact, onHasPromos }: Props) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={promo.imageUrl}
-                    alt={promo.title[locale]}
+                    alt={T(promo.title.th)}
                     className="h-auto max-h-64 w-full bg-honey/10 object-contain"
                   />
                 )}
                 <div className="p-4">
                   <p className="line-clamp-1 text-base font-extrabold text-catcha-chocolate">
-                    {promo.title[locale]}
+                    {T(promo.title.th)}
                   </p>
 
                   {expandedId === promo.id && (
                     <>
                       <p className="mt-1 text-xs leading-relaxed text-brown-soft">
-                        {promo.body[locale]}
+                        {T(promo.body.th)}
                       </p>
                       <p className="mt-2 text-[10px] font-bold text-brown-faint">
                         {promo.until ? `${m.until} ${promo.until}` : ""}

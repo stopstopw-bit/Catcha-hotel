@@ -16,6 +16,7 @@ import {
   type OfferItemDraft,
 } from "@/components/OfferItemsEditor";
 import { NumInput } from "@/components/NumInput";
+import { CatalogEnEditor } from "@/components/CatalogEnEditor";
 
 type PackageKind = "uses" | "credit" | "nights" | "bundle";
 
@@ -1041,6 +1042,7 @@ export default function AdminPackagesPage() {
           <img src={zoomSlip} alt="สลิปโอนเงิน" className="max-h-full max-w-full rounded-catcha object-contain" />
         </button>
       )}
+      <CatalogEnEditor />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { toJpegDataUrl } from "@/lib/image-convert";
 import { Icon } from "@/components/Icon";
 import { ExpandableText } from "@/components/ExpandableText";
 import { useL } from "@/components/LocaleProvider";
+import { useCatalogEn } from "@/components/useCatalogEn";
 
 type Offer = {
   id: string;
@@ -54,6 +55,7 @@ function fileToDataUrl(file: File): Promise<string> {
 export function PackageShopSection() {
   const { profile } = useLiff();
   const { L } = useL();
+  const T = useCatalogEn();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payment, setPayment] = useState<Payment | null>(null);
@@ -86,7 +88,7 @@ export function PackageShopSection() {
   const buy = async (offer: Offer) => {
     if (!profile?.lineUserId) return;
     const detail = offer.itemLabels?.length
-      ? `(${offer.itemLabels.join(" · ")})`
+      ? `(${offer.itemLabels.map(T).join(" · ")})`
       : offer.kind === "credit"
         ? L(
             `รับเครดิตรวม ${(offer.price + offer.creditBonus).toLocaleString()} บาท (จ่าย ${offer.price.toLocaleString()} รับเพิ่มฟรี ${offer.creditBonus.toLocaleString()})`,
@@ -104,7 +106,7 @@ export function PackageShopSection() {
           `สั่งซื้อ "${offer.name}" ${detail}\n` +
             `ยอดที่ต้องโอน ${offer.price.toLocaleString()} บาท\n\n` +
             `กดตกลงแล้วจะมีเลขบัญชีให้โอน แล้วแนบสลิปได้เลยนะคะ`,
-          `Order "${offer.name}" ${detail}\n` +
+          `Order "${T(offer.name)}" ${detail}\n` +
             `Amount to transfer: ${offer.price.toLocaleString()} THB\n\n` +
             `Tap OK to see our bank account, then attach your transfer slip.`
         )
@@ -219,7 +221,7 @@ export function PackageShopSection() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={o.imageUrl}
-                      alt={o.name}
+                      alt={T(o.name)}
                       loading="lazy"
                       className="max-h-48 w-full object-contain"
                     />
@@ -227,13 +229,13 @@ export function PackageShopSection() {
                 )}
                 <div className="flex flex-1 flex-col p-3">
                   <p className="text-sm font-extrabold leading-snug text-catcha-chocolate">
-                    {o.name}
+                    {T(o.name)}
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold text-brown-soft">
                     {o.itemLabels?.length ? (
                       o.itemLabels.map((l) => (
                         <span key={l} className="rounded-full bg-sage/20 px-2 py-0.5 text-ok">
-                          {l}
+                          {T(l)}
                         </span>
                       ))
                     ) : o.kind === "credit" ? (
@@ -269,7 +271,7 @@ export function PackageShopSection() {
                   {o.description && (
                     <div className="mt-1">
                       <ExpandableText
-                        text={o.description}
+                        text={T(o.description)}
                         lines={3}
                         className="text-[10px] leading-relaxed text-brown-faint"
                       />
@@ -305,7 +307,7 @@ export function PackageShopSection() {
         >
           <p className="flex items-center gap-1.5 text-xs font-extrabold text-wait">
             <Icon name="clock" size={14} />
-            <span className="min-w-0 truncate">{L("รอโอนเงิน", "Awaiting transfer")} · {o.name}</span>
+            <span className="min-w-0 truncate">{L("รอโอนเงิน", "Awaiting transfer")} · {T(o.name)}</span>
           </p>
           <p className="mt-1 text-[11px] text-brown-soft">
             {L("ยอดที่ต้องโอน", "Amount to transfer")}{" "}

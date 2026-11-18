@@ -9,6 +9,7 @@ import { Icon } from "@/components/Icon";
 import { CustomerExclusivePromos } from "@/components/CustomerExclusivePromos";
 import { PackageShopSection } from "@/components/PackageShopSection";
 import { ExpandableText } from "@/components/ExpandableText";
+import { useCatalogEn } from "@/components/useCatalogEn";
 
 type Promo = {
   id: string;
@@ -21,6 +22,7 @@ type Promo = {
 
 export default function PromosPage() {
   const { locale } = useLocale();
+  const T = useCatalogEn();
   const m = t(locale).promos;
   const [promos, setPromos] = useState<Promo[]>([]);
 
@@ -67,11 +69,11 @@ export default function PromosPage() {
                 )}
                 <div className="p-4">
                   <p className="line-clamp-2 text-sm font-extrabold text-catcha-chocolate">
-                    {promo.title[locale]}
+                    {T(promo.title.th)}
                   </p>
                   <div className="mt-1">
                     <ExpandableText
-                      text={promo.body[locale]}
+                      text={T(promo.body.th)}
                       locale={locale}
                       className="text-xs leading-relaxed text-brown-soft"
                     />
