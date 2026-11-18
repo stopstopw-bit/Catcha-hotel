@@ -57,7 +57,7 @@ const PUBLIC_GET = ["/api/config", "/api/articles", "/api/promos", "/api/version
  * ใช้ร่วมกันทั้งลูกค้าและหลังบ้าน — ปล่อยผ่านด่านนี้ แล้วให้ตัว route
  * ตรวจเองว่าคนที่ไม่ได้ล็อกอินทำอะไรได้บ้าง (ดู requireAdmin ใน route)
  */
-const SHARED_API = ["/api/bookings", "/api/packages", "/api/package-shop", "/api/points"];
+const SHARED_API = ["/api/bookings", "/api/packages", "/api/package-shop", "/api/points", "/api/i18n/catalog"];
 
 /**
  * ใช้ร่วมกันเฉพาะ GET ที่ path นี้ตรงตัว (ไม่รวม path ย่อย เช่น /api/coupons/offers ที่เป็นของหลังบ้าน)

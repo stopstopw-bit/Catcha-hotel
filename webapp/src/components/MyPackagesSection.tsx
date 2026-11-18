@@ -6,6 +6,7 @@ import { customerFetch } from "@/lib/customer-fetch";
 import { thaiDateRange } from "@/lib/service-history-rows";
 import { useL } from "@/components/LocaleProvider";
 import { dateRangeFor } from "@/lib/locale-date";
+import { useCatalogEn } from "@/components/useCatalogEn";
 
 type CourseUse = {
   /** วันที่หัก (วันจ่ายบิล) */
@@ -80,6 +81,7 @@ export function MyPackagesSection({
 }) {
   const { profile } = useLiff();
   const { L, en } = useL();
+  const T = useCatalogEn();
   const [packages, setPackages] = useState<CustomerPackage[]>([]);
   const [pending, setPending] = useState<PendingCourse[]>([]);
   const [open, setOpen] = useState<string | null>(null);
@@ -129,7 +131,7 @@ export function MyPackagesSection({
             className="rounded-catcha-sm border border-wait/40 bg-card/80 px-3 py-2.5"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 text-sm font-extrabold text-brown">{c.name}</p>
+              <p className="min-w-0 text-sm font-extrabold text-brown">{T(c.name)}</p>
               <span className="shrink-0 rounded-full bg-honey/30 px-2 py-0.5 text-[10px] font-bold text-wait">
                 {L("รอชำระ", "Awaiting payment")}
               </span>
@@ -157,7 +159,7 @@ export function MyPackagesSection({
               className={`rounded-catcha-sm bg-card/80 px-3 py-2.5 ${usedUp ? "opacity-75" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 text-sm font-extrabold text-brown">{p.name}</p>
+                <p className="min-w-0 text-sm font-extrabold text-brown">{T(p.name)}</p>
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                     p.locked

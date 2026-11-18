@@ -30,6 +30,7 @@ import { PreviewSendModal } from "@/components/PreviewSendModal";
 import { LINE_PROMO_KINDS, type LinePromoKind, type PromoBillRule } from "@/lib/line-discount";
 import { CheckBox, EmptyState, MoreMenu, SearchField, SectionLabel, Segmented } from "@/components/ui";
 import { NumInput } from "@/components/NumInput";
+import { CatalogEnEditor } from "@/components/CatalogEnEditor";
 
 /** กลุ่มลูกค้าสำเร็จรูป — ติ๊กได้หลายกลุ่ม ระบบเลือกคนที่ตรงทุกข้อ */
 const SEGMENT_CHIPS: { id: SegmentId | "inactive90"; label: string }[] = [
@@ -1292,6 +1293,7 @@ export default function PromosAdminPage() {
           )}
         </>
       )}
+      <CatalogEnEditor />
     </div>
   );
 }

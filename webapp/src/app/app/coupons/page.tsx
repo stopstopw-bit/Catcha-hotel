@@ -13,6 +13,7 @@ import { referralReward } from "@/lib/referral";
 import { copyText, lineShareUrl } from "@/lib/copy-text";
 import { useL } from "@/components/LocaleProvider";
 import { trNow } from "@/components/LocaleProvider";
+import { useCatalogEn } from "@/components/useCatalogEn";
 
 type Coupon = {
   id: string;
@@ -32,6 +33,7 @@ function daysLeft(iso?: string) {
 export default function CouponsPage() {
   const { ready, profile, customer } = useLiff();
   const { L, en } = useL();
+  const T = useCatalogEn();
   const { config } = useConfig();
   const [loading, setLoading] = useState(true);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -177,7 +179,7 @@ export default function CouponsPage() {
                     <span className="text-[9px] font-bold">{L("เหลือ", "left")}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-extrabold text-catcha-chocolate">{p.name}</p>
+                    <p className="truncate text-sm font-extrabold text-catcha-chocolate">{T(p.name)}</p>
                     <p className="text-[11px] text-brown-soft">
                       {L(`ใช้ไป ${p.usedUses} จาก ${p.totalUses} ครั้ง`, `Used ${p.usedUses} of ${p.totalUses}`)}
                     </p>
