@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useL } from "@/components/LocaleProvider";
 
 /**
  * ช่วงเวลามาส่ง/มารับน้อง — ชุดเดียวใช้ทุกหน้า (การ์ด "คิวของฉัน" + หน้าเลือกเวลาจากลิงก์ LINE)
@@ -18,6 +19,7 @@ export function TimeSlotPicker({
   disabled?: boolean;
 }) {
   const [custom, setCustom] = useState("");
+  const { L } = useL();
   // เวลาที่เคยกรอกเองไม่อยู่ในช่องสำเร็จรูป → โชว์ในช่องกรอกให้เห็นว่าเลือกไว้แล้ว
   const customValue = custom || (value && !TIME_SLOTS.includes(value) ? value : "");
 
@@ -42,7 +44,7 @@ export function TimeSlotPicker({
         ))}
       </div>
 
-      <p className="mb-1.5 mt-3 text-xs font-bold text-brown-soft">หรือกรอกเวลาเอง</p>
+      <p className="mb-1.5 mt-3 text-xs font-bold text-brown-soft">{L("หรือกรอกเวลาเอง", "Or enter a time")}</p>
       <div className="flex gap-2">
         <input
           type="time"
@@ -56,7 +58,7 @@ export function TimeSlotPicker({
           onClick={() => onPick(custom)}
           className="min-h-[44px] shrink-0 rounded-xl bg-honey/50 px-4 text-sm font-extrabold text-catcha-chocolate disabled:opacity-40"
         >
-          ใช้เวลานี้
+          {L("ใช้เวลานี้", "Use this time")}
         </button>
       </div>
     </div>

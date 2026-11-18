@@ -151,16 +151,20 @@ export default function CustomerHome() {
       >
         <div className="min-w-0">
           <p className="text-base font-extrabold text-catcha-chocolate">
-            🎫 กระเป๋าคูปองของฉัน
+            {locale === "en" ? "🎫 My coupon wallet" : "🎫 กระเป๋าคูปองของฉัน"}
           </p>
           <p className="mt-0.5 text-[11px] font-bold text-brown-soft">
             {on("referral")
-              ? `ชวนเพื่อนสมัคร รับคูปองคนละ ${referralReward(config).amount}฿`
-              : "คูปองส่วนลดของคุณ ใช้ที่ร้านได้เลย"}
+              ? locale === "en"
+                ? `Invite a friend: you each get a ${referralReward(config).amount}฿ coupon`
+                : `ชวนเพื่อนสมัคร รับคูปองคนละ ${referralReward(config).amount}฿`
+              : locale === "en"
+                ? "Your discount coupons, ready to use at the shop"
+                : "คูปองส่วนลดของคุณ ใช้ที่ร้านได้เลย"}
           </p>
         </div>
         <span className="flex shrink-0 items-center gap-1 rounded-full bg-latte-deep px-3.5 py-2 text-xs font-extrabold text-card shadow-catcha-sm">
-          {couponCount > 0 ? `${couponCount} ใบ` : "เปิด"} →
+          {couponCount > 0 ? (locale === "en" ? `${couponCount}` : `${couponCount} ใบ`) : locale === "en" ? "Open" : "เปิด"} →
         </span>
       </Link>
       )}

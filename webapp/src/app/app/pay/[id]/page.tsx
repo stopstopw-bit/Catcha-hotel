@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { stripDiscountTag } from "@/lib/line-discount";
+import { useL } from "@/components/LocaleProvider";
 
 type Invoice = {
   id: string;
@@ -44,6 +45,7 @@ export default function PayPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [failed, setFailed] = useState(false);
+  const { L } = useL();
 
   useEffect(() => {
     // t = โทเคนในลิงก์จากการ์ด LINE — ลูกค้าไม่ได้ล็อกอินหลังบ้าน จึงอ่าน /api/invoices ตรงๆ ไม่ได้
@@ -60,16 +62,16 @@ export default function PayPage() {
   if (failed) {
     return (
       <div className="px-4 pb-6 pt-5">
-        <PageHeader eyebrow="Payment" title="ชำระเงิน" back="/app" />
+        <PageHeader eyebrow="Payment" title={L("ชำระเงิน", "Payment")} back="/app" />
         <p className="mt-6 rounded-catcha border border-catcha-line bg-card p-4 text-sm text-brown-soft">
-          เปิดบิลนี้ไม่ได้ค่ะ ลองกดปุ่มจากการ์ดในแชท LINE อีกครั้ง หรือทักแชทให้ร้านส่งยอดให้ใหม่นะคะ
+          {L("เปิดบิลนี้ไม่ได้ค่ะ ลองกดปุ่มจากการ์ดในแชท LINE อีกครั้ง หรือทักแชทให้ร้านส่งยอดให้ใหม่นะคะ", "We couldn't open this bill. Tap the button on the LINE card again, or message us to resend it.")}
         </p>
       </div>
     );
   }
 
   if (!invoice) {
-    return <LoadingScreen message="กำลังโหลดข้อมูลบิล..." />;
+    return <LoadingScreen message={L("กำลังโหลดข้อมูลบิล...", "Loading bill...")} />;
   }
 
   // รับมัดจำไปแล้ว → ลูกค้าต้องเห็นยอดที่เหลือจริง ไม่ใช่ยอดเต็ม (เดิมโชว์ยอดเต็ม เสี่ยงโอนเกิน)
@@ -81,14 +83,14 @@ export default function PayPage() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow="Payment"
-        title="ชำระเงิน"
+        title={L("ชำระเงิน", "Payment")}
         subtitle={`${invoice.catName} · ${invoice.customerName}`}
         back="/app"
-        backLabel="กลับหน้าหลัก"
+        backLabel={L("กลับหน้าหลัก", "Back to home")}
         showLang={false}
       />
 
-      <SectionLabel>Bill · รายการ</SectionLabel>
+      <SectionLabel>{L("Bill · รายการ", "Bill")}</SectionLabel>
       <div className="overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
         <ul className="divide-y divide-catcha-line text-sm text-brown">
           {invoice.items.map((item, i) => {
@@ -114,7 +116,7 @@ export default function PayPage() {
                 {off > 0 && (
                   <div className="mt-0.5 flex justify-between gap-3 text-xs font-bold text-ok">
                     <span>
-                      ส่วนลด{item.discountName ? ` ${item.discountName}` : ""}
+                      {L("ส่วนลด", "Discount")}{item.discountName ? ` ${item.discountName}` : ""}
                       {item.discountPercent ? ` ${item.discountPercent}%` : ""}
                     </span>
                     <span>-{off.toLocaleString()} ฿</span>
@@ -125,7 +127,7 @@ export default function PayPage() {
           })}
           {invoice.discount > 0 && (
             <li className="flex justify-between gap-3 px-4 py-3 text-ok">
-              <span className="min-w-0">ส่วนลด{invoice.promoLabel ? ` (${invoice.promoLabel})` : ""}</span>
+              <span className="min-w-0">{L("ส่วนลด", "Discount")}{invoice.promoLabel ? ` (${invoice.promoLabel})` : ""}</span>
               <span className="shrink-0 font-bold">-{invoice.discount.toLocaleString()} ฿</span>
             </li>
           )}
@@ -133,21 +135,21 @@ export default function PayPage() {
         {paidDeposit > 0 && (
           <div className="space-y-1 border-t border-catcha-line px-4 py-3 text-sm">
             <div className="flex justify-between gap-3 text-brown">
-              <span>ยอดรวม</span>
+              <span>{L("ยอดรวม", "Total")}</span>
               <span className="font-bold">{invoice.total.toLocaleString()} ฿</span>
             </div>
             <div className="flex justify-between gap-3 text-ok">
-              <span>มัดจำที่ชำระแล้ว</span>
+              <span>{L("มัดจำที่ชำระแล้ว", "Deposit paid")}</span>
               <span className="font-bold">-{paidDeposit.toLocaleString()} ฿</span>
             </div>
           </div>
         )}
         <div className="flex items-end justify-between gap-3 bg-honey/15 px-4 py-4">
           <span className="text-xs font-bold text-brown-soft">
-            {paidDeposit > 0 ? "ยอดคงเหลือที่ต้องชำระ" : "ยอดรวม"}
+            {paidDeposit > 0 ? L("ยอดคงเหลือที่ต้องชำระ", "Balance due") : L("ยอดรวม", "Total")}
           </span>
           <span className="text-2xl font-extrabold text-latte-deep">
-            {due.toLocaleString()} <span className="text-sm">บาท</span>
+            {due.toLocaleString()} <span className="text-sm">{L("บาท", "THB")}</span>
           </span>
         </div>
       </div>
@@ -155,7 +157,7 @@ export default function PayPage() {
       {invoice.status === "paid" ? (
         <p className="mt-4 flex items-center justify-center gap-2 rounded-catcha bg-sage/20 p-4 text-sm font-bold text-ok">
           <Icon name="check" size={18} strokeWidth={2.4} />
-          ชำระเงินเรียบร้อยแล้ว
+          {L("ชำระเงินเรียบร้อยแล้ว", "Paid in full")}
         </p>
       ) : payment ? (
         <div className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
@@ -164,7 +166,7 @@ export default function PayPage() {
               <Icon name="card" size={20} />
             </span>
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-brown-soft">โอนเข้าบัญชี · {payment.bankName}</p>
+              <p className="text-[11px] font-bold text-brown-soft">{L("โอนเข้าบัญชี", "Transfer to")} · {payment.bankName}</p>
               <p className="text-lg font-extrabold tracking-wide text-catcha-chocolate">
                 {payment.accountNumber}
               </p>
@@ -172,7 +174,7 @@ export default function PayPage() {
             </div>
           </div>
           <p className="mt-3 text-[11px] text-brown-faint">
-            โอนแล้วแจ้งพนักงาน หรือรอระบบยืนยันอัตโนมัติ
+            {L("โอนแล้วแจ้งพนักงาน หรือรอระบบยืนยันอัตโนมัติ", "After transferring, let our staff know or wait for automatic confirmation.")}
           </p>
         </div>
       ) : null}
@@ -181,7 +183,7 @@ export default function PayPage() {
         href="/app"
         className="mt-5 flex min-h-[44px] items-center justify-center text-xs font-bold text-latte-deep"
       >
-        กลับหน้าหลัก
+        {L("กลับหน้าหลัก", "Back to home")}
       </Link>
     </div>
   );

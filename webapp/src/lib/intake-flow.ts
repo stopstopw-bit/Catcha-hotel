@@ -25,6 +25,14 @@ export const FLOW_STEP_LABEL: Record<FlowStep, string> = {
   consent: "อ่านกฎ + กดยินยอม",
 };
 
+export const FLOW_STEP_LABEL_EN: Record<FlowStep, string> = {
+  info: "Your cat's details",
+  vaccine: "Vaccination record",
+  idcard: "ID card",
+  time: "Drop-off time",
+  consent: "Rules & consent",
+};
+
 export function encodeFlow(tokens: FlowToken[]): string {
   return tokens.map((t) => (t.ids.length ? `${t.step}:${t.ids.join(".")}` : t.step)).join(",");
 }
@@ -85,7 +93,7 @@ export function firstFlowHref(params: URLSearchParams): string | null {
 export function flowProgress(params: URLSearchParams): {
   index: number;
   total: number;
-  next: { href: string; label: string } | null;
+  next: { href: string; label: string; labelEn: string } | null;
 } | null {
   const total = Number(params.get("n")) || 0;
   if (!total) return null;
@@ -95,6 +103,7 @@ export function flowProgress(params: URLSearchParams): {
     ? {
         href: flowStepHref(rest[0], rest.slice(1), { by, kind: params.get("fk") || "", total }),
         label: FLOW_STEP_LABEL[rest[0].step],
+        labelEn: FLOW_STEP_LABEL_EN[rest[0].step],
       }
     : null;
   return { index: total - rest.length, total, next };

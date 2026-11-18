@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LangSwitch } from "@/components/LangSwitch";
 import { Icon } from "@/components/Icon";
+import { useL } from "@/components/LocaleProvider";
 
 /** ปุ่มหลักของหน้า (มีได้หน้าละ 1 ปุ่ม) — เต็มความกว้าง สูง ≥ 48px */
 export const BTN_PRIMARY =
@@ -35,12 +36,13 @@ export function PageHeader({
   backLabel?: string;
   showLang?: boolean;
 }) {
+  const { L } = useL();
   return (
     <div className="mb-5 flex items-center gap-3">
       {back && (
         <Link
           href={back}
-          aria-label={backLabel || "ย้อนกลับ"}
+          aria-label={backLabel || L("ย้อนกลับ", "Back")}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card text-catcha-chocolate shadow-catcha-sm transition active:scale-95"
         >
           <Icon name="back" size={20} strokeWidth={2.2} />

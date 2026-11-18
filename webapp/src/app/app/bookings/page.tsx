@@ -15,6 +15,7 @@ import { bangkokToday } from "@/lib/bangkok-date";
 import { useConfig } from "@/components/ConfigProvider";
 import { isFeatureOn } from "@/lib/features";
 import { formatThaiDateShort } from "@/lib/format-thai-date";
+import { dateFor } from "@/lib/locale-date";
 import { FLOW_STEP_LABEL, flowStepHref, type FlowToken } from "@/lib/intake-flow";
 
 /** API ส่ง checkin มาด้วยจริง (ใช้จัดกลุ่มบ้านเดียวกัน/นัดเดียวกัน) แต่ type Booking กลางไม่มีฟิลด์นี้ */
@@ -55,6 +56,7 @@ const savedArrival = (b: BookingRow) => b.arrivalTime || b.checkinTime || "";
 
 function BookingsContent() {
   const { locale } = useLocale();
+  const fmtD = (d: string) => (locale === "en" ? dateFor(d, true) : formatThaiDateShort(d));
   const { profile, ready } = useLiff();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get("id");
@@ -163,9 +165,9 @@ function BookingsContent() {
                         : config.rooms.find((r) => r.id === primary.room)?.name || m.room}{" "}
                       ·{" "}
                       {primary.service === "room" && primary.checkin
-                        ? `${formatThaiDateShort(primary.checkin)}${primary.checkout ? ` → ${formatThaiDateShort(primary.checkout)}` : ""}`
+                        ? `${fmtD(primary.checkin)}${primary.checkout ? ` → ${fmtD(primary.checkout)}` : ""}`
                         : primary.date
-                          ? formatThaiDateShort(primary.date)
+                          ? fmtD(primary.date)
                           : ""}
                       {primary.time ? ` · ${primary.time}` : ""}
                     </p>
@@ -173,7 +175,7 @@ function BookingsContent() {
                       <p className="mt-0.5 flex items-center gap-1 text-xs text-brown-soft">
                         <Icon name="bath" size={13} />
                         {locale === "th" ? "อาบน้ำก่อนกลับ" : "Bath before going home"}{" "}
-                        {baths[0].date ? formatThaiDateShort(baths[0].date) : ""}
+                        {baths[0].date ? fmtD(baths[0].date) : ""}
                         {baths[0].time ? ` · ${baths[0].time}` : ""}
                       </p>
                     )}
@@ -245,13 +247,13 @@ function BookingsContent() {
                   savedArrival(primary) && (
                     <p className="mt-3 flex items-center gap-1.5 pl-[52px] text-xs font-semibold text-ok">
                       <Icon name="clock" size={14} />
-                      เวลามาส่งน้อง {savedArrival(primary)} น.
+                      {locale === "en" ? `Drop-off time ${savedArrival(primary)}` : `เวลามาส่งน้อง ${savedArrival(primary)} น.`}
                       {primary.status === "confirmed" && asksTime(primary) && (
                         <a
                           href={`/app/booking-time?id=${primary.id}&type=checkin`}
                           className="ml-auto inline-flex min-h-[44px] items-center px-1 font-bold text-brown-soft underline"
                         >
-                          เปลี่ยนเวลา
+                          {locale === "en" ? "Change time" : "เปลี่ยนเวลา"}
                         </a>
                       )}
                     </p>

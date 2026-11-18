@@ -1,14 +1,19 @@
+"use client";
+
 import Image from "next/image";
+import { useL } from "@/components/LocaleProvider";
 
 /**
  * หน้าจอรอโหลดของแอปลูกค้า — ใช้แทนข้อความ "กำลังโหลด…" เปล่าๆ ทุกจุด
  * ให้เห็นโลโก้ร้านแทนจอว่างระหว่างรอ API (LIFF บนมือถือบางทีโหลดช้า)
  */
 export function LoadingScreen({
-  message = "กำลังโหลดข้อมูล...",
+  message,
 }: {
   message?: string;
 }) {
+  const { L } = useL();
+  message = message ?? L("กำลังโหลดข้อมูล...", "Loading…");
   return (
     <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
       <div className="h-24 w-24 animate-bounce overflow-hidden rounded-full border border-catcha-line bg-[#fbf3e0] shadow-catcha">

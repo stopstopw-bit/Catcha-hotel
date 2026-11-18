@@ -6,7 +6,7 @@ import type { CustomerProfile } from "@/lib/business";
 import type { PointsHistoryEntry } from "@/lib/points-store";
 import type { CustomerTier } from "@/lib/customer-tier";
 import { firstFlowHref } from "@/lib/intake-flow";
-import { useLocale } from "@/components/LocaleProvider";
+import { trNow, useLocale } from "@/components/LocaleProvider";
 import {
   customerFetch,
   setCustomerSessionIssue,
@@ -257,7 +257,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     // ถ้าล็อกอิน LINE ค้างระหว่างทาง (redirect ไม่กลับมา) อย่าค้างจอเปล่าตลอดไป
     const stuckTimer = setTimeout(() => {
       setReady((r) => {
-        if (!r) setError("เข้าสู่ระบบช้ากว่าปกติ — ลองแตะปุ่มด้านล่างเพื่อโหลดใหม่");
+        if (!r) setError(trNow("เข้าสู่ระบบช้ากว่าปกติ — ลองแตะปุ่มด้านล่างเพื่อโหลดใหม่", "Signing in is taking longer than usual. Tap the button below to reload."));
         return r;
       });
     }, 10000);

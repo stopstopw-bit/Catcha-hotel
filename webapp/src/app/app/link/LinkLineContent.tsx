@@ -8,6 +8,8 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { BTN_PRIMARY, BTN_SECONDARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useL } from "@/components/LocaleProvider";
+import { trNow } from "@/components/LocaleProvider";
 
 type Preview = {
   id: string;
@@ -22,6 +24,7 @@ export function LinkLineContent() {
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId") || "";
   const { profile, ready, refreshCustomer } = useLiff();
+  const { L } = useL();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -31,16 +34,16 @@ export function LinkLineContent() {
   useEffect(() => {
     if (!customerId) {
       setLoading(false);
-      setError("ลิงก์ไม่ถูกต้อง");
+      setError(trNow("ลิงก์ไม่ถูกต้อง", "Invalid link"));
       return;
     }
     fetch(`/api/customers/link?customerId=${encodeURIComponent(customerId)}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.customer) setPreview(d.customer);
-        else setError(d.error || "ไม่พบลูกค้า");
+        else setError(d.error || trNow("ไม่พบลูกค้า", "Customer not found"));
       })
-      .catch(() => setError("โหลดข้อมูลไม่สำเร็จ"))
+      .catch(() => setError(trNow("โหลดข้อมูลไม่สำเร็จ", "Could not load")))
       .finally(() => setLoading(false));
   }, [customerId]);
 
@@ -62,26 +65,26 @@ export function LinkLineContent() {
     setLinking(false);
 
     if (!res.ok) {
-      setError(data.error || "ผูกไม่สำเร็จ");
+      setError(data.error || L("ผูกไม่สำเร็จ", "Could not link"));
       return;
     }
 
     await refreshCustomer();
     setDone(true);
-    savedPopup("ผูก LINE สำเร็จ", [], { afterNav: true });
+    savedPopup(L("ผูก LINE สำเร็จ", "LINE linked"), [], { afterNav: true });
     setTimeout(() => router.replace("/app"), 1500);
   };
 
   if (!ready || loading) {
-    return <LoadingScreen message="กำลังเชื่อมต่อ LINE…" />;
+    return <LoadingScreen message={L("กำลังเชื่อมต่อ LINE…", "Connecting to LINE…")} />;
   }
 
   if (!customerId || (!preview && error)) {
     return (
       <div className="px-4 pb-6 pt-5">
-        <PageHeader eyebrow="Link account" title="ผูกบัญชี LINE" showLang={false} />
+        <PageHeader eyebrow="Link account" title={L("ผูกบัญชี LINE", "Link LINE account")} showLang={false} />
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="alert" title={error || "ลิงก์ไม่ถูกต้อง"} />
+          <EmptyState icon="alert" title={error || L("ลิงก์ไม่ถูกต้อง", "Invalid link")} />
         </div>
       </div>
     );
@@ -95,7 +98,7 @@ export function LinkLineContent() {
             <Icon name="check" size={28} strokeWidth={2.4} />
           </span>
           <p className="mt-3 text-base font-extrabold text-catcha-chocolate">
-            ลูกค้ารายนี้ผูก LINE แล้ว
+            {L("ลูกค้ารายนี้ผูก LINE แล้ว", "This customer is already linked to LINE")}
           </p>
         </div>
         <button
@@ -104,7 +107,7 @@ export function LinkLineContent() {
           className={`mt-5 ${BTN_SECONDARY}`}
         >
           <Icon name="home" size={16} />
-          ไปหน้าแรก
+          {L("ไปหน้าแรก", "Go to home")}
         </button>
       </div>
     );
@@ -117,8 +120,8 @@ export function LinkLineContent() {
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-sage/25 text-ok">
             <Icon name="check" size={28} strokeWidth={2.4} />
           </span>
-          <p className="mt-3 text-base font-extrabold text-ok">ผูก LINE สำเร็จ!</p>
-          <p className="mt-1 text-xs text-brown-soft">กำลังพาไปหน้าแรก…</p>
+          <p className="mt-3 text-base font-extrabold text-ok">{L("ผูก LINE สำเร็จ!", "LINE linked!")}</p>
+          <p className="mt-1 text-xs text-brown-soft">{L("กำลังพาไปหน้าแรก…", "Taking you home…")}</p>
         </div>
       </div>
     );
@@ -128,8 +131,8 @@ export function LinkLineContent() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow="Link account"
-        title="ผูกบัญชี LINE"
-        subtitle="ร้านบันทึกข้อมูลไว้แล้ว — กดยืนยันเพื่อเชื่อมกับ LINE ของคุณ"
+        title={L("ผูกบัญชี LINE", "Link LINE account")}
+        subtitle={L("ร้านบันทึกข้อมูลไว้แล้ว — กดยืนยันเพื่อเชื่อมกับ LINE ของคุณ", "The shop has saved your details. Confirm to link them with your LINE.")}
         showLang={false}
       />
 
@@ -170,11 +173,11 @@ export function LinkLineContent() {
         className={BTN_PRIMARY}
       >
         {!linking && <Icon name="link" size={18} />}
-        {linking ? "กำลังผูก…" : "ยืนยันผูก LINE กับบัญชีนี้"}
+        {linking ? L("กำลังผูก…", "Linking…") : L("ยืนยันผูก LINE กับบัญชีนี้", "Link LINE to this account")}
       </button>
 
       <p className="mt-3 text-center text-[11px] text-brown-faint">
-        ชื่อ LINE: {profile?.displayName}
+        {L("ชื่อ LINE", "LINE name")}: {profile?.displayName}
       </p>
     </div>
   );

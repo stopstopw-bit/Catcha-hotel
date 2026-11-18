@@ -10,6 +10,8 @@ import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState, SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { ReviewSheet } from "@/components/ReviewSheet";
+import { useL } from "@/components/LocaleProvider";
+import { dateFor } from "@/lib/locale-date";
 
 type Bk = {
   id: string;
@@ -33,6 +35,8 @@ const field =
 function BookingTransportContent() {
   const id = useSearchParams().get("id") || "";
   const { profile } = useLiff();
+  const { L, en } = useL();
+  const fmtD = (d: string) => (en ? dateFor(d, true) : formatThaiDateShort(d));
 
   const [bk, setBk] = useState<Bk | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +69,7 @@ function BookingTransportContent() {
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setError("เครื่องนี้ส่งตำแหน่งไม่ได้ — วางลิงก์ Google Maps แทนได้เลยค่ะ");
+      setError(L("เครื่องนี้ส่งตำแหน่งไม่ได้ — วางลิงก์ Google Maps แทนได้เลยค่ะ", "This device can't share its location. Paste a Google Maps link instead."));
       return;
     }
     setLocating(true);
@@ -77,7 +81,7 @@ function BookingTransportContent() {
         setLocating(false);
       },
       () => {
-        setError("ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง — วางลิงก์ Google Maps แทนได้เลยค่ะ");
+        setError(L("ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง — วางลิงก์ Google Maps แทนได้เลยค่ะ", "Location permission wasn't given. Paste a Google Maps link instead."));
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 15000 }
@@ -87,7 +91,7 @@ function BookingTransportContent() {
   /** กดส่ง → เช็คว่ามีอย่างน้อย 1 ช่อง แล้วโชว์สรุปก่อน */
   const review = () => {
     if (!mapUrl.trim() && !address.trim()) {
-      setError("ใส่ลิงก์ Google Maps หรือที่อยู่อย่างน้อย 1 ช่องนะคะ");
+      setError(L("ใส่ลิงก์ Google Maps หรือที่อยู่อย่างน้อย 1 ช่องนะคะ", "Please fill in a Google Maps link or an address."));
       return;
     }
     setError("");
@@ -112,16 +116,16 @@ function BookingTransportContent() {
       if (res.ok) {
         setReviewing(false);
         setDone(true);
-        savedPopup("ส่งตำแหน่งสำเร็จ", ["ร้านได้รับที่อยู่รับ-ส่งแล้วค่ะ"]);
+        savedPopup(L("ส่งตำแหน่งสำเร็จ", "Location sent"), [L("ร้านได้รับที่อยู่รับ-ส่งแล้วค่ะ", "The shop has your pick-up/drop-off address")]);
       } else {
         setError(
           d.error === "bad_url"
-            ? "ลิงก์ไม่ถูกต้อง — คัดลอกลิงก์จากปุ่มแชร์ใน Google Maps มาวางได้เลยค่ะ"
-            : "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง หรือส่งตำแหน่งในแชท LINE ได้เลยค่ะ"
+            ? L("ลิงก์ไม่ถูกต้อง — คัดลอกลิงก์จากปุ่มแชร์ใน Google Maps มาวางได้เลยค่ะ", "Invalid link. Copy the link from the Share button in Google Maps and paste it here.")
+            : L("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง หรือส่งตำแหน่งในแชท LINE ได้เลยค่ะ", "Could not save. Try again, or send your location in the LINE chat.")
         );
       }
     } catch {
-      setError("เชื่อมต่อไม่สำเร็จ — เช็คสัญญาณอินเทอร์เน็ตแล้วลองใหม่นะคะ");
+      setError(L("เชื่อมต่อไม่สำเร็จ — เช็คสัญญาณอินเทอร์เน็ตแล้วลองใหม่นะคะ", "Couldn't connect. Check your internet and try again."));
     } finally {
       setSaving(false);
     }
@@ -143,14 +147,14 @@ function BookingTransportContent() {
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-sage/25 text-ok">
             <Icon name="check" size={28} strokeWidth={2.4} />
           </span>
-          <h1 className="mt-4 text-lg font-extrabold text-catcha-chocolate">ได้รับจุดรับ-ส่งแล้วค่ะ</h1>
+          <h1 className="mt-4 text-lg font-extrabold text-catcha-chocolate">{L("ได้รับจุดรับ-ส่งแล้วค่ะ", "We got your pick-up/drop-off point")}</h1>
           <p className="mt-2 text-sm leading-relaxed text-brown-soft">
-            พี่เลี้ยงจะติดต่อก่อนออกเดินทางนะคะ
+            {L("พี่เลี้ยงจะติดต่อก่อนออกเดินทางนะคะ", "Our staff will contact you before heading out.")}
             <br />
-            กลับไปที่แชท LINE ได้เลยค่ะ
+            {L("กลับไปที่แชท LINE ได้เลยค่ะ", "You can go back to the LINE chat now")}
           </p>
           <button type="button" onClick={finish} className={`mt-5 ${BTN_PRIMARY}`}>
-            กลับไปที่แชท
+            {L("กลับไปที่แชท", "Back to chat")}
           </button>
         </div>
       </div>
@@ -161,12 +165,12 @@ function BookingTransportContent() {
   const legs = bk
     ? [
         bk.pickup && {
-          label: "รับน้อง",
+          label: L("รับน้อง", "Pick up"),
           date: isRoom ? bk.checkin : bk.date,
           time: isRoom ? undefined : bk.time,
         },
         bk.dropoff && {
-          label: "ส่งน้องกลับบ้าน",
+          label: L("ส่งน้องกลับบ้าน", "Bring home"),
           date: isRoom ? bk.checkout : bk.date,
           time: undefined,
         },
@@ -177,9 +181,9 @@ function BookingTransportContent() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow="Pick-up & drop-off"
-        title="จุดรับ-ส่งน้อง"
+        title={L("จุดรับ-ส่งน้อง", "Pick-up & drop-off point")}
         back="/app"
-        backLabel="กลับหน้าแรก"
+        backLabel={L("กลับหน้าแรก", "Back to home")}
         showLang={false}
       />
 
@@ -187,11 +191,11 @@ function BookingTransportContent() {
         <LoadingScreen />
       ) : !bk ? (
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="calendar" title="ไม่พบข้อมูลการจอง" />
+          <EmptyState icon="calendar" title={L("ไม่พบข้อมูลการจอง", "Booking not found")} />
         </div>
       ) : !bk.pickup && !bk.dropoff ? (
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="car" title="นัดนี้ไม่ได้ใช้บริการรับ-ส่ง" sub="ถ้าต้องการรับ-ส่ง ทักแชท LINE ได้เลยค่ะ" />
+          <EmptyState icon="car" title={L("นัดนี้ไม่ได้ใช้บริการรับ-ส่ง", "This booking has no pick-up/drop-off")} sub={L("ถ้าต้องการรับ-ส่ง ทักแชท LINE ได้เลยค่ะ", "Message us on LINE if you need it")} />
         </div>
       ) : (
         <>
@@ -208,7 +212,7 @@ function BookingTransportContent() {
                   </span>
                   <span className="min-w-0 flex-1 text-sm font-bold text-brown">{l.label}</span>
                   <span className="shrink-0 text-xs text-brown-soft">
-                    {l.date ? formatThaiDateShort(l.date) : "—"}
+                    {l.date ? fmtD(l.date) : "—"}
                     {l.time ? ` · ${l.time}` : ""}
                   </span>
                 </li>
@@ -217,7 +221,7 @@ function BookingTransportContent() {
           </div>
 
           <section className="mt-5">
-            <SectionLabel>Location · จุดรับ-ส่ง</SectionLabel>
+            <SectionLabel>{L("Location · จุดรับ-ส่ง", "Location")}</SectionLabel>
             <div className="space-y-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
               <button
                 type="button"
@@ -226,11 +230,11 @@ function BookingTransportContent() {
                 className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-honey/40 px-3 text-sm font-extrabold text-catcha-chocolate disabled:opacity-50"
               >
                 <Icon name="pin" size={18} />
-                {locating ? "กำลังหาตำแหน่ง…" : "ใช้ตำแหน่งที่อยู่ตอนนี้"}
+                {locating ? L("กำลังหาตำแหน่ง…", "Finding location…") : L("ใช้ตำแหน่งที่อยู่ตอนนี้", "Use my current location")}
               </button>
 
               <div>
-                <p className="mb-1.5 text-xs font-bold text-brown-soft">หรือวางลิงก์ Google Maps</p>
+                <p className="mb-1.5 text-xs font-bold text-brown-soft">{L("หรือวางลิงก์ Google Maps", "Or paste a Google Maps link")}</p>
                 <input
                   value={mapUrl}
                   onChange={(e) => setMapUrl(e.target.value)}
@@ -239,7 +243,7 @@ function BookingTransportContent() {
                   className={field}
                 />
                 <p className="mt-1 text-[11px] text-brown-faint">
-                  เปิด Google Maps › ปักหมุด › แชร์ › คัดลอกลิงก์ แล้วนำมาวางที่นี่
+                  {L("เปิด Google Maps › ปักหมุด › แชร์ › คัดลอกลิงก์ แล้วนำมาวางที่นี่", "Open Google Maps › drop a pin › Share › Copy link, then paste it here")}
                 </p>
                 {mapUrl.trim() && /^https?:\/\//.test(mapUrl.trim()) && (
                   <a
@@ -249,18 +253,18 @@ function BookingTransportContent() {
                     className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-latte-deep underline-offset-2 hover:underline"
                   >
                     <Icon name="link" size={13} />
-                    เปิดดูแผนที่ที่ใส่ไว้
+                    {L("เปิดดูแผนที่ที่ใส่ไว้", "Open the saved map")}
                   </a>
                 )}
               </div>
 
               <div>
-                <p className="mb-1.5 text-xs font-bold text-brown-soft">ที่อยู่ / จุดสังเกต (ถ้ามี)</p>
+                <p className="mb-1.5 text-xs font-bold text-brown-soft">{L("ที่อยู่ / จุดสังเกต (ถ้ามี)", "Address / landmark (optional)")}</p>
                 <textarea
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   rows={3}
-                  placeholder="เช่น หมู่บ้าน… ซอย… บ้านรั้วสีขาว / คอนโดตึก B ฝากรปภ.ได้"
+                  placeholder={L("เช่น หมู่บ้าน… ซอย… บ้านรั้วสีขาว / คอนโดตึก B ฝากรปภ.ได้", "e.g. village, soi, white fence house / condo building B, leave with security")}
                   className={field}
                 />
               </div>
@@ -270,27 +274,27 @@ function BookingTransportContent() {
               )}
 
               <button type="button" disabled={saving} onClick={review} className={BTN_PRIMARY}>
-                {saving ? "กำลังบันทึก…" : bk.saved ? "บันทึกการแก้ไข" : "ส่งจุดรับ-ส่ง"}
+                {saving ? L("กำลังบันทึก…", "Saving…") : bk.saved ? L("บันทึกการแก้ไข", "Save changes") : L("ส่งจุดรับ-ส่ง", "Send location")}
               </button>
               <ReviewSheet
                 open={reviewing}
                 sections={[
                   {
-                    title: `จุดรับ-ส่ง${bk.catName ? ` · ${bk.catName}` : ""}`,
+                    title: `${L("จุดรับ-ส่ง", "Pick-up & drop-off")}${bk.catName ? ` · ${bk.catName}` : ""}`,
                     icon: "car",
                     rows: [
                       ...legs.map((l) => ({
                         label: l.label,
-                        value: [l.date ? formatThaiDateShort(l.date) : "", l.time || ""].filter(Boolean).join(" "),
+                        value: [l.date ? fmtD(l.date) : "", l.time || ""].filter(Boolean).join(" "),
                       })),
-                      { label: "ลิงก์ Google Maps", value: mapUrl.trim() },
-                      { label: "ที่อยู่ / จุดสังเกต", value: address.trim() },
+                      { label: L("ลิงก์ Google Maps", "Google Maps link"), value: mapUrl.trim() },
+                      { label: L("ที่อยู่ / จุดสังเกต", "Address / landmark"), value: address.trim() },
                     ],
                   },
                 ]}
                 saving={saving}
                 error={error}
-                confirmLabel={bk.saved ? "ยืนยัน บันทึกการแก้ไข" : "ยืนยัน ส่งจุดรับ-ส่ง"}
+                confirmLabel={bk.saved ? L("ยืนยัน บันทึกการแก้ไข", "Confirm and save changes") : L("ยืนยัน ส่งจุดรับ-ส่ง", "Confirm and send")}
                 onEdit={() => {
                   setReviewing(false);
                   setError("");

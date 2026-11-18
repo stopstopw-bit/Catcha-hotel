@@ -333,7 +333,7 @@ export default function RegisterPage() {
               ? `Referral code "${referralCode}" not found — check the spelling, or untick the box if you don't have one.`
               : "Sign-up failed — please try again."
           );
-        } else setError(data.error || "ลงทะเบียนไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ");
+        } else setError(data.error || L("ลงทะเบียนไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ", "Sign-up failed, please try again"));
         return;
       }
 
