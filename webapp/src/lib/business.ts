@@ -135,7 +135,7 @@ export const ROOMS: RoomType[] = [
     id: "mini-duo",
     name: "Mini Duo",
     size: "S+S",
-    price: 700,
+    price: 600,
     cats: { th: "1–3 แมว", en: "1–3 cats" },
     extra: { th: "แมวที่ 4 +50", en: "4th cat +50" },
     dimensions: { th: "180×100×110 ซม.", en: "180×100×110 cm" },
