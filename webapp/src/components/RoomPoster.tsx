@@ -1,4 +1,8 @@
+"use client";
+
 import Image from "next/image";
+import { useLocale } from "@/components/LocaleProvider";
+import { posterFor } from "@/lib/en-posters";
 
 /** แสดงโปสเตอร์ห้องเต็มใบ — ไม่ crop */
 export function RoomPoster({
@@ -12,12 +16,13 @@ export function RoomPoster({
   priority?: boolean;
   className?: string;
 }) {
+  const { locale } = useLocale();
   return (
     <div
       className={`overflow-hidden rounded-catcha border border-catcha-line bg-paper ${className}`}
     >
       <Image
-        src={src}
+        src={posterFor(src, locale)}
         alt={alt}
         width={1200}
         height={1600}
