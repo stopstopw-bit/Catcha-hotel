@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
 import Image from "next/image";
 import Link from "next/link";
+import { LangLink } from "@/components/LangLink";
 import { BUSINESS, ROOMS } from "@/lib/business";
 import { BLOG_POSTS } from "@/lib/blog-posts";
 import SiteFooter, { SocialLinks } from "@/components/SiteFooter";
@@ -145,14 +146,13 @@ export default async function HomePage() {
       {/* ── Hero ── */}
       <header className="bg-gradient-to-b from-honey/30 via-paper to-transparent">
         <div className="mx-auto flex max-w-5xl justify-end px-5 pt-4">
-          <Link
+          <LangLink
             href="/en"
-            hrefLang="en"
             lang="en"
             className="rounded-full border border-catcha-line bg-card px-3 py-1.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
           >
             🇬🇧 English
-          </Link>
+          </LangLink>
         </div>
         <div className="mx-auto grid max-w-5xl items-center gap-8 px-5 pb-12 pt-4 md:grid-cols-2 md:pb-16">
           <div className="text-center md:text-left">

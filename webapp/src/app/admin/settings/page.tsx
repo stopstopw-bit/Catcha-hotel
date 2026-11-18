@@ -16,7 +16,7 @@ import { FEATURES, FEATURE_GROUPS, isFeatureOn, type FeatureKey } from "@/lib/fe
 import { GROOM_EXTRA_CARDS, groomCardsOf } from "@/lib/intake-rules";
 import { REFERRAL_DEFAULT, referralReward } from "@/lib/referral";
 import { NumInput } from "@/components/NumInput";
-import { defaultEnPoster } from "@/lib/en-posters";
+import { defaultEnPoster, ROOM_EN_POSTERS } from "@/lib/en-posters";
 
 type Tab =
   | "features"
@@ -957,6 +957,7 @@ function RoomsTab({
             <EnPosterField
               value={room.imageEn || ""}
               thSrc={room.image}
+              defaultEn={ROOM_EN_POSTERS[room.id]}
               onChange={(v) => updateRoom(idx, { imageEn: v || undefined })}
             />
             <Field
@@ -2159,8 +2160,19 @@ function readImage(file: File, done: (url: string) => void) {
 }
 
 /** ช่องรูปภาษาอังกฤษ — ว่างไว้ = ใช้รูปอังกฤษเริ่มต้น (ถ้ามี) ไม่งั้นใช้รูปไทย */
-function EnPosterField({ value, thSrc, onChange }: { value: string; thSrc?: string; onChange: (v: string) => void }) {
-  const fallback = defaultEnPoster(thSrc);
+function EnPosterField({
+  value,
+  thSrc,
+  defaultEn,
+  onChange,
+}: {
+  value: string;
+  thSrc?: string;
+  /** รูปอังกฤษเริ่มต้นที่รู้อยู่แล้ว (เช่น ตาม id ห้อง) */
+  defaultEn?: string;
+  onChange: (v: string) => void;
+}) {
+  const fallback = defaultEn || defaultEnPoster(thSrc);
   return (
     <div>
       <PosterField

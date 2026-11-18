@@ -7,6 +7,7 @@ import { LineBookingCta, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { RoomPoster } from "@/components/RoomPoster";
+import { roomEnPoster } from "@/lib/en-posters";
 
 export default function RoomDetailClient({ roomId }: { roomId: string }) {
   const { locale } = useLocale();
@@ -39,7 +40,7 @@ export default function RoomDetailClient({ roomId }: { roomId: string }) {
         backLabel={m.back}
       />
 
-      <RoomPoster src={room.image} srcEn={room.imageEn} alt={room.name} priority className="shadow-catcha-sm" />
+      <RoomPoster src={room.image} srcEn={roomEnPoster(room)} alt={room.name} priority className="shadow-catcha-sm" />
       <p className="mt-2 text-center text-[11px] text-brown-faint">{m.posterHint}</p>
 
       <LineBookingCta locale={locale} />
