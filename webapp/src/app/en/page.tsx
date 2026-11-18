@@ -1,3 +1,4 @@
+import { FlagIcon } from "@/components/FlagIcon";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
@@ -107,7 +108,8 @@ export default async function EnglishPage() {
           lang="th"
           className="rounded-full border border-catcha-line bg-card px-3 py-1.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
         >
-          🇹🇭 ภาษาไทย
+          <FlagIcon lang="th" className="mr-1.5 align-[-0.125em]" />
+            ภาษาไทย
         </LangLink>
       </div>
 
