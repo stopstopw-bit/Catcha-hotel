@@ -4,9 +4,8 @@ import { useLocale } from "./LocaleProvider";
 import { useLiff } from "./LiffProvider";
 import { customerFetch } from "@/lib/customer-fetch";
 import type { Locale } from "@/lib/business";
+import { FlagIcon } from "./FlagIcon";
 
-/** ธงของแต่ละภาษา — ลูกค้าต่างชาติเห็นธงแล้วรู้ทันทีว่ากดตรงไหน */
-export const LANG_FLAG: Record<Locale, string> = { th: "🇹🇭", en: "🇬🇧" };
 const LANG_NAME: Record<Locale, string> = { th: "ไทย", en: "English" };
 
 /** เปลี่ยนภาษา + ลูกค้าที่สมัครแล้ว จำภาษาไว้ที่ร้าน (การ์ด LINE ต่อจากนี้ส่งภาษานี้) */
@@ -38,7 +37,7 @@ export function LangSwitch() {
       aria-label={locale === "th" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"}
       className="flex h-11 min-w-[44px] shrink-0 items-center justify-center gap-1 rounded-full border border-catcha-line bg-card px-3 text-xs font-bold text-brown-soft shadow-catcha-sm transition active:scale-95"
     >
-      <span className="text-base leading-none">{LANG_FLAG[next]}</span>
+      <FlagIcon lang={next} className="text-base" />
       {next === "en" ? "EN" : "ไทย"}
     </button>
   );
@@ -70,7 +69,7 @@ export function LanguagePicker({ className = "" }: { className?: string }) {
                 : "border-catcha-line bg-paper text-brown-soft"
             }`}
           >
-            <span className="text-2xl leading-none">{LANG_FLAG[l]}</span>
+            <FlagIcon lang={l} className="text-2xl" />
             {LANG_NAME[l]}
           </button>
         ))}

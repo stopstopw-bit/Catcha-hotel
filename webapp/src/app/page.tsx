@@ -1,3 +1,4 @@
+import { FlagIcon } from "@/components/FlagIcon";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isMarketingSite } from "@/lib/site-mode";
@@ -151,7 +152,8 @@ export default async function HomePage() {
             lang="en"
             className="rounded-full border border-catcha-line bg-card px-3 py-1.5 text-xs font-extrabold text-catcha-chocolate shadow-catcha-sm"
           >
-            🇬🇧 English
+            <FlagIcon lang="en" className="mr-1.5 align-[-0.125em]" />
+            English
           </LangLink>
         </div>
         <div className="mx-auto grid max-w-5xl items-center gap-8 px-5 pb-12 pt-4 md:grid-cols-2 md:pb-16">
