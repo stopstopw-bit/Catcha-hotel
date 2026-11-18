@@ -19,6 +19,8 @@ import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { IntakeFlowBar } from "@/components/IntakeFlowBar";
 import { flowProgress } from "@/lib/intake-flow";
 import { VaccinePoster } from "@/components/VaccinePoster";
+import { useLocale } from "@/components/LocaleProvider";
+import { posterFor } from "@/lib/en-posters";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
@@ -141,6 +143,7 @@ function ConsentContent() {
   const customerMode = params.get("mode") === "customer";
   const { profile, ready } = useLiff();
   const { config } = useConfig();
+  const { locale } = useLocale();
   const [booking, setBooking] = useState<StayBooking | null>(null);
   /** ชื่อน้องทุกตัวในนัดเดียวกัน — กดยอมรับครั้งเดียวได้ทั้งบ้าน */
   const [catLabel, setCatLabel] = useState("");
@@ -631,7 +634,7 @@ function ConsentContent() {
                 <div className="mt-3 overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/info/flea-rules-before-stay.jpg"
+                    src={posterFor("/info/flea-rules-before-stay.jpg", locale)}
                     alt="ก่อนเข้าพัก: วัคซีนครบตามกำหนด หยดยาเห็บหมัดภายใน 1 เดือน ส่งหลักฐานก่อนเข้าพัก หากตรวจพบเห็บหมัดระหว่างเข้าพัก มีค่าหยดยาเพิ่ม ค่าทำความสะอาดโรงแรม 2,000 บาท และรับผิดชอบค่าเสียหาย"
                     width={1254}
                     height={1254}
