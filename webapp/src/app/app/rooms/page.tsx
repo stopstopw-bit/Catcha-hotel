@@ -28,7 +28,7 @@ export default function RoomsPage() {
           <RoomCard key={room.id} room={room} locale={locale} />
         ))}
       </div>
-      <ContentBlocks blocks={config.roomsPageBlocks} />
+      <ContentBlocks blocks={config.roomsPageBlocks} locale={locale} />
     </div>
   );
 }

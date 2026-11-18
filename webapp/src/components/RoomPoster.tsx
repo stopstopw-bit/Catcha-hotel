@@ -7,11 +7,14 @@ import { posterFor } from "@/lib/en-posters";
 /** แสดงโปสเตอร์ห้องเต็มใบ — ไม่ crop */
 export function RoomPoster({
   src,
+  srcEn,
   alt,
   priority,
   className = "",
 }: {
   src: string;
+  /** รูปภาษาอังกฤษที่ร้านตั้งเอง (ว่าง = รูปอังกฤษเริ่มต้น ถ้ามี) */
+  srcEn?: string;
   alt: string;
   priority?: boolean;
   className?: string;
@@ -22,7 +25,7 @@ export function RoomPoster({
       className={`overflow-hidden rounded-catcha border border-catcha-line bg-paper ${className}`}
     >
       <Image
-        src={posterFor(src, locale)}
+        src={posterFor(src, locale, srcEn)}
         alt={alt}
         width={1200}
         height={1600}

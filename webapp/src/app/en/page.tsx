@@ -145,7 +145,7 @@ export default async function EnglishPage() {
       <p className="mt-1 text-xs text-brown-soft">Tap a picture to enlarge.</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {rooms.map((r) => {
-          const src = posterFor(r.image, "en");
+          const src = posterFor(r.image, "en", r.imageEn);
           return (
             <a
               key={r.id}

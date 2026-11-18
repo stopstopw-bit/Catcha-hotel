@@ -16,7 +16,8 @@ import { Icon } from "@/components/Icon";
 import { customerFetch } from "@/lib/customer-fetch";
 import { ReviewSheet, type ReviewSection } from "@/components/ReviewSheet";
 import { FormPosters } from "@/components/FormPosters";
-import { resolveFormPosters } from "@/lib/form-posters";
+import { resolveFormPostersFor } from "@/lib/form-posters";
+import { useLocale } from "@/components/LocaleProvider";
 
 type Answers = Record<string, string | string[]>;
 
@@ -72,6 +73,7 @@ function GroomInfoContent() {
     .filter(Boolean);
   const { profile } = useLiff();
   const { config, loading: configLoading } = useConfig();
+  const { locale } = useLocale();
 
   // คำถามทั้งหมด — ก่อนอาบน้ำ: ตามที่ร้านตั้งไว้ในหลังบ้าน · ก่อนเข้าพัก: ชุดการกิน/การดูแล (stay-form)
   const groomFields = useMemo(() => resolveGroomForm(config.groomForm), [config.groomForm]);
@@ -94,7 +96,7 @@ function GroomInfoContent() {
   const [isStay, setIsStay] = useState(kindParam === "stay");
   const fields = isStay ? stayFields : groomFields;
   // รูปหน้าแรกของฟอร์ม (ร้านตั้งเองในหลังบ้าน) — ไม่มีรูป = เข้าคำถามเลย
-  const posters = resolveFormPosters(config.formPosters, isStay ? "stay" : "groom");
+  const posters = resolveFormPostersFor(config.formPosters, isStay ? "stay" : "groom", locale);
   // ส่วนอาบน้ำของฟอร์มรวม — ข้อที่ซ้ำกับฟอร์มเข้าพักถามครั้งเดียว (ใช้คำตอบฝั่งเข้าพัก)
   const bathFields = useMemo(
     () =>

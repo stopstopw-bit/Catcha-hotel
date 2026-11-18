@@ -35,9 +35,18 @@ export const EN_POSTERS: Record<string, string> = {
   "/catalog/services/transport.jpg": `${D}/transport.jpg`,
 };
 
+/** รูปอังกฤษเริ่มต้นของรูปไทยนี้ (ไม่มี = "") — ใช้โชว์ในหลังบ้านว่าตอนนี้ลูกค้า English เห็นรูปอะไร */
+export function defaultEnPoster(src: string | undefined): string {
+  if (!src) return "";
+  const path = src.replace(/^https?:\/\/[^/]+/, "").split("?")[0];
+  return EN_POSTERS[path] ?? "";
+}
+
 /** คืน path รูปภาษาอังกฤษ ถ้าลูกค้าใช้ภาษาอังกฤษและมีรูปคู่กัน — ไม่งั้นคืนรูปเดิม */
-export function posterFor(src: string, locale: Locale | string | undefined): string {
-  if (locale !== "en" || !src) return src;
+export function posterFor(src: string, locale: Locale | string | undefined, en?: string): string {
+  if (locale !== "en") return src;
+  if (en && en.trim()) return en;
+  if (!src) return src;
   const path = src.replace(/^https?:\/\/[^/]+/, "").split("?")[0];
   return EN_POSTERS[path] ?? src;
 }

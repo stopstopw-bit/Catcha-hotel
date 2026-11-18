@@ -16,7 +16,10 @@ export function FormPosterEditor({
   hasDefault,
   onChange,
   onUseDefault,
+  title = "รูปในฟอร์ม",
 }: {
+  /** หัวข้อกล่อง */
+  title?: string;
   images: string[];
   hint: string;
   /** ข้อความตอนยังไม่มีรูป */
@@ -45,7 +48,7 @@ export function FormPosterEditor({
     <div className="rounded-catcha-sm border border-catcha-line bg-paper p-3">
       <p className="flex items-center gap-1.5 text-sm font-extrabold text-catcha-chocolate">
         <Icon name="image" size={16} />
-        รูปในฟอร์ม
+        {title}
       </p>
       <p className="mt-0.5 text-[11px] leading-relaxed text-brown-soft">{hint}</p>
 

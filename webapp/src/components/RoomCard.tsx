@@ -21,7 +21,7 @@ export function RoomCard({
       href={`/app/rooms/${room.id}`}
       className="block overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm transition active:scale-[0.99]"
     >
-      <RoomPoster src={room.image} alt={room.name} />
+      <RoomPoster src={room.image} srcEn={room.imageEn} alt={room.name} />
       <div className="flex min-h-[56px] items-center justify-between gap-2 px-4 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-extrabold text-catcha-chocolate">

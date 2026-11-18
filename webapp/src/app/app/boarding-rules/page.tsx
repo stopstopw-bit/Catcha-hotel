@@ -24,7 +24,7 @@ export default function BoardingRulesPage() {
           <EmptyState icon="doc" title={locale === "th" ? "ยังไม่มีข้อมูล" : "No content yet"} />
         </div>
       ) : (
-        <ContentBlocks blocks={blocks} />
+        <ContentBlocks blocks={blocks} locale={locale} />
       )}
     </div>
   );
