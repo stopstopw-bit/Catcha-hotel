@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useLiff } from "@/components/LiffProvider";
 import { customerFetch } from "@/lib/customer-fetch";
 import { thaiDateRange } from "@/lib/service-history-rows";
+import { useL } from "@/components/LocaleProvider";
+import { dateRangeFor } from "@/lib/locale-date";
 
 type CourseUse = {
   /** วันที่หัก (วันจ่ายบิล) */
@@ -40,25 +42,28 @@ type PendingCourse = {
   detail: string;
 };
 
-/** 2026-11-11 → 11 พ.ย. 2026 (ปี ค.ศ. ให้ตรงกับบิล) */
-function thaiDate(d?: string, withYear = true) {
+/** 2026-11-11 → 11 พ.ย. 2026 (ปี ค.ศ. ให้ตรงกับบิล) · อังกฤษ 11 Nov 2026 */
+function thaiDate(d?: string, en = false) {
   if (!d) return "";
   const dt = new Date(`${d.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(dt.getTime())) return d;
-  return dt.toLocaleDateString("th-TH", {
+  return dt.toLocaleDateString(en ? "en-GB" : "th-TH", {
     day: "numeric",
     month: "short",
-    ...(withYear ? { year: "numeric" } : {}),
+    year: "numeric",
     calendar: "gregory",
   });
 }
 
-function describeUse(u: CourseUse, unit: string) {
+function describeUse(u: CourseUse, unit: string, en = false) {
   const amount = `${u.units} ${unit}`;
   if (u.checkin && u.checkout) {
-    return { main: `เข้าพัก ${thaiDateRange(u.checkin, u.checkout)}`, amount };
+    return {
+      main: en ? `Stay ${dateRangeFor(u.checkin, u.checkout, true)}` : `เข้าพัก ${thaiDateRange(u.checkin, u.checkout)}`,
+      amount,
+    };
   }
-  return { main: `ใช้วันที่ ${thaiDate(u.date)}`, amount };
+  return { main: en ? `Used on ${thaiDate(u.date, true)}` : `ใช้วันที่ ${thaiDate(u.date)}`, amount };
 }
 
 /**
@@ -74,6 +79,7 @@ export function MyPackagesSection({
   onChecked?: (hasPackages: boolean) => void;
 }) {
   const { profile } = useLiff();
+  const { L, en } = useL();
   const [packages, setPackages] = useState<CustomerPackage[]>([]);
   const [pending, setPending] = useState<PendingCourse[]>([]);
   const [open, setOpen] = useState<string | null>(null);
@@ -115,7 +121,7 @@ export function MyPackagesSection({
 
   return (
     <section className="mb-4 rounded-catcha border-2 border-latte/50 bg-gradient-to-br from-latte/20 via-card to-honey/10 p-4 shadow-catcha">
-      <p className="mb-2 text-sm font-extrabold text-catcha-chocolate">🎫 คอร์สของฉัน</p>
+      <p className="mb-2 text-sm font-extrabold text-catcha-chocolate">🎫 {L("คอร์สของฉัน", "My packages")}</p>
       <div className="space-y-2">
         {pending.map((c) => (
           <div
@@ -125,15 +131,15 @@ export function MyPackagesSection({
             <div className="flex items-start justify-between gap-2">
               <p className="min-w-0 text-sm font-extrabold text-brown">{c.name}</p>
               <span className="shrink-0 rounded-full bg-honey/30 px-2 py-0.5 text-[10px] font-bold text-wait">
-                รอชำระ
+                {L("รอชำระ", "Awaiting payment")}
               </span>
             </div>
             <p className="mt-0.5 text-[11px] text-brown-soft">
               {c.detail}
-              {c.remaining > 0 && ` · ค้าง ${Math.round(c.remaining).toLocaleString()} บาท`}
+              {c.remaining > 0 && L(` · ค้าง ${Math.round(c.remaining).toLocaleString()} บาท`, ` · ${Math.round(c.remaining).toLocaleString()} THB outstanding`)}
             </p>
             <p className="mt-1 text-[10px] text-brown-faint">
-              จ่ายครบแล้วคอร์สจะเข้าบัญชีให้อัตโนมัติค่ะ
+              {L("จ่ายครบแล้วคอร์สจะเข้าบัญชีให้อัตโนมัติค่ะ", "The package is added automatically once fully paid.")}
             </p>
           </div>
         ))}
@@ -141,7 +147,7 @@ export function MyPackagesSection({
         {sorted.map((p) => {
           const left = Math.max(0, p.totalUses - p.usedUses);
           const usedUp = left === 0;
-          const unit = p.unit === "night" ? "คืน" : "ครั้ง";
+          const unit = p.unit === "night" ? L("คืน", "nights") : L("ครั้ง", "uses");
           const usedPct = p.totalUses > 0 ? Math.min(100, (p.usedUses / p.totalUses) * 100) : 0;
           const uses = p.uses || [];
           const isOpen = open === p.id;
@@ -161,7 +167,7 @@ export function MyPackagesSection({
                         : "bg-sage/30 text-ok"
                   }`}
                 >
-                  {p.locked ? "🔒 รอจ่ายครบ" : usedUp ? "ใช้ครบแล้ว" : "ใช้ได้"}
+                  {p.locked ? L("🔒 รอจ่ายครบ", "🔒 Awaiting full payment") : usedUp ? L("ใช้ครบแล้ว", "Used up") : L("ใช้ได้", "Active")}
                 </span>
               </div>
 
@@ -169,11 +175,11 @@ export function MyPackagesSection({
                 <p className="text-2xl font-extrabold leading-none text-latte-deep">
                   {left}
                   <span className="ml-1 text-xs font-bold text-brown-faint">
-                    / {p.totalUses} {unit} เหลือ
+                    / {p.totalUses} {unit} {L("เหลือ", "left")}
                   </span>
                 </p>
                 <p className="text-[11px] font-bold text-brown-soft">
-                  ใช้ไป {p.usedUses} {unit}
+                  {L("ใช้ไป", "Used")} {p.usedUses} {unit}
                 </p>
               </div>
 
@@ -186,13 +192,13 @@ export function MyPackagesSection({
               </div>
 
               <p className="mt-1.5 text-[11px] leading-relaxed text-brown-soft">
-                {p.roomLabel && <>ใช้กับ{p.roomLabel} · </>}
-                {p.createdAt && <>ซื้อเมื่อ {thaiDate(p.createdAt)}</>}
-                {p.unit === "night" && <> · ไม่มีวันหมดอายุ</>}
+                {p.roomLabel && <>{en ? `For ${p.roomLabel.replace(/^ห้อง\s*/, "")} room` : `ใช้กับ${p.roomLabel}`} · </>}
+                {p.createdAt && <>{L("ซื้อเมื่อ", "Bought")} {thaiDate(p.createdAt, en)}</>}
+                {p.unit === "night" && <> · {L("ไม่มีวันหมดอายุ", "never expires")}</>}
               </p>
               {p.locked && (
                 <p className="mt-0.5 text-[11px] font-bold text-wait">
-                  ใช้ได้เมื่อจ่ายครบ (ค้าง {Math.round(p.outstanding || 0).toLocaleString()} บาท)
+                  {L("ใช้ได้เมื่อจ่ายครบ (ค้าง", "Usable once fully paid (")} {Math.round(p.outstanding || 0).toLocaleString()} {L("บาท)", "THB outstanding)")}
                 </p>
               )}
 
@@ -204,12 +210,12 @@ export function MyPackagesSection({
                     aria-expanded={isOpen}
                     className="mt-2 w-full rounded-catcha-sm border border-catcha-line bg-card/70 px-3 py-1.5 text-[11px] font-bold text-latte-deep active:scale-[0.99]"
                   >
-                    {isOpen ? "ซ่อนประวัติการใช้ ▲" : `ดูประวัติการใช้ (${uses.length}) ▼`}
+                    {isOpen ? L("ซ่อนประวัติการใช้ ▲", "Hide usage history ▲") : L(`ดูประวัติการใช้ (${uses.length}) ▼`, `View usage history (${uses.length}) ▼`)}
                   </button>
                   {isOpen && (
                     <ul className="mt-1.5 divide-y divide-catcha-line overflow-hidden rounded-catcha-sm border border-catcha-line bg-card text-[11px]">
                       {uses.map((u, i) => {
-                        const l = describeUse(u, unit);
+                        const l = describeUse(u, unit, en);
                         return (
                           <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
                             <span className="min-w-0">
@@ -233,7 +239,7 @@ export function MyPackagesSection({
         })}
       </div>
       <p className="mt-2 text-[10px] text-brown-faint">
-        ใช้ได้เลยตอนมาใช้บริการ — แจ้งร้านได้ว่าจะหักจากคอร์สนะคะ 🧡
+        {L("ใช้ได้เลยตอนมาใช้บริการ — แจ้งร้านได้ว่าจะหักจากคอร์สนะคะ 🧡", "Use it at your next visit — just tell us to deduct from your package 🧡")}
       </p>
     </section>
   );

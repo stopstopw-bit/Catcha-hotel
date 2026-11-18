@@ -18,6 +18,8 @@ import { ReviewSheet, type ReviewSection } from "@/components/ReviewSheet";
 import { FormPosters } from "@/components/FormPosters";
 import { resolveFormPostersFor } from "@/lib/form-posters";
 import { useLocale } from "@/components/LocaleProvider";
+import { useL } from "@/components/LocaleProvider";
+import { GROOM_FIELDS_EN, STAY_FIELDS_EN, localizeFormFields } from "@/lib/form-fields-en";
 
 type Answers = Record<string, string | string[]>;
 
@@ -74,10 +76,17 @@ function GroomInfoContent() {
   const { profile } = useLiff();
   const { config, loading: configLoading } = useConfig();
   const { locale } = useLocale();
+  const { L } = useL();
 
   // คำถามทั้งหมด — ก่อนอาบน้ำ: ตามที่ร้านตั้งไว้ในหลังบ้าน · ก่อนเข้าพัก: ชุดการกิน/การดูแล (stay-form)
-  const groomFields = useMemo(() => resolveGroomForm(config.groomForm), [config.groomForm]);
-  const stayFields = useMemo(() => resolveStayForm(config.stayForm), [config.stayForm]);
+  const groomFields = useMemo(
+    () => localizeFormFields(resolveGroomForm(config.groomForm), GROOM_FIELDS_EN, locale),
+    [config.groomForm, locale]
+  );
+  const stayFields = useMemo(
+    () => localizeFormFields(resolveStayForm(config.stayForm), STAY_FIELDS_EN, locale),
+    [config.stayForm, locale]
+  );
 
   const [forms, setForms] = useState<CatForm[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +96,7 @@ function GroomInfoContent() {
   const [attempted, setAttempted] = useState(false);
   // ป๊อปอัปสรุปให้ลูกค้าเช็คก่อนส่งจริง
   const [reviewing, setReviewing] = useState(false);
-  // ฟอร์มก่อนอาบน้ำ: หน้าแรกเป็นโปสเตอร์ "ข้อมูลก่อนพาน้องแมวมาอาบน้ำ" → กดปุ่มแล้วค่อยเริ่มตอบคำถาม
+  // ฟอร์มก่อนอาบน้ำ: หน้าแรกเป็นโปสเตอร์ L("ข้อมูลก่อนพาน้องแมวมาอาบน้ำ", "Before bringing your cat for grooming") → กดปุ่มแล้วค่อยเริ่มตอบคำถาม
   const [introDone, setIntroDone] = useState(false);
   // โหลดไม่ขึ้นเพราะอะไร — ยืนยัน LINE ไม่ผ่าน กับ หาน้อง/นัดไม่เจอ ต้องบอกลูกค้าคนละแบบ
   const [loadError, setLoadError] = useState("");
@@ -112,7 +121,7 @@ function GroomInfoContent() {
       setLoading(false);
       return;
     }
-    // รอเชื่อม LINE เสร็จก่อน (ได้คุกกี้เซสชันลูกค้า) — ยิงก่อนจะโดน 401 แล้วขึ้น "ไม่พบข้อมูลการนัด"
+    // รอเชื่อม LINE เสร็จก่อน (ได้คุกกี้เซสชันลูกค้า) — ยิงก่อนจะโดน 401 แล้วขึ้น L("ไม่พบข้อมูลการนัด", "Booking not found")
     if (!profile?.lineUserId) return;
     Promise.all(
       ids.map((id) =>
@@ -217,7 +226,7 @@ function GroomInfoContent() {
     if (forms.length === 0) return;
     setAttempted(true);
     if (forms.some((f) => missingKeys(f).length > 0)) {
-      setSaveError("กรุณาตอบให้ครบทุกข้อที่มีเครื่องหมาย * ก่อนส่งข้อมูลนะคะ 🙏");
+      setSaveError(L("กรุณาตอบให้ครบทุกข้อที่มีเครื่องหมาย * ก่อนส่งข้อมูลนะคะ 🙏", "Please answer every question marked * before sending 🙏"));
       return;
     }
     setSaveError("");
@@ -239,14 +248,14 @@ function GroomInfoContent() {
         };
         if (fd.type === "single") return { label, value: v ? optLabel(String(v)) : "" };
         if (fd.type === "multi") return { label, value: ((v as string[]) || []).map(optLabel) };
-        if (fd.hasUnknownToggle && f.weightUnknown) return { label, value: "ไม่ทราบ" };
+        if (fd.hasUnknownToggle && f.weightUnknown) return { label, value: L("ไม่ทราบ", "Unknown") };
         return { label, value: String(v || "") };
       };
       const own = visible.filter((fd) => !fd.key.startsWith(BATH_PREFIX)).map(row);
       const bath = visible.filter((fd) => fd.key.startsWith(BATH_PREFIX)).map(row);
       return [
         { title: f.catName, icon: "paw", rows: own },
-        ...(bath.length ? [{ title: `${f.catName} · ก่อนอาบน้ำ`, icon: "bath", rows: bath }] : []),
+        ...(bath.length ? [{ title: `${f.catName} · ${L("ก่อนอาบน้ำ", "before bath")}`, icon: "bath", rows: bath }] : []),
       ];
     });
 
@@ -282,12 +291,12 @@ function GroomInfoContent() {
         })
       );
       if (!results.every(Boolean)) {
-        setSaveError("บันทึกไม่สำเร็จบางตัว — ลองใหม่อีกครั้ง หรือแจ้งพนักงานที่ร้านได้เลยค่ะ");
+        setSaveError(L("บันทึกไม่สำเร็จบางตัว — ลองใหม่อีกครั้ง หรือแจ้งพนักงานที่ร้านได้เลยค่ะ", "Some could not be saved. Try again, or let our staff know."));
         return;
       }
       // มาจากการ์ดรวมขอข้อมูล → ไปขั้นต่อไปเลย (สมุดวัคซีน / บัตร / กฎ) ไม่ปิดหน้า
       if (nextStep) {
-        savedPopup("บันทึกข้อมูลน้องสำเร็จ", ["ไปขั้นต่อไปกันเลยค่ะ"], { afterNav: true });
+        savedPopup(L("บันทึกข้อมูลน้องสำเร็จ", "Saved"), [L("ไปขั้นต่อไปกันเลยค่ะ", "On to the next step")], { afterNav: true });
         window.location.href = nextStep.href;
         return;
       }
@@ -302,9 +311,9 @@ function GroomInfoContent() {
       }
       setReviewing(false);
       setDone(true);
-      savedPopup("บันทึกข้อมูลน้องสำเร็จ");
+      savedPopup(L("บันทึกข้อมูลน้องสำเร็จ", "Saved"));
     } catch {
-      setSaveError("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง หรือแจ้งพนักงานที่ร้านได้เลยค่ะ");
+      setSaveError(L("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง หรือแจ้งพนักงานที่ร้านได้เลยค่ะ", "Could not save. Try again, or let our staff know."));
     } finally {
       setSaving(false);
     }
@@ -339,12 +348,15 @@ function GroomInfoContent() {
           <Icon name="check" size={28} strokeWidth={2.4} />
         </span>
         <h1 className="mt-4 text-lg font-extrabold text-catcha-chocolate">
-          ขอบคุณที่แจ้งประวัติน้องนะคะ!
+          {L("ขอบคุณที่แจ้งประวัติน้องนะคะ!", "Thank you for telling us about your cat!")}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-brown-soft">
-          เราจะดูแล{forms.map((f) => f.catName).join(", ") || "น้อง"}อย่างระมัดระวังที่สุด 🐱
+          {L(
+            `เราจะดูแล${forms.map((f) => f.catName).join(", ") || "น้อง"}อย่างระมัดระวังที่สุด 🐱`,
+            `We will take the very best care of ${forms.map((f) => f.catName).join(", ") || "your cat"} 🐱`
+          )}
           <br />
-          กลับไปที่แชท LINE ได้เลยค่ะ
+          {L("กลับไปที่แชท LINE ได้เลยค่ะ", "You can go back to the LINE chat now")}
         </p>
         </div>
       </div>
@@ -358,9 +370,9 @@ function GroomInfoContent() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow={isStay ? "Before your stay" : "Before grooming"}
-        title={isStay ? (forms.some((f) => f.bath) ? "ข้อมูลน้องก่อนเข้าพัก + อาบน้ำ" : "ข้อมูลน้องก่อนเข้าพัก") : "ประวัติน้องก่อนอาบน้ำ"}
+        title={isStay ? (forms.some((f) => f.bath) ? L("ข้อมูลน้องก่อนเข้าพัก + อาบน้ำ", "Before your stay + bath") : L("ข้อมูลน้องก่อนเข้าพัก", "Before your stay")) : L("ประวัติน้องก่อนอาบน้ำ", "Before grooming")}
         back="/app"
-        backLabel="กลับหน้าแรก"
+        backLabel={L("กลับหน้าแรก", "Back to home")}
         showLang={false}
       />
       <IntakeFlowBar mode="progress" />
@@ -371,7 +383,7 @@ function GroomInfoContent() {
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
           <EmptyState
             icon="calendar"
-            title={loadError || (catMode ? "ไม่พบข้อมูลน้องในบัญชี LINE นี้" : "ไม่พบข้อมูลการนัด")}
+            title={loadError || (catMode ? L("ไม่พบข้อมูลน้องในบัญชี LINE นี้", "No cats found for this LINE account") : L("ไม่พบข้อมูลการนัด", "Booking not found"))}
           />
         </div>
       ) : configLoading ? (
@@ -380,7 +392,7 @@ function GroomInfoContent() {
         <>
           <FormPosters
             images={posters}
-            alt={isStay ? "เงื่อนไขสำคัญในการเข้าพัก" : "ข้อมูลก่อนพาน้องแมวมาอาบน้ำ"}
+            alt={isStay ? L("เงื่อนไขสำคัญในการเข้าพัก", "Important stay conditions") : L("ข้อมูลก่อนพาน้องแมวมาอาบน้ำ", "Before bringing your cat for grooming")}
           />
           <button
             type="button"
@@ -390,7 +402,7 @@ function GroomInfoContent() {
             }}
             className={`${BTN_PRIMARY} mt-4 w-full`}
           >
-            อ่านแล้ว เริ่มกรอกข้อมูลน้อง
+            {L("อ่านแล้ว เริ่มกรอกข้อมูลน้อง", "I've read this, start the form")}
             <Icon name="chevron" size={16} />
           </button>
         </>
@@ -399,7 +411,7 @@ function GroomInfoContent() {
           {forms.length > 1 && (
             <p className="flex items-center gap-1.5 rounded-catcha-sm bg-honey/20 px-3 py-2 text-xs font-bold text-catcha-chocolate">
               <Icon name="paw" size={14} />
-              มีน้อง {forms.length} ตัว — รบกวนกรอกให้ครบทุกตัวนะคะ
+              {L(`มีน้อง ${forms.length} ตัว — รบกวนกรอกให้ครบทุกตัวนะคะ`, `${forms.length} cats, please fill in each one`)}
             </p>
           )}
 
@@ -423,12 +435,12 @@ function GroomInfoContent() {
                     className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-catcha-sm border border-dashed border-latte/60 bg-honey/10 px-3 text-xs font-bold text-latte-deep"
                   >
                     <Icon name="copy" size={15} />
-                    ตอบเหมือน{forms[0].catName} (แก้เฉพาะข้อที่ต่างได้)
+                    {L(`ตอบเหมือน${forms[0].catName} (แก้เฉพาะข้อที่ต่างได้)`, `Same answers as ${forms[0].catName} (edit what differs)`)}
                   </button>
                 )}
                 {forms.length === 1 && (
                   <p className="mt-1 text-xs text-brown-soft">
-                    เพื่อความปลอดภัยของน้อง 🧡 รบกวนแจ้งข้อมูลสั้นๆ ให้เราเตรียมดูแลน้องได้ถูกวิธีนะคะ
+                    {L("เพื่อความปลอดภัยของน้อง 🧡 รบกวนแจ้งข้อมูลสั้นๆ ให้เราเตรียมดูแลน้องได้ถูกวิธีนะคะ", "For your cat's safety 🧡 a few quick details help us care for them the right way.")}
                   </p>
                 )}
 
@@ -441,10 +453,10 @@ function GroomInfoContent() {
                         <div className="mt-5 border-t border-catcha-line pt-4">
                           <p className="flex items-center gap-1.5 text-sm font-extrabold text-catcha-chocolate">
                             <Icon name="bath" size={16} />
-                            ก่อนอาบน้ำ (อาบก่อนกลับบ้าน)
+                            {L("ก่อนอาบน้ำ (อาบก่อนกลับบ้าน)", "Before the bath (bath before going home)")}
                           </p>
                           <p className="mt-0.5 text-[11px] text-brown-faint">
-                            น้องอาบน้ำก่อนกลับด้วย ขอถามเพิ่มอีกนิด ข้อที่ตอบไปแล้วด้านบนไม่ถามซ้ำค่ะ
+                            {L("น้องอาบน้ำก่อนกลับด้วย ขอถามเพิ่มอีกนิด ข้อที่ตอบไปแล้วด้านบนไม่ถามซ้ำค่ะ", "Your cat is also getting a bath before going home. Just a few more questions, we won't repeat the ones above.")}
                           </p>
                         </div>
                       )}
@@ -457,12 +469,12 @@ function GroomInfoContent() {
                         {fd.required && " *"}
                         {isMissing &&
                           (pickedOther(fd, value)
-                            ? " — กรุณาพิมพ์รายละเอียดในช่อง อื่นๆ"
+                            ? L(" — กรุณาพิมพ์รายละเอียดในช่อง อื่นๆ", " — please type details in Other")
                             : fd.type === "multi"
-                            ? " — กรุณาเลือกอย่างน้อย 1 ข้อ"
+                            ? L(" — กรุณาเลือกอย่างน้อย 1 ข้อ", " — please choose at least one")
                             : fd.type === "single"
-                              ? " — กรุณาเลือก"
-                              : " — กรุณากรอก")}
+                              ? L(" — กรุณาเลือก", " — please choose")
+                              : L(" — กรุณากรอก", " — please fill in"))}
                       </p>
 
                       {fd.type === "single" && (
@@ -495,7 +507,7 @@ function GroomInfoContent() {
                         <input
                           value={String(f.answers[otherTextKey(fd.key)] || "")}
                           onChange={(e) => setAnswer(idx, otherTextKey(fd.key), e.target.value)}
-                          placeholder="พิมพ์เพิ่มเติม (อื่นๆ)"
+                          placeholder={L("พิมพ์เพิ่มเติม (อื่นๆ)", "Type details (other)")}
                           maxLength={300}
                           autoFocus
                           className={`${inputClass} mt-2`}
@@ -528,7 +540,7 @@ function GroomInfoContent() {
                                 }
                                 className="h-5 w-5 accent-[#4A7348]"
                               />
-                              ไม่ทราบน้ำหนัก
+                              {L("ไม่ทราบน้ำหนัก", "Weight unknown")}
                             </label>
                           )}
                         </>
@@ -564,12 +576,12 @@ function GroomInfoContent() {
           >
             {!saving && <Icon name="send" size={18} />}
             {saving
-              ? "กำลังบันทึก…"
+              ? L("กำลังบันทึก…", "Saving…")
               : nextStep
-                ? `บันทึก แล้วไปขั้นต่อไป: ${nextStep.label}`
+                ? L(`บันทึก แล้วไปขั้นต่อไป: ${nextStep.label}`, `Save and continue: ${nextStep.labelEn}`)
                 : forms.length > 1
-                  ? `ส่งข้อมูลให้ร้าน (${forms.length} ตัว)`
-                  : "ส่งข้อมูลให้ร้าน"}
+                  ? L(`ส่งข้อมูลให้ร้าน (${forms.length} ตัว)`, `Send to the shop (${forms.length} cats)`)
+                  : L("ส่งข้อมูลให้ร้าน", "Send to the shop")}
           </button>
           <ReviewSheet
             open={reviewing}
@@ -578,10 +590,10 @@ function GroomInfoContent() {
             error={saveError}
             confirmLabel={
               nextStep
-                ? "ยืนยัน แล้วไปขั้นต่อไป"
+                ? L("ยืนยัน แล้วไปขั้นต่อไป", "Confirm and continue")
                 : forms.length > 1
-                  ? `ยืนยัน ส่งข้อมูล (${forms.length} ตัว)`
-                  : "ยืนยัน ส่งข้อมูล"
+                  ? L(`ยืนยัน ส่งข้อมูล (${forms.length} ตัว)`, `Confirm and send (${forms.length} cats)`)
+                  : L("ยืนยัน ส่งข้อมูล", "Confirm and send")
             }
             onEdit={() => {
               setReviewing(false);

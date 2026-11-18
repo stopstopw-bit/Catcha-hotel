@@ -7,12 +7,6 @@ import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import type { Booking } from "@/lib/business";
 
-import {
-  DEEMED_CONSENT_NOTICE,
-  DEEMED_GROOM_CONSENT_NOTICE,
-  GROOM_CONSENT_CONFIRM,
-  consentTextFor,
-} from "@/lib/messages";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { toJpegDataUrl } from "@/lib/image-convert";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
@@ -29,6 +23,9 @@ import { customerFetch } from "@/lib/customer-fetch";
 import { isFeatureOn } from "@/lib/features";
 import { bookingGroupKey, groupCatNames, stayForGroom } from "@/lib/booking-group";
 import { formatThaiDateShort, roomWithWord } from "@/lib/format-thai-date";
+import { useL } from "@/components/LocaleProvider";
+import { dateFor } from "@/lib/locale-date";
+import { consentNoticesFor, consentTextForLocale } from "@/lib/consent-en";
 
 type StayBooking = Booking & {
   checkin?: string;
@@ -43,6 +40,7 @@ function SignaturePad({
 }: {
   onChange: (dataUrl: string) => void;
 }) {
+  const { L } = useL();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const hasDrawn = useRef(false);
@@ -118,7 +116,7 @@ function SignaturePad({
         className="-ml-1 mt-1 flex min-h-[44px] items-center gap-1.5 px-1 text-xs font-bold text-brown-soft"
       >
         <Icon name="x" size={14} />
-        ล้างลายเซ็น
+        {L("ล้างลายเซ็น", "Clear signature")}
       </button>
     </div>
   );
@@ -144,6 +142,7 @@ function ConsentContent() {
   const { profile, ready } = useLiff();
   const { config } = useConfig();
   const { locale } = useLocale();
+  const { L, en } = useL();
   const [booking, setBooking] = useState<StayBooking | null>(null);
   /** ชื่อน้องทุกตัวในนัดเดียวกัน — กดยอมรับครั้งเดียวได้ทั้งบ้าน */
   const [catLabel, setCatLabel] = useState("");
@@ -180,8 +179,10 @@ function ConsentContent() {
         : []
   ).filter((c) => !c.hasVaccine);
   const askVaccine = !fromFlow && vaccineCats.length > 0;
-  const { title: consentTitle, terms } = consentTextFor(config.messages, booking?.service);
-  const groomText = consentTextFor(config.messages, "groom");
+  const { title: consentTitle, terms } = consentTextForLocale(config.messages, booking?.service, locale);
+  const groomText = consentTextForLocale(config.messages, "groom", locale);
+  const notices = consentNoticesFor(locale);
+  const fmtD = (d: string) => (en ? dateFor(d, true) : formatThaiDateShort(d));
 
   useEffect(() => {
     if (!profile?.lineUserId) return;
@@ -244,7 +245,7 @@ function ConsentContent() {
   const uploadIdCard = async (file: File) => {
     // เดิมเงียบไปเฉยๆ ถ้ายังไม่รู้ว่าเป็นใคร — ลูกค้าเลยคิดว่ากดแล้วไม่เกิดอะไร
     if (!profile?.lineUserId) {
-      alert("ยังเชื่อมบัญชี LINE ไม่เสร็จ — ปิดหน้านี้แล้วเปิดลิงก์จากแชท LINE ใหม่อีกครั้งนะคะ");
+      alert(L("ยังเชื่อมบัญชี LINE ไม่เสร็จ — ปิดหน้านี้แล้วเปิดลิงก์จากแชท LINE ใหม่อีกครั้งนะคะ", "LINE isn't connected yet. Close this page and open the link from the LINE chat again."));
       return;
     }
     setIdCardBusy(true);
@@ -261,7 +262,7 @@ function ConsentContent() {
     } catch (e) {
       // ข้อความจาก watermarkIdCard (เช่น เปิดไฟล์ไม่ได้) บอกลูกค้าได้ตรงกว่า — ที่เหลือใช้ข้อความกลาง
       const msg = e instanceof Error && !e.message.startsWith("upload") ? e.message : "";
-      alert(msg || "แนบรูปบัตรไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+      alert(msg || L("แนบรูปบัตรไม่สำเร็จ ลองใหม่อีกครั้งนะคะ", "Could not upload the ID card, please try again"));
     } finally {
       setIdCardBusy(false);
     }
@@ -299,11 +300,11 @@ function ConsentContent() {
       const data = await res.json().catch(() => ({}));
       if (data?.needSql) {
         alert(
-          "ระบบยังตั้งค่าไม่เสร็จ (แอดมินต้องรัน SQL ก่อน) — แต่รับทราบข้อตกลงของคุณแล้วค่ะ"
+          L("ระบบยังตั้งค่าไม่เสร็จ (แอดมินต้องรัน SQL ก่อน) — แต่รับทราบข้อตกลงของคุณแล้วค่ะ", "Setup isn't finished on our side yet, but your agreement has been recorded.")
         );
       }
       setAccepted(true);
-      if (res.ok || data?.needSql) savedPopup("ยอมรับข้อตกลงสำเร็จ", ["ร้านได้รับข้อตกลงที่เซ็นแล้วค่ะ"]);
+      if (res.ok || data?.needSql) savedPopup(L("ยอมรับข้อตกลงสำเร็จ", "Terms accepted"), [L("ร้านได้รับข้อตกลงที่เซ็นแล้วค่ะ", "The shop has your signed agreement")]);
     } finally {
       setSaving(false);
     }
@@ -337,14 +338,14 @@ function ConsentContent() {
       <PageHeader
         // ลิงก์เจาะจงนัด: รู้ว่าเป็นนัดอาบน้ำหรือเข้าพักหลังโหลดนัดเสร็จ — ระหว่างนั้นไม่โชว์หัวข้อผิดชุด
         eyebrow={loading && bookingIdParam ? "Agreement" : isGroom ? "Grooming agreement" : "Boarding agreement"}
-        title={loading && bookingIdParam ? "ข้อตกลงและเงื่อนไข" : consentTitle}
+        title={loading && bookingIdParam ? L("ข้อตกลงและเงื่อนไข", "Terms and conditions") : consentTitle}
         subtitle={
           isGroom
-            ? `${config.business.name} — เพื่อความปลอดภัยและสุขภาพที่ดีของน้องแมว กรุณาอ่านและยอมรับเงื่อนไขก่อนเข้ารับบริการ`
-            : `${config.business.name} — กรุณาอ่านและกดยอมรับก่อนวันเข้าพักของน้อง`
+            ? L(`${config.business.name} — เพื่อความปลอดภัยและสุขภาพที่ดีของน้องแมว กรุณาอ่านและยอมรับเงื่อนไขก่อนเข้ารับบริการ`, `${config.business.name} · for your cat's safety and wellbeing, please read and accept these terms before the service`)
+            : L(`${config.business.name} — กรุณาอ่านและกดยอมรับก่อนวันเข้าพักของน้อง`, `${config.business.name} · please read and accept before your cat's check-in day`)
         }
         back="/app"
-        backLabel="กลับหน้าแรก"
+        backLabel={L("กลับหน้าแรก", "Back to home")}
         showLang={false}
       />
       <IntakeFlowBar mode="progress" />
@@ -363,13 +364,13 @@ function ConsentContent() {
                 <p className="text-xs text-brown-soft">
                   {isGroom ? (
                     <>
-                      นัดอาบน้ำ: {formatThaiDateShort(booking.date)}
-                      {booking.time ? ` · ${booking.time} น.` : ""}
+                      {L("นัดอาบน้ำ", "Grooming")}: {fmtD(booking.date)}
+                      {booking.time ? (en ? ` · ${booking.time}` : ` · ${booking.time} น.`) : ""}
                     </>
                   ) : (
                     <>
-                      เข้าพัก: {formatThaiDateShort(booking.checkin || booking.date)}
-                      {booking.checkout ? ` → ${formatThaiDateShort(booking.checkout)}` : ""}
+                      {L("เข้าพัก", "Stay")}: {fmtD(booking.checkin || booking.date)}
+                      {booking.checkout ? ` → ${fmtD(booking.checkout)}` : ""}
                       {booking.room
                         ? ` · ${roomWithWord(config.rooms.find((r) => r.id === booking.room)?.name || booking.room)}`
                         : ""}
@@ -383,7 +384,7 @@ function ConsentContent() {
           {isGroom && <VaccinePoster className="mt-5" />}
 
           <section className="mt-5">
-            <SectionLabel>Terms · ข้อตกลง</SectionLabel>
+            <SectionLabel>{L("Terms · ข้อตกลง", "Terms")}</SectionLabel>
             <ol className="divide-y divide-catcha-line overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
               {terms.map((term, i) => (
                 <li key={i} className="flex gap-3 px-4 py-3 text-xs leading-relaxed text-brown">
@@ -395,7 +396,7 @@ function ConsentContent() {
               ))}
             </ol>
             <p className="mt-2 rounded-catcha border border-catcha-line bg-cream px-3 py-2.5 text-[11px] leading-relaxed text-brown">
-              {isGroom ? DEEMED_GROOM_CONSENT_NOTICE : DEEMED_CONSENT_NOTICE}
+              {isGroom ? notices.deemedGroom : notices.deemed}
             </p>
           </section>
 
@@ -403,7 +404,9 @@ function ConsentContent() {
           {!isGroom && stayBath && (
             <section className="mt-5">
               <SectionLabel>
-                {`${groomText.title} · อาบน้ำก่อนกลับ ${stayBath.date}${stayBath.time ? ` ${stayBath.time} น.` : ""}`}
+                {en
+                  ? `${groomText.title} · bath before going home ${dateFor(stayBath.date, true)}${stayBath.time ? ` ${stayBath.time}` : ""}`
+                  : `${groomText.title} · อาบน้ำก่อนกลับ ${stayBath.date}${stayBath.time ? ` ${stayBath.time} น.` : ""}`}
               </SectionLabel>
               <VaccinePoster className="mb-3" />
               <ol className="divide-y divide-catcha-line overflow-hidden rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
@@ -417,7 +420,7 @@ function ConsentContent() {
                 ))}
               </ol>
               <p className="mt-2 rounded-catcha border border-catcha-line bg-cream px-3 py-2.5 text-[11px] leading-relaxed text-brown">
-                {DEEMED_GROOM_CONSENT_NOTICE}
+                {notices.deemedGroom}
               </p>
             </section>
           )}
@@ -425,19 +428,19 @@ function ConsentContent() {
           <section className="mt-5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
             <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
               <Icon name="edit" size={14} />
-              แจ้งการดูแลเพิ่มเติม (ไม่บังคับ)
+              {L("แจ้งการดูแลเพิ่มเติม (ไม่บังคับ)", "Extra care notes (optional)")}
             </label>
             <p className="mb-1.5 text-[11px] text-brown-faint">
               {isGroom
-                ? "เช่น โรคประจำตัว · แพ้ยา/แพ้แชมพู · จุดที่ไม่ชอบให้จับ · นิสัยตอนอาบน้ำ"
-                : "เช่น อาหารที่กินประจำ/ปริมาณ · ยาที่ต้องให้ · นิสัย/สิ่งที่กลัว · โรคประจำตัว"}
+                ? L("เช่น โรคประจำตัว · แพ้ยา/แพ้แชมพู · จุดที่ไม่ชอบให้จับ · นิสัยตอนอาบน้ำ", "e.g. health conditions · medicine/shampoo allergies · spots they don't like touched · bath behaviour")
+                : L("เช่น อาหารที่กินประจำ/ปริมาณ · ยาที่ต้องให้ · นิสัย/สิ่งที่กลัว · โรคประจำตัว", "e.g. usual food/amount · medicine to give · personality/fears · health conditions")}
             </p>
             <textarea
               value={careNote}
               onChange={(e) => setCareNote(e.target.value)}
               disabled={accepted}
               rows={4}
-              placeholder="พิมพ์รายละเอียดการดูแลน้องที่อยากให้ทางร้านทราบ…"
+              placeholder={L("พิมพ์รายละเอียดการดูแลน้องที่อยากให้ทางร้านทราบ…", "Anything you'd like the shop to know about caring for your cat…")}
               className="w-full rounded-catcha-sm border border-catcha-line bg-paper px-3 py-2 text-sm text-brown disabled:opacity-70"
             />
           </section>
@@ -446,10 +449,10 @@ function ConsentContent() {
             <div className="mt-5 rounded-catcha bg-sage/20 p-4 text-center">
               <p className="flex items-center justify-center gap-1.5 text-sm font-extrabold text-catcha-chocolate">
                 <Icon name="check" size={18} strokeWidth={2.4} className="text-ok" />
-                รับทราบและยอมรับข้อตกลงแล้ว
+                {L("รับทราบและยอมรับข้อตกลงแล้ว", "Terms accepted")}
               </p>
               <p className="mt-1 text-xs text-brown-soft">
-                ขอบคุณค่ะ ทางเราพร้อมดูแลน้องอย่างดีที่สุด 🧡
+                {L("ขอบคุณค่ะ ทางเราพร้อมดูแลน้องอย่างดีที่สุด 🧡", "Thank you, we're ready to take the best care of your cat 🧡")}
               </p>
               <IntakeFlowBar mode="next" />
             </div>
@@ -458,10 +461,10 @@ function ConsentContent() {
               <section className="mt-5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="edit" size={14} />
-                  ลายเซ็นยืนยันตัวตน
+                  {L("ลายเซ็นยืนยันตัวตน", "Signature")}
                 </label>
                 <p className="mb-1.5 text-[11px] text-brown-faint">
-                  เซ็นด้วยนิ้วในกรอบด้านล่าง — ไว้เป็นหลักฐานว่าเจ้าของน้องเป็นผู้ยอมรับข้อตกลงเอง
+                  {L("เซ็นด้วยนิ้วในกรอบด้านล่าง — ไว้เป็นหลักฐานว่าเจ้าของน้องเป็นผู้ยอมรับข้อตกลงเอง", "Sign with your finger in the box below, as proof that you, the owner, accepted the terms.")}
                 </p>
                 <SignaturePad
                   onChange={(v) => {
@@ -471,7 +474,7 @@ function ConsentContent() {
                 />
                 {signError && (
                   <p className="mt-1 text-[11px] font-bold text-wait">
-                    กรุณาเซ็นชื่อในกรอบก่อนกดยอมรับข้อตกลง
+                    {L("กรุณาเซ็นชื่อในกรอบก่อนกดยอมรับข้อตกลง", "Please sign in the box before accepting")}
                   </p>
                 )}
               </section>
@@ -481,17 +484,23 @@ function ConsentContent() {
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="user" size={14} />
-                  บัตรประชาชนผู้ปกครอง
+                  {L("บัตรประชาชนผู้ปกครอง", "Owner's ID card")}
                 </label>
                 <p className="mb-1.5 text-[11px] text-brown-faint">
-                  ระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง: &quot;{ID_CARD_PURPOSE}&quot;
-                  แนบครั้งเดียวพอ รอบต่อไปไม่ต้องแนบอีก
+                  {en ? (
+                    <>We automatically stamp &quot;{ID_CARD_PURPOSE}&quot; across the photo before sending. You only need to upload it once.</>
+                  ) : (
+                    <>
+                      ระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง: &quot;{ID_CARD_PURPOSE}&quot;
+                      แนบครั้งเดียวพอ รอบต่อไปไม่ต้องแนบอีก
+                    </>
+                  )}
                 </p>
                 {idCardUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={idCardUrl}
-                    alt="บัตรประชาชน (ขีดทับแล้ว)"
+                    alt={L("บัตรประชาชน (ขีดทับแล้ว)", "ID card (stamped)")}
                     className="mb-2 w-full rounded-lg border border-catcha-line object-contain"
                   />
                 )}
@@ -511,10 +520,10 @@ function ConsentContent() {
                   </span>
                   <span className="text-xs font-bold text-brown-soft">
                     {idCardBusy
-                      ? "กำลังขีดทับและแนบรูป…"
+                      ? L("กำลังขีดทับและแนบรูป…", "Stamping and uploading…")
                       : idCardUrl
-                        ? "แนบไว้แล้ว · แตะเพื่อเปลี่ยนรูป"
-                        : "แตะเพื่อแนบรูปบัตรประชาชน"}
+                        ? L("แนบไว้แล้ว · แตะเพื่อเปลี่ยนรูป", "Uploaded · tap to replace")
+                        : L("แตะเพื่อแนบรูปบัตรประชาชน", "Tap to upload your ID card")}
                   </span>
                 </label>
               </section>
@@ -525,16 +534,18 @@ function ConsentContent() {
               <section className="mt-4 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 <label className="flex items-center gap-1.5 text-xs font-bold text-catcha-chocolate">
                   <Icon name="image" size={14} />
-                  ภาพสมุดวัคซีน <span className="font-normal text-brown-faint">(ถ้ามี)</span>
+                  {L("ภาพสมุดวัคซีน", "Vaccine book photos")} <span className="font-normal text-brown-faint">{L("(ถ้ามี)", "(if you have it)")}</span>
                 </label>
                 <p className="mb-1.5 text-[11px] text-brown-faint">
-                  แนบไว้เป็นหลักฐานประวัติวัคซีนของน้อง — ไม่บังคับ แต่แนะนำให้แนบถ้ามีสมุดอยู่ใกล้ตัว
+                  {L("แนบไว้เป็นหลักฐานประวัติวัคซีนของน้อง — ไม่บังคับ แต่แนะนำให้แนบถ้ามีสมุดอยู่ใกล้ตัว", "Proof of your cat's vaccinations. Optional, but recommended if you have the book handy.")}
                 </p>
                 <p className="mb-2 flex gap-2 rounded-catcha-sm bg-honey/20 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
                   <Icon name="alert" size={15} className="mt-px" />
                   <span>
-                    หากไม่ได้แนบสมุดวัคซีน ถือว่าเจ้าของรับทราบและยอมรับข้อตกลงทั้งหมด
-                    รวมถึงความเสี่ยงจากการที่ทางร้านไม่ได้ตรวจสอบประวัติวัคซีนของน้อง
+                    {L(
+                      "หากไม่ได้แนบสมุดวัคซีน ถือว่าเจ้าของรับทราบและยอมรับข้อตกลงทั้งหมด รวมถึงความเสี่ยงจากการที่ทางร้านไม่ได้ตรวจสอบประวัติวัคซีนของน้อง",
+                      "Without the vaccine book, you acknowledge and accept all terms, including the risk that the shop has not checked your cat's vaccination history."
+                    )}
                   </span>
                 </p>
                 {vaccineCats.map(
@@ -555,12 +566,12 @@ function ConsentContent() {
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={src}
-                                  alt={`สมุดวัคซีน ${cat.catName} ${i + 1}`}
+                                  alt={L(`สมุดวัคซีน ${cat.catName} ${i + 1}`, `Vaccine book ${cat.catName} ${i + 1}`)}
                                   className="aspect-square w-full rounded-lg object-cover"
                                 />
                                 <button
                                   type="button"
-                                  aria-label="ลบรูปนี้"
+                                  aria-label={L("ลบรูปนี้", "Remove this photo")}
                                   onClick={() =>
                                     setVaccineByCat((prev) => ({
                                       ...prev,
@@ -592,12 +603,12 @@ function ConsentContent() {
                             </span>
                             <span className="text-xs font-bold text-brown-soft">
                               {vaccineUploading === cat.id
-                                ? "กำลังแนบรูป…"
+                                ? L("กำลังแนบรูป…", "Attaching…")
                                 : photos.length
-                                  ? `เพิ่มรูปอีก (แนบได้สูงสุด ${MAX_VACCINE_PHOTOS} รูป)`
+                                  ? L(`เพิ่มรูปอีก (แนบได้สูงสุด ${MAX_VACCINE_PHOTOS} รูป)`, `Add more photos (up to ${MAX_VACCINE_PHOTOS})`)
                                   : vaccineCats.length > 1
-                                    ? `แตะเพื่อแนบสมุดวัคซีนของ${cat.catName}`
-                                    : "แตะเพื่อแนบภาพสมุดวัคซีน (เลือกได้หลายรูป)"}
+                                    ? L(`แตะเพื่อแนบสมุดวัคซีนของ${cat.catName}`, `Tap to upload ${cat.catName}'s vaccine book`)
+                                    : L("แตะเพื่อแนบภาพสมุดวัคซีน (เลือกได้หลายรูป)", "Tap to upload vaccine book photos (you can pick several)")}
                             </span>
                           </label>
                         )}
@@ -620,14 +631,16 @@ function ConsentContent() {
                   className="mt-0.5 h-5 w-5 flex-none accent-[#4A7348]"
                 />
                 <span>
-                  ข้าพเจ้ายืนยันว่าได้หยดยากันเห็บหมัดให้น้องแล้ว ภายในระยะเวลาที่กำหนด
-                  ก่อนเข้าพักครั้งนี้
+                  {L(
+                    "ข้าพเจ้ายืนยันว่าได้หยดยากันเห็บหมัดให้น้องแล้ว ภายในระยะเวลาที่กำหนด ก่อนเข้าพักครั้งนี้",
+                    "I confirm my cat has had flea and tick drops within the required period before this stay."
+                  )}
                 </span>
               </label>
               )}
               {fleaError && !isGroom && (
                 <p className="mt-1 text-[11px] font-bold text-wait">
-                  กรุณาติ๊กยืนยันเรื่องหยดยาเห็บหมัดก่อนกดยอมรับข้อตกลง
+                  {L("กรุณาติ๊กยืนยันเรื่องหยดยาเห็บหมัดก่อนกดยอมรับข้อตกลง", "Please tick the flea and tick confirmation before accepting")}
                 </p>
               )}
               {!isGroom && (
@@ -635,7 +648,7 @@ function ConsentContent() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={posterFor("/info/flea-rules-before-stay.jpg", locale)}
-                    alt="ก่อนเข้าพัก: วัคซีนครบตามกำหนด หยดยาเห็บหมัดภายใน 1 เดือน ส่งหลักฐานก่อนเข้าพัก หากตรวจพบเห็บหมัดระหว่างเข้าพัก มีค่าหยดยาเพิ่ม ค่าทำความสะอาดโรงแรม 2,000 บาท และรับผิดชอบค่าเสียหาย"
+                    alt={en ? "Before your stay: vaccines up to date, flea and tick drops within 1 month, proof sent before check-in. If fleas or ticks are found during the stay, a treatment fee, a 2,000 THB hotel cleaning fee and any damages apply." : "ก่อนเข้าพัก: วัคซีนครบตามกำหนด หยดยาเห็บหมัดภายใน 1 เดือน ส่งหลักฐานก่อนเข้าพัก หากตรวจพบเห็บหมัดระหว่างเข้าพัก มีค่าหยดยาเพิ่ม ค่าทำความสะอาดโรงแรม 2,000 บาท และรับผิดชอบค่าเสียหาย"}
                     width={1254}
                     height={1254}
                     loading="lazy"
@@ -652,13 +665,23 @@ function ConsentContent() {
                   className="mt-0.5 h-5 w-5 flex-none accent-[#4A7348]"
                 />
                 {isGroom ? (
-                  <span>{GROOM_CONSENT_CONFIRM}</span>
+                  <span>{notices.groomConfirm}</span>
                 ) : (
                   <span>
-                    ข้าพเจ้าขอรับรองว่าข้อมูลทั้งหมดที่กรอกและแนบมาข้างต้น
-                    (รวมถึงประวัติวัคซีนและการหยดยาเห็บหมัด) เป็นความจริงทุกประการ
-                    และร้านสามารถใช้ข้อมูลนี้เป็นหลักฐานได้หากเกิดปัญหาที่เกี่ยวข้อง
-                    {stayBath ? " รวมถึงยอมรับข้อตกลงการอาบน้ำก่อนกลับบ้านด้วย" : ""}
+                    {en ? (
+                      <>
+                        I certify that all the information provided above (including vaccination and flea treatment history) is true,
+                        and the shop may use it as evidence if any related issue arises.
+                        {stayBath ? " I also accept the terms for the bath before going home." : ""}
+                      </>
+                    ) : (
+                      <>
+                        ข้าพเจ้าขอรับรองว่าข้อมูลทั้งหมดที่กรอกและแนบมาข้างต้น
+                        (รวมถึงประวัติวัคซีนและการหยดยาเห็บหมัด) เป็นความจริงทุกประการ
+                        และร้านสามารถใช้ข้อมูลนี้เป็นหลักฐานได้หากเกิดปัญหาที่เกี่ยวข้อง
+                        {stayBath ? " รวมถึงยอมรับข้อตกลงการอาบน้ำก่อนกลับบ้านด้วย" : ""}
+                      </>
+                    )}
                   </span>
                 )}
               </label>
@@ -668,11 +691,11 @@ function ConsentContent() {
                 onClick={submit}
                 className={`mt-5 ${BTN_PRIMARY}`}
               >
-                {saving ? "กำลังบันทึก…" : "ยอมรับข้อตกลง"}
+                {saving ? L("กำลังบันทึก…", "Saving…") : L("ยอมรับข้อตกลง", "Accept terms")}
               </button>
               {!booking && !customerMode && (
                 <p className="mt-2 text-center text-[11px] text-brown-faint">
-                  ยังไม่พบการจองห้องพักของคุณ
+                  {L("ยังไม่พบการจองห้องพักของคุณ", "We couldn't find your room booking yet")}
                 </p>
               )}
             </>

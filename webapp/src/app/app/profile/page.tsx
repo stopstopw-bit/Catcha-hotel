@@ -17,6 +17,8 @@ import { toJpegDataUrl } from "@/lib/image-convert";
 import { customerFetch } from "@/lib/customer-fetch";
 import { NumInput } from "@/components/NumInput";
 import { ReviewSheet, reviewDate, type ReviewSection } from "@/components/ReviewSheet";
+import { useL } from "@/components/LocaleProvider";
+import { REFERRAL_OPTIONS_EN } from "@/lib/referral-options";
 
 const REFERRAL_FALLBACK = [
   "Facebook",
@@ -54,6 +56,9 @@ export default function ProfilePage() {
   const referrals = config.options?.referralOptions?.length
     ? config.options.referralOptions
     : REFERRAL_FALLBACK;
+  const { L, en } = useL();
+  const referralName = (v: string) => (en ? REFERRAL_OPTIONS_EN[v] ?? v : v);
+  const breedName = (b: string) => (en ? b.match(/\(([^)]+)\)\s*$/)?.[1] ?? b : b);
 
   const [loading, setLoading] = useState(true);
   const [found, setFound] = useState(false);
@@ -152,7 +157,7 @@ export default function ProfilePage() {
       const url = await toJpegDataUrl(file);
       setPendingPhotos((m) => ({ ...m, [key]: url }));
     } catch {
-      setPhotoError("เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่นนะคะ");
+      setPhotoError(L("เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่นนะคะ", "Couldn't open this photo, please pick another"));
     }
   };
 
@@ -165,7 +170,7 @@ export default function ProfilePage() {
       await postPhoto(profile.lineUserId, catId, photoDataUrl);
       await loadPhotos(profile.lineUserId);
     } catch (e) {
-      setPhotoError(e instanceof Error ? e.message : "อัปโหลดรูปไม่สำเร็จ");
+      setPhotoError(e instanceof Error ? e.message : L("อัปโหลดรูปไม่สำเร็จ", "Photo upload failed"));
     } finally {
       setUploadingId(null);
     }
@@ -206,48 +211,48 @@ export default function ProfilePage() {
   /** สรุปข้อมูลทั้งหมดก่อนบันทึก */
   const reviewSections = (): ReviewSection[] => [
     {
-      title: "ข้อมูลผู้ปกครอง",
+      title: L("ข้อมูลผู้ปกครอง", "Owner details"),
       icon: "user",
       rows: [
-        { label: "ชื่อผู้ปกครอง", value: name },
-        { label: "เบอร์โทร", value: phone },
-        { label: "อีเมล", value: email },
-        { label: "วันเกิด", value: reviewDate(birthday) },
-        { label: "ที่อยู่บ้าน", value: address },
-        { label: "ลิงก์แผนที่", value: addressMapUrl ? "แนบแล้ว" : "" },
-        { label: "รหัสไปรษณีย์", value: postalCode },
+        { label: L("ชื่อผู้ปกครอง", "Owner name"), value: name },
+        { label: L("เบอร์โทร", "Phone"), value: phone },
+        { label: L("อีเมล", "Email"), value: email },
+        { label: L("วันเกิด", "Birthday"), value: reviewDate(birthday, en ? "en" : "th") },
+        { label: L("ที่อยู่บ้าน", "Home address"), value: address },
+        { label: L("ลิงก์แผนที่", "Map link"), value: addressMapUrl ? L("แนบแล้ว", "Added") : "" },
+        { label: L("รหัสไปรษณีย์", "Postal code"), value: postalCode },
       ],
     },
     ...cats
       .filter((c) => c.name.trim())
       .map((c) => ({
-        title: c.id ? `น้อง${c.name.trim()}` : `น้อง${c.name.trim()} (เพิ่มใหม่)`,
+        title: en ? (c.id ? c.name.trim() : `${c.name.trim()} (new)`) : c.id ? `น้อง${c.name.trim()}` : `น้อง${c.name.trim()} (เพิ่มใหม่)`,
         icon: "paw",
         rows: [
-          { label: "เพศ", value: c.gender === "male" ? "♂ ผู้" : c.gender === "female" ? "♀ เมีย" : "" },
-          { label: "สายพันธุ์", value: c.breed === OTHER_BREED ? c.breedOther : c.breed },
-          { label: "ทำหมัน", value: c.neutered === "yes" ? "ทำหมันแล้ว" : c.neutered === "no" ? "ยังไม่ทำ" : "" },
+          { label: L("เพศ", "Sex"), value: c.gender === "male" ? L("♂ ผู้", "♂ Male") : c.gender === "female" ? L("♀ เมีย", "♀ Female") : "" },
+          { label: L("สายพันธุ์", "Breed"), value: c.breed === OTHER_BREED ? c.breedOther : c.breed },
+          { label: L("ทำหมัน", "Neutered / spayed"), value: c.neutered === "yes" ? L("ทำหมันแล้ว", "Yes") : c.neutered === "no" ? L("ยังไม่ทำ", "Not yet") : "" },
           {
-            label: "อายุ",
+            label: L("อายุ", "Age"),
             value: [
-              c.ageValue ? `${c.ageValue} ${c.ageUnit === "month" ? "เดือน" : "ปี"}` : "",
-              c.birthday ? `เกิด ${reviewDate(c.birthday)}` : "",
+              c.ageValue ? `${c.ageValue} ${c.ageUnit === "month" ? L("เดือน", "months") : L("ปี", "years")}` : "",
+              c.birthday ? `${L("เกิด", "Born")} ${reviewDate(c.birthday, en ? "en" : "th")}` : "",
             ]
               .filter(Boolean)
               .join(" · "),
           },
-          { label: "น้ำหนัก", value: c.weightKg ? `${c.weightKg} กก.` : "" },
-          { label: "โรคประจำตัว / เรื่องที่ช่างต้องรู้", value: [c.medical, c.note].map((x) => x.trim()).filter(Boolean).join("\n") },
-          { label: "ประวัติการชัก/ช็อค", value: c.seizureHistory },
-          { label: "ประวัติการแพ้", value: c.allergy },
+          { label: L("น้ำหนัก", "Weight"), value: c.weightKg ? `${c.weightKg} ${L("กก.", "kg")}` : "" },
+          { label: L("โรคประจำตัว / เรื่องที่ช่างต้องรู้", "Health conditions / things our staff should know"), value: [c.medical, c.note].map((x) => x.trim()).filter(Boolean).join("\n") },
+          { label: L("ประวัติการชัก/ช็อค", "History of seizures / collapse"), value: c.seizureHistory },
+          { label: L("ประวัติการแพ้", "Allergies"), value: c.allergy },
         ],
       })),
     {
-      title: "อื่น ๆ",
+      title: L("อื่น ๆ", "Other"),
       icon: "sparkle",
       rows: [
-        { label: "รู้จักเราจากทางไหน", value: referral },
-        { label: "รับข่าวสาร/โปรโมชั่น", value: consent ? "ยินยอม" : "ไม่ยินยอม" },
+        { label: L("รู้จักเราจากทางไหน", "How did you hear about us?"), value: referralName(referral) },
+        { label: L("รับข่าวสาร/โปรโมชั่น", "News & promotions"), value: consent ? L("ยินยอม", "Yes") : L("ไม่ยินยอม", "No") },
       ],
     },
   ];
@@ -301,19 +306,19 @@ export default function ProfilePage() {
           await postPhoto(profile.lineUserId, id, url).catch(() => failed.push(cats[index].name));
         }
         setPendingPhotos({});
-        if (failed.length) setPhotoError(`บันทึกข้อมูลแล้ว แต่อัปรูป ${failed.join(", ")} ไม่สำเร็จ ลองเพิ่มรูปใหม่อีกครั้งนะคะ`);
+        if (failed.length) setPhotoError(L(`บันทึกข้อมูลแล้ว แต่อัปรูป ${failed.join(", ")} ไม่สำเร็จ ลองเพิ่มรูปใหม่อีกครั้งนะคะ`, `Saved, but the photo for ${failed.join(", ")} didn't upload. Please add it again.`));
         setSaved(true);
         // โหลดใหม่ให้น้องที่เพิ่งเพิ่มได้ id จริง — ไม่งั้นกดบันทึกซ้ำจะสร้างซ้ำ
         setReloadKey((k) => k + 1);
         setTimeout(() => setSaved(false), 2500);
         setReviewing(false);
-        savedPopup("บันทึกข้อมูลสำเร็จ");
+        savedPopup(L("บันทึกข้อมูลสำเร็จ", "Saved"));
       } else {
         const d = await res.json().catch(() => ({}));
-        setSaveError(d.error || "บันทึกไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ");
+        setSaveError(d.error || L("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ", "Could not save, please try again"));
       }
     } catch {
-      setSaveError("เชื่อมต่อไม่สำเร็จ — เช็คสัญญาณอินเทอร์เน็ตแล้วลองใหม่นะคะ");
+      setSaveError(L("เชื่อมต่อไม่สำเร็จ — เช็คสัญญาณอินเทอร์เน็ตแล้วลองใหม่นะคะ", "Couldn't connect. Check your internet and try again."));
     } finally {
       setSaving(false);
     }
@@ -330,9 +335,9 @@ export default function ProfilePage() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow="Profile"
-        title="แก้ไขข้อมูลของฉัน"
+        title={L("แก้ไขข้อมูลของฉัน", "Edit my details")}
         back="/app"
-        backLabel="กลับหน้าแรก"
+        backLabel={L("กลับหน้าแรก", "Back to home")}
         showLang={false}
       />
 
@@ -341,63 +346,63 @@ export default function ProfilePage() {
       ) : !found ? (
         <>
           <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-            <EmptyState icon="user" title="ยังไม่มีข้อมูลของคุณในระบบ" />
+            <EmptyState icon="user" title={L("ยังไม่มีข้อมูลของคุณในระบบ", "We don't have your details yet")} />
           </div>
           <Link href="/app/register" className={`mt-5 ${BTN_PRIMARY}`}>
             <Icon name="edit" size={18} />
-            ลงทะเบียนก่อนค่ะ
+            {L("ลงทะเบียนก่อนค่ะ", "Sign up first")}
           </Link>
         </>
       ) : (
         <>
           {/* ── ผู้ปกครอง ── */}
-          <SectionLabel>Owner · ผู้ปกครอง</SectionLabel>
+          <SectionLabel>{L("Owner · ผู้ปกครอง", "Owner")}</SectionLabel>
           <div className="space-y-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
             <label className="block text-xs font-bold text-brown-soft">
-              ชื่อผู้ปกครอง
+              {L("ชื่อผู้ปกครอง", "Owner name")}
               <input value={name} onChange={(e) => setName(e.target.value)} className={`${field} mt-1 font-bold text-brown`} />
             </label>
             <label className="block text-xs font-bold text-brown-soft">
-              เบอร์โทร
+              {L("เบอร์โทร", "Phone")}
               <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="08x-xxx-xxxx" className={`${field} mt-1`} />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs font-bold text-brown-soft">
-                อีเมล
+                {L("อีเมล", "Email")}
                 <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@email.com" className={`${field} mt-1`} />
               </label>
               <label className="block text-xs font-bold text-brown-soft">
-                วันเกิด
+                {L("วันเกิด", "Birthday")}
                 <input value={birthday} onChange={(e) => setBirthday(e.target.value)} type="date" className={`${field} mt-1`} />
               </label>
             </div>
             <label className="block text-xs font-bold text-brown-soft">
-              ที่อยู่บ้าน{" "}
-              <span className="font-normal text-brown-faint">(ไว้ใช้บริการรับ-ส่ง)</span>
+              {L("ที่อยู่บ้าน", "Home address")}{" "}
+              <span className="font-normal text-brown-faint">{L("(ไว้ใช้บริการรับ-ส่ง)", "(for pick-up & drop-off)")}</span>
               <textarea
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="เช่น บ้านเลขที่ ซอย ถนน แขวง/ตำบล เขต/อำเภอ"
+                placeholder={L("เช่น บ้านเลขที่ ซอย ถนน แขวง/ตำบล เขต/อำเภอ", "e.g. house no., soi, road, sub-district, district")}
                 rows={2}
                 className={`${field} mt-1`}
               />
             </label>
             <label className="block text-xs font-bold text-brown-soft">
-              ลิงก์ Google Maps
+              {L("ลิงก์ Google Maps", "Google Maps link")}
               <input
                 value={addressMapUrl}
                 onChange={(e) => setAddressMapUrl(e.target.value)}
-                placeholder="เปิด Maps แล้วกดแชร์ลิงก์มาวางตรงนี้"
+                placeholder={L("เปิด Maps แล้วกดแชร์ลิงก์มาวางตรงนี้", "Open Maps, tap Share and paste the link here")}
                 className={`${field} mt-1`}
               />
             </label>
             <label className="block text-xs font-bold text-brown-soft">
-              รหัสไปรษณีย์
+              {L("รหัสไปรษณีย์", "Postal code")}
               <input
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))}
                 inputMode="numeric"
-                placeholder="เช่น 10260"
+                placeholder={L("เช่น 10260", "e.g. 10260")}
                 className={`${field} mt-1`}
               />
             </label>
@@ -405,13 +410,13 @@ export default function ProfilePage() {
 
           {/* ── น้องแมว ── */}
           <div className="mt-6 space-y-3">
-            <SectionLabel>My cats · น้องแมวของฉัน</SectionLabel>
+            <SectionLabel>{L("My cats · น้องแมวของฉัน", "My cats")}</SectionLabel>
             {cats.map((cat, idx) => (
               <div key={cat.id || `new-${idx}`} className="space-y-2.5 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
                 {cat.id ? (
                   <CatPhoto
                     src={photos[cat.id]}
-                    name={cat.name || "น้องแมว"}
+                    name={cat.name || L("น้องแมว", "Cat")}
                     size={0}
                     onPick={(f) => uploadPhoto(cat.id, f)}
                     uploading={uploadingId === cat.id}
@@ -419,7 +424,7 @@ export default function ProfilePage() {
                 ) : cat.tempKey ? (
                   <CatPhoto
                     src={pendingPhotos[cat.tempKey]}
-                    name={cat.name || "น้องแมว"}
+                    name={cat.name || L("น้องแมว", "Cat")}
                     size={0}
                     onPick={(f) => pickPendingPhoto(cat.tempKey!, f)}
                   />
@@ -427,16 +432,20 @@ export default function ProfilePage() {
                 {cat.needsConfirm && (
                   <p className="flex gap-2 rounded-catcha-sm bg-honey/20 px-3 py-2 text-[11px] font-bold text-catcha-chocolate">
                     <Icon name="alert" size={15} className="mt-px" />
-                    <span>ตอนนี้เป็นข้อมูลที่ทางร้านกรอกแทนไว้ — ช่วยตรวจสอบ/แก้ไขให้ล่าสุด
-                    แล้วกดบันทึกด้านล่างด้วยนะคะ 🙏</span>
+                    <span>
+                      {L(
+                        "ตอนนี้เป็นข้อมูลที่ทางร้านกรอกแทนไว้ — ช่วยตรวจสอบ/แก้ไขให้ล่าสุด แล้วกดบันทึกด้านล่างด้วยนะคะ 🙏",
+                        "The shop filled this in for you. Please check and update it, then tap save below 🙏"
+                      )}
+                    </span>
                   </p>
                 )}
                 <label className="block text-xs font-bold text-brown-soft">
-                  ชื่อน้อง
+                  {L("ชื่อน้อง", "Cat's name")}
                   <input value={cat.name} onChange={(e) => updateCat(idx, { name: e.target.value })} className={`${sub} mt-1 font-bold text-brown`} />
                 </label>
                 <div className="flex gap-1 rounded-full bg-paper p-1">
-                  {([["male", "♂ ผู้"], ["female", "♀ เมีย"]] as const).map(([v, l]) => (
+                  {([["male", L("♂ ผู้", "♂ Male")], ["female", L("♀ เมีย", "♀ Female")]] as const).map(([v, l]) => (
                     <button
                       key={v}
                       type="button"
@@ -453,17 +462,17 @@ export default function ProfilePage() {
                   onChange={(e) => updateCat(idx, { breed: e.target.value })}
                   className={`${sub} ${cat.breed ? "text-brown" : "text-brown-faint"}`}
                 >
-                  <option value="">เลือกสายพันธุ์…</option>
+                  <option value="">{L("เลือกสายพันธุ์…", "Choose a breed…")}</option>
                   {breeds.map((b) => (
-                    <option key={b} value={b} className="text-brown">{b}</option>
+                    <option key={b} value={b} className="text-brown">{breedName(b)}</option>
                   ))}
-                  <option value={OTHER_BREED} className="text-brown">{OTHER_BREED}</option>
+                  <option value={OTHER_BREED} className="text-brown">{L(OTHER_BREED, "Other")}</option>
                 </select>
                 {cat.breed === OTHER_BREED && (
-                  <input value={cat.breedOther} onChange={(e) => updateCat(idx, { breedOther: e.target.value })} placeholder="ระบุสายพันธุ์" className={sub} />
+                  <input value={cat.breedOther} onChange={(e) => updateCat(idx, { breedOther: e.target.value })} placeholder={L("ระบุสายพันธุ์", "Type the breed")} className={sub} />
                 )}
                 <div className="flex gap-1 rounded-full bg-paper p-1">
-                  {([["yes", "ทำหมันแล้ว"], ["no", "ยังไม่ทำ"]] as const).map(([v, l]) => (
+                  {([["yes", L("ทำหมันแล้ว", "Neutered / spayed")], ["no", L("ยังไม่ทำ", "Not yet")]] as const).map(([v, l]) => (
                     <button
                       key={v}
                       type="button"
@@ -482,7 +491,7 @@ export default function ProfilePage() {
                     inputMode="numeric"
                     value={cat.ageValue}
                     onChange={(e) => updateCat(idx, { ageValue: e.target.value })}
-                    placeholder="อายุ"
+                    placeholder={L("อายุ", "Age")}
                     className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm"
                   />
                   <select
@@ -490,12 +499,12 @@ export default function ProfilePage() {
                     onChange={(e) => updateCat(idx, { ageUnit: e.target.value as "year" | "month" })}
                     className="min-h-[44px] w-24 shrink-0 rounded-xl border border-catcha-line bg-paper px-3 py-2 text-sm"
                   >
-                    <option value="year">ปี</option>
-                    <option value="month">เดือน</option>
+                    <option value="year">{L("ปี", "years")}</option>
+                    <option value="month">{L("เดือน", "months")}</option>
                   </select>
                 </div>
                 <label className="block text-[11px] font-bold text-brown-soft">
-                  น้ำหนัก <span className="font-normal text-brown-faint">(กก. · ไม่บังคับ)</span>
+                  {L("น้ำหนัก", "Weight")} <span className="font-normal text-brown-faint">{L("(กก. · ไม่บังคับ)", "(kg · optional)")}</span>
                   <NumInput
                     type="number"
                     min="0"
@@ -503,34 +512,36 @@ export default function ProfilePage() {
                     inputMode="decimal"
                     value={cat.weightKg}
                     onChange={(e) => updateCat(idx, { weightKg: e.target.value })}
-                    placeholder="เช่น 4.5"
+                    placeholder={L("เช่น 4.5", "e.g. 4.5")}
                     className={`${sub} mt-0.5`}
                   />
                 </label>
                 <div className="text-[11px] font-bold text-brown-soft">
-                  วันเกิดน้อง <span className="font-normal text-brown-faint">(ถ้าทราบ)</span>
+                  {L("วันเกิดน้อง", "Birthday")} <span className="font-normal text-brown-faint">{L("(ถ้าทราบ)", "(if known)")}</span>
                   <div className="mt-0.5">
                     <BirthdayPicker
                       value={cat.birthday}
                       onChange={(iso) => updateCat(idx, { birthday: iso })}
                       yearsBack={25}
                       allowUnknown
+                      locale={en ? "en" : "th"}
                     />
                   </div>
                 </div>
                 <StaffNoteTagPicker
-                  label="โรคประจำตัว / เรื่องที่ช่างต้องรู้"
+                  label={L("โรคประจำตัว / เรื่องที่ช่างต้องรู้", "Health conditions / things our staff should know")}
+                  locale={en ? "en" : "th"}
                   medicalValue={cat.medical}
                   noteValue={cat.note}
                   onChange={(medical, note) => updateCat(idx, { medical, note })}
                 />
                 <label className="block text-[11px] font-bold text-brown-soft">
-                  ประวัติการชัก/ช็อค <span className="font-normal text-brown-faint">(ไม่มีเว้นว่างได้)</span>
-                  <input value={cat.seizureHistory} onChange={(e) => updateCat(idx, { seizureHistory: e.target.value })} placeholder="เช่น ไม่เคย · หรือ เคยชักตอนตกใจ" className={`${sub} mt-0.5 font-normal text-brown`} />
+                  {L("ประวัติการชัก/ช็อค", "History of seizures / collapse")} <span className="font-normal text-brown-faint">{L("(ไม่มีเว้นว่างได้)", "(leave blank if none)")}</span>
+                  <input value={cat.seizureHistory} onChange={(e) => updateCat(idx, { seizureHistory: e.target.value })} placeholder={L("เช่น ไม่เคย · หรือ เคยชักตอนตกใจ", "e.g. never · or had a seizure when startled")} className={`${sub} mt-0.5 font-normal text-brown`} />
                 </label>
                 <label className="block text-[11px] font-bold text-brown-soft">
-                  ประวัติการแพ้ <span className="font-normal text-brown-faint">(อาหาร / ยา / แชมพู)</span>
-                  <input value={cat.allergy} onChange={(e) => updateCat(idx, { allergy: e.target.value })} placeholder="เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ" className={`${sub} mt-0.5 font-normal text-brown`} />
+                  {L("ประวัติการแพ้", "Allergies")} <span className="font-normal text-brown-faint">{L("(อาหาร / ยา / แชมพู)", "(food / medicine / shampoo)")}</span>
+                  <input value={cat.allergy} onChange={(e) => updateCat(idx, { allergy: e.target.value })} placeholder={L("เช่น ไม่มี · หรือ แพ้ไก่ แพ้แชมพูบางยี่ห้อ", "e.g. none · or chicken, certain shampoos")} className={`${sub} mt-0.5 font-normal text-brown`} />
                 </label>
                 {!cat.id && (
                   <button
@@ -539,7 +550,7 @@ export default function ProfilePage() {
                     className="-ml-1 flex min-h-[44px] items-center gap-1.5 px-1 text-xs font-bold text-brown-soft"
                   >
                     <Icon name="trash" size={15} />
-                    ลบน้องแมวตัวนี้
+                    {L("ลบน้องแมวตัวนี้", "Remove this cat")}
                   </button>
                 )}
               </div>
@@ -560,19 +571,19 @@ export default function ProfilePage() {
                 <Icon name="plus" size={20} strokeWidth={2.4} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-extrabold">เพิ่มน้องแมวอีกตัว</span>
-                <span className="block text-[11px] text-catcha-chocolate/70">มีหลายตัว เพิ่มได้ทุกตัวเลยค่ะ</span>
+                <span className="block text-sm font-extrabold">{L("เพิ่มน้องแมวอีกตัว", "Add another cat")}</span>
+                <span className="block text-[11px] text-catcha-chocolate/70">{L("มีหลายตัว เพิ่มได้ทุกตัวเลยค่ะ", "Have more cats? Add them all")}</span>
               </span>
               <Icon name="paw" size={22} className="text-catcha-chocolate/60" />
             </button>
             <p className="text-[11px] text-brown-faint">
-              กรอกข้อมูลน้องใหม่แล้วกด “บันทึก” ด้านล่างเพื่อเพิ่มเข้าระบบ 🧡
+              {L("กรอกข้อมูลน้องใหม่แล้วกด “บันทึก” ด้านล่างเพื่อเพิ่มเข้าระบบ 🧡", "Fill in the new cat, then tap Save below to add them 🧡")}
             </p>
           </div>
 
           {/* ── รู้จักเราจากทางไหน ── */}
           <div className="mt-6">
-            <SectionLabel>Referral · รู้จักเราจากทางไหน?</SectionLabel>
+            <SectionLabel>{L("Referral · รู้จักเราจากทางไหน?", "How did you hear about us?")}</SectionLabel>
             <div className="flex flex-wrap gap-2 rounded-catcha border border-catcha-line bg-card p-3 shadow-catcha-sm">
               {referrals.map((opt) => (
                 <button
@@ -582,7 +593,7 @@ export default function ProfilePage() {
                   onClick={() => setReferral((p) => (p === opt ? "" : opt))}
                   className={chip(referral === opt)}
                 >
-                  {opt}
+                  {referralName(opt)}
                 </button>
               ))}
             </div>
@@ -591,7 +602,7 @@ export default function ProfilePage() {
           {/* ── ยินยอมรับข่าวสาร ── */}
           <label className="mt-4 flex min-h-[48px] cursor-pointer items-center gap-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="h-5 w-5 flex-none accent-[#4A7348]" />
-            <span className="text-xs text-brown">ยินยอมให้ส่งข่าวสาร โปรโมชั่น และสิทธิพิเศษ</span>
+            <span className="text-xs text-brown">{L("ยินยอมให้ส่งข่าวสาร โปรโมชั่น และสิทธิพิเศษ", "Send me news, promotions and special offers")}</span>
           </label>
 
           <button
@@ -600,14 +611,14 @@ export default function ProfilePage() {
             disabled={saving || !name.trim()}
             className={`mt-6 ${BTN_PRIMARY}`}
           >
-            {saving ? "กำลังบันทึก…" : "บันทึกข้อมูล"}
+            {saving ? L("กำลังบันทึก…", "Saving…") : L("บันทึกข้อมูล", "Save")}
           </button>
           <ReviewSheet
             open={reviewing}
             sections={reviewing ? reviewSections() : []}
             saving={saving}
             error={saveError}
-            confirmLabel="ยืนยัน บันทึกข้อมูล"
+            confirmLabel={L("ยืนยัน บันทึกข้อมูล", "Confirm and save")}
             onEdit={() => {
               setReviewing(false);
               setSaveError("");
@@ -617,7 +628,7 @@ export default function ProfilePage() {
           {saved && (
             <p className="mt-2 flex items-center justify-center gap-1.5 text-sm font-extrabold text-ok">
               <Icon name="check" size={16} strokeWidth={2.4} />
-              บันทึกเรียบร้อยแล้วค่ะ 🧡
+              {L("บันทึกเรียบร้อยแล้วค่ะ 🧡", "Saved 🧡")}
             </p>
           )}
         </>

@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { flowProgress } from "@/lib/intake-flow";
+import { useL } from "@/components/LocaleProvider";
 
 /**
  * แถบ "ขั้นที่ x จาก n" + ปุ่มไปขั้นต่อไป — โชว์เฉพาะหน้าที่เปิดมาจากการ์ดรวมขอข้อมูล (ปุ่มเดียวไล่ทีละหน้า)
@@ -10,6 +11,7 @@ import { flowProgress } from "@/lib/intake-flow";
  */
 export function IntakeFlowBar({ mode }: { mode: "progress" | "next" }) {
   const params = useSearchParams();
+  const { L } = useL();
   const p = flowProgress(params);
   if (!p) return null;
 
@@ -25,7 +27,7 @@ export function IntakeFlowBar({ mode }: { mode: "progress" | "next" }) {
           ))}
         </div>
         <span className="shrink-0 text-[11px] font-bold text-brown-soft">
-          ขั้นที่ {p.index} จาก {p.total}
+          {L(`ขั้นที่ ${p.index} จาก ${p.total}`, `Step ${p.index} of ${p.total}`)}
         </span>
       </div>
     );
@@ -35,7 +37,7 @@ export function IntakeFlowBar({ mode }: { mode: "progress" | "next" }) {
     return (
       <p className="mt-4 flex items-center justify-center gap-1.5 rounded-catcha-sm bg-sage/20 px-3 py-3 text-xs font-bold text-ok">
         <Icon name="check" size={16} strokeWidth={2.4} />
-        ขั้นสุดท้ายแล้ว ส่งครบแล้วกลับไปที่แชท LINE ได้เลยค่ะ
+        {L("ขั้นสุดท้ายแล้ว ส่งครบแล้วกลับไปที่แชท LINE ได้เลยค่ะ", "That's the last step — you can go back to the LINE chat now.")}
       </p>
     );
   }
@@ -44,7 +46,7 @@ export function IntakeFlowBar({ mode }: { mode: "progress" | "next" }) {
       href={p.next.href}
       className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-catcha-sm bg-latte-deep px-4 py-3 text-sm font-extrabold text-white shadow-catcha-sm"
     >
-      ถัดไป: {p.next.label}
+      {L("ถัดไป", "Next")}: {L(p.next.label, p.next.labelEn)}
       <Icon name="chevron" size={16} />
     </a>
   );

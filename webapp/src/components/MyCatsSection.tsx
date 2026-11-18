@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { useLiff } from "@/components/LiffProvider";
 import { toJpegDataUrl } from "@/lib/image-convert";
+import { useL } from "@/components/LocaleProvider";
 
 type MyCat = {
   id: string;
@@ -18,9 +19,11 @@ const CHEERS = [
   "หล่อ/สวยเลย 🐾",
   "ถ่ายเก่งจัง 📸",
 ];
+const CHEERS_EN = ["Even cuter! 😻", "Great profile 🌟", "Looking good 🐾", "Nice shot 📸"];
 
 export function MyCatsSection() {
   const { profile } = useLiff();
+  const { L, en } = useL();
   const [cats, setCats] = useState<MyCat[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [cheer, setCheer] = useState("");
@@ -55,14 +58,14 @@ export function MyCatsSection() {
         }),
       });
       if (res.ok) {
-        setCheer(CHEERS[cats.findIndex((c) => c.id === cat.id) % CHEERS.length]);
+        setCheer((en ? CHEERS_EN : CHEERS)[cats.findIndex((c) => c.id === cat.id) % CHEERS.length]);
         setTimeout(() => setCheer(""), 2500);
         await load();
       } else {
-        setUploadError("อัปโหลดรูปไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ");
+        setUploadError(L("อัปโหลดรูปไม่สำเร็จ — ลองใหม่อีกครั้งนะคะ", "Upload failed — please try again."));
       }
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "อัปโหลดรูปไม่สำเร็จ");
+      setUploadError(e instanceof Error ? e.message : L("อัปโหลดรูปไม่สำเร็จ", "Upload failed"));
     } finally {
       setUploadingId(null);
     }
@@ -74,10 +77,10 @@ export function MyCatsSection() {
     <section className="mb-5">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-extrabold text-catcha-chocolate">
-          🐾 แมวของฉัน
+          🐾 {L("แมวของฉัน", "My cats")}
         </h2>
         <span className="text-[10px] font-bold text-brown-faint">
-          แตะรูปเพื่อเปลี่ยน 📸
+          {L("แตะรูปเพื่อเปลี่ยน", "Tap a photo to change it")} 📸
         </span>
       </div>
 
@@ -107,7 +110,7 @@ export function MyCatsSection() {
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center text-brown-faint">
                   <span className="text-3xl">🐱</span>
-                  <span className="text-[9px] font-bold">แตะเพิ่มรูป</span>
+                  <span className="text-[9px] font-bold">{L("แตะเพิ่มรูป", "Add photo")}</span>
                 </div>
               )}
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-active:bg-black/20">
@@ -117,7 +120,7 @@ export function MyCatsSection() {
               </div>
               {uploadingId === cat.id && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-[10px] font-bold text-brown">
-                  กำลังอัป…
+                  {L("กำลังอัป…", "Uploading…")}
                 </div>
               )}
             </div>

@@ -17,6 +17,8 @@ import { customerFetch } from "@/lib/customer-fetch";
 import { formatThaiDateShort, roomWithWord } from "@/lib/format-thai-date";
 import { IntakeFlowBar } from "@/components/IntakeFlowBar";
 import { flowProgress } from "@/lib/intake-flow";
+import { useL } from "@/components/LocaleProvider";
+import { dateFor } from "@/lib/locale-date";
 
 type StayBooking = Booking & { checkin?: string; room?: string; vaccinePhotoUrl?: string };
 
@@ -37,6 +39,7 @@ type VaccineTarget = {
  * id = นัด (ส่งจากการ์ดนัด) · cats = ตัวน้อง (ส่งจากหน้าข้อมูลลูกค้า ยังไม่ต้องมีนัด)
  */
 function PetDocsContent() {
+  const { L } = useL();
   const params = useSearchParams();
   const need = params.get("need") === "idcard" ? "idcard" : "vaccine";
   const split = (v: string | null) =>
@@ -122,10 +125,10 @@ function PetDocsContent() {
     <div className="px-4 pb-6 pt-5">
       <PageHeader
         eyebrow={need === "vaccine" ? "Vaccine book" : "ID card"}
-        title={need === "vaccine" ? "แนบสมุดวัคซีนน้อง" : "แนบบัตรประชาชนผู้ปกครอง"}
-        subtitle={`${config.business.name} — ใช้ประกอบการรับน้องเข้าใช้บริการ`}
+        title={need === "vaccine" ? L("แนบสมุดวัคซีนน้อง", "Upload vaccine book") : L("แนบบัตรประชาชนผู้ปกครอง", "Upload owner's ID card")}
+        subtitle={L(`${config.business.name} — ใช้ประกอบการรับน้องเข้าใช้บริการ`, `${config.business.name} · needed before your cat checks in`)}
         back="/app"
-        backLabel="กลับหน้าแรก"
+        backLabel={L("กลับหน้าแรก", "Back to home")}
         showLang={false}
       />
       <IntakeFlowBar mode="progress" />
@@ -138,7 +141,7 @@ function PetDocsContent() {
           <IntakeFlowBar mode="next" />
         </>
       ) : targets.length === 0 ? (
-        <EmptyState icon="paw" title="ไม่พบข้อมูลน้อง" />
+        <EmptyState icon="paw" title={L("ไม่พบข้อมูลน้อง", "Cat not found")} />
       ) : (
         <div className="space-y-4">
           {targets.map((t) => (
@@ -153,9 +156,9 @@ function PetDocsContent() {
                 <Icon name="edit" size={20} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-extrabold text-catcha-chocolate">แจ้งประวัติน้องต่อเลย</span>
+                <span className="block text-sm font-extrabold text-catcha-chocolate">{L("แจ้งประวัติน้องต่อเลย", "Next: tell us about your cat")}</span>
                 <span className="block text-[11px] text-brown-soft">
-                  นิสัย สุขภาพ การดูแล — ให้ร้านเตรียมดูแลน้องได้ถูกวิธี
+                  {L("นิสัย สุขภาพ การดูแล — ให้ร้านเตรียมดูแลน้องได้ถูกวิธี", "Personality, health, care, so we can look after your cat properly")}
                 </span>
               </span>
               <Icon name="chevron" size={16} className="text-brown-faint" />
@@ -169,19 +172,22 @@ function PetDocsContent() {
 }
 
 function StayLine({ b }: { b: StayBooking }) {
+  const { L, en } = useL();
+  const fmtD = (d: string) => (en ? dateFor(d, true) : formatThaiDateShort(d));
   const { config } = useConfig();
   // นัดเก็บรหัสห้อง (mid-cozy) — ลูกค้าต้องเห็นชื่อห้องแบบในการ์ด (Mid Cozy Room)
   const roomLabel = b.room ? config.rooms.find((r) => r.id === b.room)?.name || b.room : "";
   return (
     <p className="text-xs text-brown-soft">
-      {b.service === "room" ? "เข้าพัก" : "นัด"}: {formatThaiDateShort(b.checkin || b.date)}
-      {b.checkout ? ` → ${formatThaiDateShort(b.checkout)}` : ""}
+      {b.service === "room" ? L("เข้าพัก", "Stay") : L("นัด", "Appointment")}: {fmtD(b.checkin || b.date)}
+      {b.checkout ? ` → ${fmtD(b.checkout)}` : ""}
       {roomLabel ? ` · ${roomWithWord(roomLabel)}` : ""}
     </p>
   );
 }
 
 function VaccineSection({ target }: { target: VaccineTarget }) {
+  const { L, en } = useL();
   const booking = target.booking;
   const [sentCount, setSentCount] = useState(target.initialCount);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -229,9 +235,9 @@ function VaccineSection({ target }: { target: VaccineTarget }) {
       setSentCount((prev) => data.count ?? prev + list.length);
       setPhotos([]);
       setDone(true);
-      savedPopup("ส่งรูปสมุดวัคซีนสำเร็จ", ["ร้านได้รับรูปแล้วค่ะ"]);
+      savedPopup(L("ส่งรูปสมุดวัคซีนสำเร็จ", "Vaccine photos sent"), [L("ร้านได้รับรูปแล้วค่ะ", "The shop has received them")]);
     } catch {
-      alert("ส่งรูปไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+      alert(L("ส่งรูปไม่สำเร็จ ลองใหม่อีกครั้งนะคะ", "Could not send the photos, please try again"));
     } finally {
       setSaving(false);
     }
@@ -252,7 +258,9 @@ function VaccineSection({ target }: { target: VaccineTarget }) {
       {sentCount > 0 && (
         <p className="mb-2 flex items-center gap-1.5 rounded-catcha-sm bg-sage/20 px-3 py-2 text-[11px] font-bold text-ok">
           <Icon name="check" size={14} strokeWidth={2.4} />
-          ร้านได้รับสมุดวัคซีนแล้ว {sentCount} รูป{done ? " — ขอบคุณค่ะ 🧡" : " · แนบเพิ่มได้"}
+          {en
+            ? `The shop has ${sentCount} vaccine photo${sentCount > 1 ? "s" : ""}${done ? ", thank you 🧡" : " · you can add more"}`
+            : `ร้านได้รับสมุดวัคซีนแล้ว ${sentCount} รูป${done ? " — ขอบคุณค่ะ 🧡" : " · แนบเพิ่มได้"}`}
         </p>
       )}
 
@@ -261,10 +269,10 @@ function VaccineSection({ target }: { target: VaccineTarget }) {
           {photos.map((src, i) => (
             <div key={i} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt={`สมุดวัคซีน ${i + 1}`} className="aspect-square w-full rounded-lg object-cover" />
+              <img src={src} alt={L(`สมุดวัคซีน ${i + 1}`, `Vaccine book ${i + 1}`)} className="aspect-square w-full rounded-lg object-cover" />
               <button
                 type="button"
-                aria-label="ลบรูปนี้"
+                aria-label={L("ลบรูปนี้", "Remove this photo")}
                 onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
                 className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white"
               >
@@ -292,24 +300,24 @@ function VaccineSection({ target }: { target: VaccineTarget }) {
           </span>
           <span className="text-xs font-bold text-brown-soft">
             {converting
-              ? "กำลังแนบรูป…"
+              ? L("กำลังแนบรูป…", "Attaching…")
               : photos.length
-                ? `เพิ่มรูปอีก (สูงสุด ${MAX_VACCINE_PHOTOS} รูป)`
+                ? L(`เพิ่มรูปอีก (สูงสุด ${MAX_VACCINE_PHOTOS} รูป)`, `Add more photos (up to ${MAX_VACCINE_PHOTOS})`)
                 : sentCount > 0
-                  ? "แนบเพิ่ม (เลือกแล้วส่งให้ร้านทันที)"
-                  : "แตะเพื่อถ่าย/เลือกรูปสมุดวัคซีน (เลือกแล้วส่งให้ร้านทันที)"}
+                  ? L("แนบเพิ่ม (เลือกแล้วส่งให้ร้านทันที)", "Add more (sent to the shop right away)")
+                  : L("แตะเพื่อถ่าย/เลือกรูปสมุดวัคซีน (เลือกแล้วส่งให้ร้านทันที)", "Tap to take or choose vaccine book photos (sent to the shop right away)")}
           </span>
         </label>
       )}
 
       {saving ? (
-        <p className="mt-3 text-center text-xs font-bold text-brown-soft">กำลังส่งรูปให้ร้าน…</p>
+        <p className="mt-3 text-center text-xs font-bold text-brown-soft">{L("กำลังส่งรูปให้ร้าน…", "Sending photos…")}</p>
       ) : (
         photos.length > 0 &&
         !converting && (
           // เหลือรูปค้าง = ส่งรอบก่อนไม่ผ่าน
           <button type="button" onClick={() => send()} className={`mt-3 ${BTN_PRIMARY}`}>
-            ส่งไม่สำเร็จ — แตะเพื่อลองส่ง {photos.length} รูปอีกครั้ง
+            {L(`ส่งไม่สำเร็จ — แตะเพื่อลองส่ง ${photos.length} รูปอีกครั้ง`, `Sending failed. Tap to retry ${photos.length} photo(s)`)}
           </button>
         )
       )}
@@ -318,6 +326,7 @@ function VaccineSection({ target }: { target: VaccineTarget }) {
 }
 
 function IdCardSection({ stay }: { stay?: StayBooking }) {
+  const { L, en } = useL();
   const { profile } = useLiff();
   const { config } = useConfig();
   const [idCardUrl, setIdCardUrl] = useState("");
@@ -336,7 +345,7 @@ function IdCardSection({ stay }: { stay?: StayBooking }) {
   // ขีดทับบนเครื่องลูกค้าก่อน แล้วค่อยส่งขึ้นระบบ — รูปบัตรแบบไม่มีข้อความไม่เคยออกจากมือถือ
   const upload = async (file: File) => {
     if (!profile?.lineUserId) {
-      alert("ยังเชื่อมบัญชี LINE ไม่เสร็จ — ปิดหน้านี้แล้วเปิดลิงก์จากแชท LINE ใหม่อีกครั้งนะคะ");
+      alert(L("ยังเชื่อมบัญชี LINE ไม่เสร็จ — ปิดหน้านี้แล้วเปิดลิงก์จากแชท LINE ใหม่อีกครั้งนะคะ", "LINE isn't connected yet. Close this page and open the link from the LINE chat again."));
       return;
     }
     setBusy(true);
@@ -353,7 +362,7 @@ function IdCardSection({ stay }: { stay?: StayBooking }) {
       setJustSent(true);
     } catch (e) {
       const msg = e instanceof Error && !e.message.startsWith("upload") ? e.message : "";
-      alert(msg || "แนบรูปบัตรไม่สำเร็จ ลองใหม่อีกครั้งนะคะ");
+      alert(msg || L("แนบรูปบัตรไม่สำเร็จ ลองใหม่อีกครั้งนะคะ", "Could not upload the ID card, please try again"));
     } finally {
       setBusy(false);
     }
@@ -368,19 +377,25 @@ function IdCardSection({ stay }: { stay?: StayBooking }) {
         </div>
       )}
       <p className="mb-2 text-[11px] text-brown-faint">
-        ระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง: &quot;{ID_CARD_PURPOSE}&quot;
-        แนบครั้งเดียวพอ รอบต่อไปไม่ต้องแนบอีก
+        {en ? (
+          <>We automatically stamp &quot;{ID_CARD_PURPOSE}&quot; across the photo before sending. You only need to upload it once.</>
+        ) : (
+          <>
+            ระบบจะพิมพ์ข้อความขีดทับลงในรูปให้อัตโนมัติก่อนส่ง: &quot;{ID_CARD_PURPOSE}&quot;
+            แนบครั้งเดียวพอ รอบต่อไปไม่ต้องแนบอีก
+          </>
+        )}
       </p>
       {idCardUrl && (
         <>
           <p className="mb-2 flex items-center gap-1.5 rounded-catcha-sm bg-sage/20 px-3 py-2 text-[11px] font-bold text-ok">
             <Icon name="check" size={14} strokeWidth={2.4} />
-            {justSent ? "ส่งบัตรให้ร้านแล้ว ขอบคุณค่ะ 🧡" : "ร้านมีบัตรของคุณแล้ว · แตะด้านล่างถ้าต้องการเปลี่ยนรูป"}
+            {justSent ? L("ส่งบัตรให้ร้านแล้ว ขอบคุณค่ะ 🧡", "ID card sent, thank you 🧡") : L("ร้านมีบัตรของคุณแล้ว · แตะด้านล่างถ้าต้องการเปลี่ยนรูป", "The shop has your ID card · tap below to replace it")}
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={idCardUrl}
-            alt="บัตรประชาชน (ขีดทับแล้ว)"
+            alt={L("บัตรประชาชน (ขีดทับแล้ว)", "ID card (stamped)")}
             className="mb-2 w-full rounded-lg border border-catcha-line object-contain"
           />
         </>
@@ -401,10 +416,10 @@ function IdCardSection({ stay }: { stay?: StayBooking }) {
         </span>
         <span className="text-xs font-bold text-brown-soft">
           {busy
-            ? "กำลังขีดทับและแนบรูป…"
+            ? L("กำลังขีดทับและแนบรูป…", "Stamping and uploading…")
             : idCardUrl
-              ? "แตะเพื่อเปลี่ยนรูปบัตร"
-              : "แตะเพื่อถ่าย/เลือกรูปบัตรประชาชน"}
+              ? L("แตะเพื่อเปลี่ยนรูปบัตร", "Tap to replace the ID card photo")
+              : L("แตะเพื่อถ่าย/เลือกรูปบัตรประชาชน", "Tap to take or choose an ID card photo")}
         </span>
       </label>
     </section>

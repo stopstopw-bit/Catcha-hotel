@@ -9,6 +9,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useL } from "@/components/LocaleProvider";
 
 type Offer = { id: string; title: string; amount: number; reason: string; validDays: number; active: boolean };
 
@@ -16,6 +17,7 @@ function ClaimContent() {
   const params = useSearchParams();
   const offerId = params.get("offer") || "";
   const { profile } = useLiff();
+  const { L } = useL();
 
   const [offer, setOffer] = useState<Offer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ function ClaimContent() {
       const d = await res.json().catch(() => ({}));
       if (res.ok && d.ok) {
         setResult("ok");
-        savedPopup("รับคูปองสำเร็จ 🎟️");
+        savedPopup(L("รับคูปองสำเร็จ 🎟️", "Coupon claimed 🎟️"));
       }
       else if (d.alreadyClaimed) setResult("already");
       else setResult("error");
@@ -61,13 +63,13 @@ function ClaimContent() {
   if (!offer)
     return (
       <div className="px-4 pb-6 pt-5">
-        <PageHeader eyebrow="Coupon" title="คูปองส่วนลดพิเศษ" back="/app" backLabel="กลับหน้าแรก" showLang={false} />
+        <PageHeader eyebrow="Coupon" title={L("คูปองส่วนลดพิเศษ", "Special discount coupon")} back="/app" backLabel={L("กลับหน้าแรก", "Back to home")} showLang={false} />
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="ticket" title="ไม่พบคูปองนี้" sub="หรือแคมเปญปิดแล้วค่ะ" />
+          <EmptyState icon="ticket" title={L("ไม่พบคูปองนี้", "Coupon not found")} sub={L("หรือแคมเปญปิดแล้วค่ะ", "or the campaign has ended")} />
         </div>
         <Link href="/app/coupons" className={`mt-5 ${BTN_PRIMARY}`}>
           <Icon name="wallet" size={18} />
-          ดูกระเป๋าคูปองของฉัน
+          {L("ดูกระเป๋าคูปองของฉัน", "View my coupon wallet")}
         </Link>
       </div>
     );
@@ -80,22 +82,22 @@ function ClaimContent() {
             <Icon name="check" size={28} strokeWidth={2.4} />
           </span>
           <h1 className="mt-4 text-lg font-extrabold text-catcha-chocolate">
-            {result === "ok" ? "รับคูปองเรียบร้อยแล้ว!" : "คุณรับคูปองนี้ไปแล้วนะคะ"}
+            {result === "ok" ? L("รับคูปองเรียบร้อยแล้ว!", "Coupon claimed!") : L("คุณรับคูปองนี้ไปแล้วนะคะ", "You already claimed this coupon")}
           </h1>
           <p className="mt-2 text-sm text-brown-soft">
-            คูปองส่วนลด {offer.amount} บาท อยู่ในกระเป๋าคูปองของคุณแล้ว 🧡
+            {L(`คูปองส่วนลด ${offer.amount} บาท อยู่ในกระเป๋าคูปองของคุณแล้ว 🧡`, `A ${offer.amount} THB discount coupon is now in your wallet 🧡`)}
           </p>
         </div>
         <Link href="/app/coupons" className={`mt-5 ${BTN_PRIMARY}`}>
           <Icon name="wallet" size={18} />
-          ดูกระเป๋าคูปอง
+          {L("ดูกระเป๋าคูปอง", "View coupon wallet")}
         </Link>
       </div>
     );
 
   return (
     <div className="px-4 pb-6 pt-5">
-      <PageHeader eyebrow="Coupon" title="คูปองส่วนลดพิเศษ" back="/app" backLabel="กลับหน้าแรก" showLang={false} />
+      <PageHeader eyebrow="Coupon" title={L("คูปองส่วนลดพิเศษ", "Special discount coupon")} back="/app" backLabel={L("กลับหน้าแรก", "Back to home")} showLang={false} />
       <div className="relative overflow-hidden rounded-catcha border border-honey/50 bg-gradient-to-br from-honey/30 via-card to-latte/15 p-6 text-center shadow-catcha">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-card text-latte-deep shadow-catcha-sm">
           <Icon name="ticket" size={24} />
@@ -107,11 +109,11 @@ function ClaimContent() {
         {offer.reason && offer.reason !== offer.title && (
           <p className="mt-2 text-xs text-brown-soft">{offer.reason}</p>
         )}
-        <p className="mt-2 text-[11px] text-brown-faint">ใช้เป็นส่วนลดได้ ({offer.validDays} วัน)</p>
+        <p className="mt-2 text-[11px] text-brown-faint">{L(`ใช้เป็นส่วนลดได้ (${offer.validDays} วัน)`, `Valid for ${offer.validDays} days`)}</p>
       </div>
       {result === "error" && (
         <p className="mt-3 rounded-catcha-sm bg-red-50 px-3 py-2 text-center text-xs font-bold text-red-600">
-          รับคูปองไม่สำเร็จ ลองใหม่นะคะ
+          {L("รับคูปองไม่สำเร็จ ลองใหม่นะคะ", "Could not claim the coupon, please try again")}
         </p>
       )}
       <button
@@ -121,13 +123,13 @@ function ClaimContent() {
         className={`mt-5 ${BTN_PRIMARY}`}
       >
         {offer.active && !claiming && <Icon name="gift" size={18} />}
-        {claiming ? "กำลังรับ…" : offer.active ? "กดรับคูปองเข้ากระเป๋า" : "แคมเปญปิดแล้ว"}
+        {claiming ? L("กำลังรับ…", "Claiming…") : offer.active ? L("กดรับคูปองเข้ากระเป๋า", "Add coupon to my wallet") : L("แคมเปญปิดแล้ว", "Campaign ended")}
       </button>
       <Link
         href="/app/coupons"
         className="mt-2 flex min-h-[44px] items-center justify-center gap-1 text-xs font-bold text-brown-soft"
       >
-        ดูกระเป๋าคูปองของฉัน
+        {L("ดูกระเป๋าคูปองของฉัน", "View my coupon wallet")}
         <Icon name="chevron" size={14} />
       </Link>
     </div>

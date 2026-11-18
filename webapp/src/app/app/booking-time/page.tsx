@@ -12,6 +12,8 @@ import { Icon } from "@/components/Icon";
 import { TimeSlotPicker } from "@/components/TimeSlotPicker";
 import { IntakeFlowBar } from "@/components/IntakeFlowBar";
 import { flowProgress } from "@/lib/intake-flow";
+import { useL } from "@/components/LocaleProvider";
+import { dateFor } from "@/lib/locale-date";
 
 type Bk = {
   id: string;
@@ -26,6 +28,7 @@ type Bk = {
 };
 
 function BookingTimeContent() {
+  const { L, en } = useL();
   const params = useSearchParams();
   const id = params.get("id") || "";
   const type = params.get("type") === "checkout" ? "checkout" : "checkin";
@@ -73,7 +76,9 @@ function BookingTimeContent() {
       });
       if (res.ok) {
         setSaved(time);
-        savedPopup("บันทึกเวลาสำเร็จ", [`${isCheckin ? "เวลามาส่ง" : "เวลามารับ"} ${time} น.`]);
+        savedPopup(L("บันทึกเวลาสำเร็จ", "Time saved"), [
+          en ? `${isCheckin ? "Drop-off" : "Pick-up"} time ${time}` : `${isCheckin ? "เวลามาส่ง" : "เวลามารับ"} ${time} น.`,
+        ]);
       }
     } finally {
       setSaving(false);
@@ -95,11 +100,11 @@ function BookingTimeContent() {
   const shopGoes = isCheckin ? !!bk?.shopPickup : !!bk?.shopDropoff;
   const title = shopGoes
     ? isCheckin
-      ? "เลือกเวลาให้ร้านไปรับน้อง"
-      : "เลือกเวลาให้ร้านไปส่งน้องที่บ้าน"
+      ? L("เลือกเวลาให้ร้านไปรับน้อง", "Choose when we pick up your cat")
+      : L("เลือกเวลาให้ร้านไปส่งน้องที่บ้าน", "Choose when we bring your cat home")
     : isCheckin
-      ? "เลือกเวลาที่จะมาส่งน้อง"
-      : "เลือกเวลาที่จะมารับน้อง";
+      ? L("เลือกเวลาที่จะมาส่งน้อง", "Choose your drop-off time")
+      : L("เลือกเวลาที่จะมารับน้อง", "Choose your pick-up time");
 
   if (done) {
     return (
@@ -109,18 +114,18 @@ function BookingTimeContent() {
           <Icon name="check" size={28} strokeWidth={2.4} />
         </span>
         <h1 className="mt-4 text-lg font-extrabold text-catcha-chocolate">
-          บันทึกเวลาเรียบร้อยแล้ว!
+          {L("บันทึกเวลาเรียบร้อยแล้ว!", "Time saved!")}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-brown-soft">
           {shopGoes
             ? isCheckin
-              ? `ร้านจะไปรับ${bk?.catName || "น้อง"}ตามจุดรับ-ส่งตอน ${saved} นะคะ 🚗`
-              : `ร้านจะพา${bk?.catName || "น้อง"}ไปส่งที่บ้านตอน ${saved} นะคะ 🚗`
+              ? L(`ร้านจะไปรับ${bk?.catName || "น้อง"}ตามจุดรับ-ส่งตอน ${saved} นะคะ 🚗`, `We will pick up ${bk?.catName || L("น้อง", "your cat")} at ${saved} 🚗`)
+              : L(`ร้านจะพา${bk?.catName || "น้อง"}ไปส่งที่บ้านตอน ${saved} นะคะ 🚗`, `We will bring ${bk?.catName || L("น้อง", "your cat")} home at ${saved} 🚗`)
             : isCheckin
-              ? `เราจะเตรียมห้องรอต้อนรับ${bk?.catName || "น้อง"}ตอน ${saved} นะคะ 🐱`
-              : `เราจะเตรียม${bk?.catName || "น้อง"}ให้พร้อมก่อนกลับบ้านตอน ${saved} นะคะ 🐱`}
+              ? L(`เราจะเตรียมห้องรอต้อนรับ${bk?.catName || "น้อง"}ตอน ${saved} นะคะ 🐱`, `We will have the room ready for ${bk?.catName || L("น้อง", "your cat")} at ${saved} 🐱`)
+              : L(`เราจะเตรียม${bk?.catName || "น้อง"}ให้พร้อมก่อนกลับบ้านตอน ${saved} นะคะ 🐱`, `We will have ${bk?.catName || L("น้อง", "your cat")} ready to go home at ${saved} 🐱`)}
           <br />
-          กลับไปที่แชท LINE ได้เลยค่ะ
+          {L("กลับไปที่แชท LINE ได้เลยค่ะ", "You can go back to the LINE chat now")}
         </p>
         </div>
       </div>
@@ -133,7 +138,7 @@ function BookingTimeContent() {
         eyebrow={shopGoes ? (isCheckin ? "Pick-up by shop" : "Delivery time") : isCheckin ? "Drop-off time" : "Pick-up time"}
         title={title}
         back="/app"
-        backLabel="กลับหน้าแรก"
+        backLabel={L("กลับหน้าแรก", "Back to home")}
         showLang={false}
       />
       <IntakeFlowBar mode="progress" />
@@ -142,7 +147,7 @@ function BookingTimeContent() {
         <LoadingScreen />
       ) : !bk ? (
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="calendar" title="ไม่พบข้อมูลการจอง" />
+          <EmptyState icon="calendar" title={L("ไม่พบข้อมูลการจอง", "Booking not found")} />
         </div>
       ) : (
         <>
@@ -153,14 +158,14 @@ function BookingTimeContent() {
             <div className="min-w-0">
               <p className="truncate text-sm font-extrabold text-catcha-chocolate">{bk.catName}</p>
               <p className="text-xs text-brown-soft">
-                {isCheckin ? "วันเข้าพัก" : "วันรับน้อง"}:{" "}
-                {dateLabel ? formatThaiDateShort(dateLabel) : "—"}
+                {isCheckin ? L("วันเข้าพัก", "Check-in") : L("วันรับน้อง", "Pick-up day")}:{" "}
+                {dateLabel ? (en ? dateFor(dateLabel, true) : formatThaiDateShort(dateLabel)) : "—"}
               </p>
             </div>
           </div>
 
           <section className="mt-5">
-            <SectionLabel>{saved ? "Change time · เปลี่ยนเวลา (ถ้าต้องการ)" : "Time · เลือกเวลา"}</SectionLabel>
+            <SectionLabel>{saved ? L("Change time · เปลี่ยนเวลา (ถ้าต้องการ)", "Change time (optional)") : L("Time · เลือกเวลา", "Choose a time")}</SectionLabel>
             <div className="rounded-catcha border border-catcha-line bg-paper p-3 shadow-catcha-sm">
               <TimeSlotPicker value={saved} onPick={pick} disabled={saving} />
             </div>
@@ -170,20 +175,20 @@ function BookingTimeContent() {
             <div className="mt-5 rounded-catcha bg-sage/15 p-4">
               <p className="flex items-center justify-center gap-1.5 text-base font-extrabold text-catcha-chocolate">
                 <Icon name="check" size={18} strokeWidth={2.4} className="text-ok" />
-                เลือกเวลา {saved} แล้ว
+                {L(`เลือกเวลา ${saved} แล้ว`, `${saved} selected`)}
               </p>
               {flow?.next ? (
                 <a href={flow.next.href} className={`mt-3 ${BTN_PRIMARY}`}>
-                  ถัดไป: {flow.next.label}
+                  {L("ถัดไป", "Next")}: {en ? flow.next.labelEn : flow.next.label}
                   <Icon name="chevron" size={16} />
                 </a>
               ) : (
                 <>
                   <p className="mt-1 text-center text-xs text-brown-soft">
-                    ถ้าถูกต้องแล้ว กดปุ่มด้านล่างเพื่อยืนยันและกลับไปที่แชทได้เลยค่ะ 🧡
+                    {L("ถ้าถูกต้องแล้ว กดปุ่มด้านล่างเพื่อยืนยันและกลับไปที่แชทได้เลยค่ะ 🧡", "If this looks right, tap below to confirm and go back to the chat 🧡")}
                   </p>
                   <button type="button" onClick={finish} className={`mt-3 ${BTN_PRIMARY}`}>
-                    เสร็จแล้ว — กลับไปที่แชท
+                    {L("เสร็จแล้ว — กลับไปที่แชท", "Done, back to chat")}
                   </button>
                 </>
               )}

@@ -105,3 +105,17 @@ export function LocaleProvider({
 export function useLocale() {
   return useContext(LocaleContext);
 }
+
+/** ตัวช่วยสองภาษา: L("ไทย", "English") — ลูกค้าภาษาอังกฤษเห็นข้อความอังกฤษ */
+export function useL() {
+  const { locale } = useContext(LocaleContext);
+  const en = locale === "en";
+  const L = useCallback((th: string, eng: string) => (en ? eng : th), [en]);
+  return { L, en, locale };
+}
+
+/** ข้อความตามภาษาที่เลือกไว้ตอนนี้ — ใช้ใน useEffect/callback ที่เรียก hook ไม่ได้ (ข้อความ error ฯลฯ) */
+export function trNow(th: string, eng: string): string {
+  if (typeof window === "undefined") return th;
+  return readStoredLocale() === "en" ? eng : th;
+}

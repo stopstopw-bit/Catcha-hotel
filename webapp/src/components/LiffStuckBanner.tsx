@@ -1,10 +1,12 @@
 "use client";
 
 import { useLiff } from "@/components/LiffProvider";
+import { useL } from "@/components/LocaleProvider";
 
 /** โผล่ทับทุกหน้าถ้าล็อกอิน LINE ค้างนานผิดปกติ — กันลูกค้าเห็นแอปว่างเปล่าไม่รู้ต้องทำอะไร */
 export function LiffStuckBanner() {
   const { ready, error } = useLiff();
+  const { L } = useL();
   if (ready || !error) return null;
 
   return (
@@ -16,7 +18,7 @@ export function LiffStuckBanner() {
           onClick={() => window.location.reload()}
           className="mt-3 w-full rounded-catcha-sm bg-latte-deep py-2.5 text-sm font-extrabold text-white"
         >
-          🔄 โหลดใหม่
+          🔄 {L("โหลดใหม่", "Reload")}
         </button>
       </div>
     </div>

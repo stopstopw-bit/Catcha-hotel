@@ -47,7 +47,7 @@ export default function PromosPage() {
       </div>
       {!promos.length ? (
         <div className="rounded-catcha border border-catcha-line bg-card shadow-catcha-sm">
-          <EmptyState icon="gift" title="ยังไม่มีโปรทั่วไปช่วงนี้" />
+          <EmptyState icon="gift" title={locale === "en" ? "No general promotions right now" : "ยังไม่มีโปรทั่วไปช่วงนี้"} />
         </div>
       ) : (
         <ul className="space-y-3">

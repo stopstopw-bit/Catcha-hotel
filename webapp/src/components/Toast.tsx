@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { useL } from "@/components/LocaleProvider";
 
 type ToastKind = "success" | "error" | "info";
 type ToastItem = { id: number; msg: string; kind: ToastKind };
@@ -59,6 +60,7 @@ const ICON: Record<ToastKind, string> = { success: "✅", error: "⚠️", info:
 export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([]);
   const [popup, setPopup] = useState<PopupItem | null>(null);
+  const { L } = useL();
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -138,7 +140,7 @@ export function Toaster() {
             type="button"
             className="mt-4 min-h-[44px] w-full rounded-full bg-catcha-chocolate text-sm font-bold text-card"
           >
-            ตกลง
+            {L("ตกลง", "OK")}
           </button>
         </div>
       </div>
