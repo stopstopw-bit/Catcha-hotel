@@ -57,7 +57,6 @@ export function localBusinessNode() {
     telephone: "+66805498969",
     contactPoint: [
       { "@type": "ContactPoint", telephone: "+66805498969", contactType: "reservations", availableLanguage: ["th", "en"] },
-      { "@type": "ContactPoint", telephone: "+66953246989", contactType: "customer service", availableLanguage: ["th"] },
     ],
     priceRange: "฿350-฿1,450",
     image: `${SITE_URL}/logo.jpg`,
