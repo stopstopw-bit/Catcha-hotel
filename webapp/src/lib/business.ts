@@ -3,7 +3,7 @@ export const BUSINESS = {
   name: process.env.NEXT_PUBLIC_SHOP_NAME?.trim() || "CatCha Hotel",
   tagline: { th: "โรงแรมแมว · อาบน้ำ & กรูมมิ่ง", en: "Cat Hotel · Grooming & Spa" },
   lineOa: process.env.NEXT_PUBLIC_SHOP_LINE_OA?.trim() || "@catchahotel",
-  phones: ["080-549-8969"],
+  phones: ["080-549-8969", "095-324-6989"],
   maps: "https://maps.app.goo.gl/u38pzVGa9LiEsLEK8",
   facebook: "catcha hotel",
   /** โซเชียลมีเดีย — ลิงก์ทางการ (ตัด tracking param ออกแล้ว) */
