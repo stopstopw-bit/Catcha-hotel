@@ -90,6 +90,7 @@ const SCHEMA_CHECKS: { table: string; column: string; feature: string }[] = [
   { table: "pos_sales", column: "method", feature: "POS บิลขายหน้าร้าน" },
   { table: "pos_closings", column: "counted_cash", feature: "POS ปิดยอดรายวัน" },
   { table: "link_clicks", column: "src", feature: "หน้าลิงก์รวม (นับคลิกตามแพลตฟอร์ม)" },
+  { table: "game_plays", column: "prize_id", feature: "เกมลุ้นรางวัล (วงล้อ / ขูดบัตร)" },
   { table: "customer_packages", column: "groom_program", feature: "คอร์สอาบน้ำแยกตามโปรแกรม" },
   { table: "package_offers", column: "room_type", feature: "คอร์สวันพักในแอปแยกตามประเภทห้อง" },
   { table: "package_offers", column: "items", feature: "คอร์สชุดรวม / แถมฟรี" },
@@ -588,6 +589,17 @@ where staff_note like '%🎁%';`,
     // ว่าง = โปรลดทั้งบิลแบบเดิม · เพิ่มคอลัมน์อย่างเดียว
     name: "promos.bill_rule",
     sql: "alter table promos add column if not exists bill_rule jsonb;",
+  },
+  {
+    // 🎡 เกมลุ้นรางวัล (วงล้อ / ขูดบัตร) — 1 แถว = เล่น 1 ครั้ง · id = "แคมเปญ|ลูกค้า|รอบ|ครั้งที่" กันเล่นเกินสิทธิ์
+    // ตารางใหม่ ไม่แตะข้อมูลเดิม
+    name: "game_plays.setup",
+    sql: `
+      create table if not exists game_plays (id text primary key, campaign_id text not null, customer_id text not null, period text not null default 'all', prize_id text, prize_label text, prize_kind text, amount numeric not null default 0, coupon_id text, created_at timestamptz not null default now());
+      create index if not exists game_plays_campaign_idx on game_plays (campaign_id, created_at);
+      create index if not exists game_plays_customer_idx on game_plays (customer_id);
+      alter table game_plays enable row level security;
+    `,
   },
 ];
 

@@ -49,6 +49,7 @@ import { useLocale } from "@/components/LocaleProvider";
 import { LanguagePicker } from "@/components/LangSwitch";
 import { REFERRAL_OPTIONS_EN } from "@/lib/referral-options";
 import { NumInput } from "@/components/NumInput";
+import { AFTER_REGISTER_KEY } from "@/lib/game-types";
 import { ReviewSheet, reviewDate as thaiDate, type ReviewSection } from "@/components/ReviewSheet";
 
 function emptyCat(): CatInput {
@@ -348,7 +349,13 @@ export default function RegisterPage() {
         { afterNav: true }
       );
       setReviewing(false);
-      router.replace("/app");
+      // มาจากหน้าเกมลุ้นรางวัล → สมัครเสร็จพากลับไปเล่นต่อ
+      let back = "";
+      try {
+        back = sessionStorage.getItem(AFTER_REGISTER_KEY) || "";
+        sessionStorage.removeItem(AFTER_REGISTER_KEY);
+      } catch {}
+      router.replace(back.startsWith("/app/") ? back : "/app");
     } catch {
       setError(
         L(

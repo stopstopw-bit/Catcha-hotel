@@ -36,6 +36,7 @@ const PUBLIC_API = [
   "/api/bookings/time",
   "/api/bookings/transport",
   "/api/coupons/claim",
+  "/api/games/play",
   "/api/promos/claim",
   "/api/line/liff",
   // ลิงก์เอกสาร (ใบเสร็จ/ใบกำกับภาษี) ที่ส่งให้ลูกค้าทาง LINE — ตรวจโทเคนที่เซ็นไว้ใน route

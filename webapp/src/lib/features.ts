@@ -25,6 +25,7 @@ export type FeatureKey =
   | "promos"
   | "coupons"
   | "referral"
+  | "games"
   | "packages"
   | "pos"
   | "finance"
@@ -221,6 +222,15 @@ export const FEATURES: FeatureDef[] = [
     hint: "ลิงก์/โค้ดชวนเพื่อนในกระเป๋าคูปอง — เพื่อนสมัครด้วยโค้ด ได้คูปองทั้งคู่ทันที",
     group: "การตลาด",
     requires: "coupons",
+  },
+  {
+    key: "games",
+    label: "เกมลุ้นรางวัล (วงล้อ / ขูดบัตร)",
+    hint: "ลูกค้าสมัครสมาชิกแล้วเล่นเกมใน LINE ได้คูปองหรือแต้ม — ใช้ QR หน้าร้านหรือส่งการ์ดชวนเล่น",
+    group: "การตลาด",
+    requires: "coupons",
+    adminHrefs: ["/admin/games"],
+    appPaths: ["/app/game"],
   },
   {
     key: "birthdays",

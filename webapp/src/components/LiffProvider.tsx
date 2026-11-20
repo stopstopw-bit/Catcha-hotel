@@ -328,6 +328,11 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       router.replace(offer ? `/app/claim-coupon?offer=${encodeURIComponent(offer)}` : "/app/coupons");
       return;
     }
+    if (path === "game") {
+      const g = params.get("g");
+      router.replace(g ? `/app/game?g=${encodeURIComponent(g)}` : "/app");
+      return;
+    }
     if (path === "intake") {
       // การ์ดรวมขอข้อมูล ปุ่มเดียว → หน้าแรกของลำดับ แล้วแต่ละหน้าพาไปขั้นต่อไปเอง
       router.replace(firstFlowHref(params) || "/app");
@@ -390,7 +395,9 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith("/app/groom-info") ||
       pathname.startsWith("/app/pet-docs") ||
       pathname.startsWith("/app/coupons") ||
-      pathname.startsWith("/app/claim-coupon");
+      pathname.startsWith("/app/claim-coupon") ||
+      // หน้าเกมโชว์รางวัลให้ดูก่อน แล้วชวนสมัครสมาชิกเอง (สมัครเสร็จพากลับมาเล่นต่อ)
+      pathname.startsWith("/app/game");
 
     if (needsRegistration && !skipRegister) {
       router.replace("/app/register");

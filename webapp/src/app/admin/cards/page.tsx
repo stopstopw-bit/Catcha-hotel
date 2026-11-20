@@ -548,6 +548,26 @@ const CARDS: CardMeta[] = [
     hasTitleSize: true,
   },
   {
+    key: "game",
+    name: "ชวนเล่นเกมลุ้นรางวัล",
+    desc: "การ์ดชวนลูกค้าหมุนวงล้อ / ขูดบัตร (ส่งจากเมนูเกมลุ้นรางวัล)",
+    colors: [
+      { key: "headerColor", label: "สีแถบหัว", fallback: "#5A8F5A" },
+      { key: "headerTextColor", label: "สีตัวหนังสือหัว", fallback: "#FFFFFF" },
+      { key: "accentColor", label: "สีชื่อเกม", fallback: "#5C4033" },
+      { key: "buttonColor", label: "สีปุ่มเล่น", fallback: "#4A7348" },
+    ],
+    fields: [],
+    texts: [],
+    styleTexts: [
+      { key: "header", label: "ข้อความบนแถบหัว (ไม่ใส่ = ตามชนิดเกม)", placeholder: "🎡 หมุนวงล้อลุ้นรางวัล" },
+      { key: "prizesLabel", label: "ป้าย: หัวกล่องรางวัล", placeholder: "รางวัลที่ลุ้นได้" },
+      { key: "button", label: "คำในปุ่ม (ไม่ใส่ = ตามชนิดเกม)", placeholder: "🎡 กดหมุนเลย" },
+    ],
+    closingLabel: "ข้อความปิดท้าย (ไม่บังคับ)",
+    hasTitleSize: true,
+  },
+  {
     key: "promo",
     name: "โปรโมชั่น (บรอดแคสต์)",
     desc: "การ์ดโปรที่ยิงหาลูกค้าหลายคนพร้อมกัน",
@@ -1384,6 +1404,30 @@ function Preview({
           </p>
         </div>
         {btn(c("buttonColor", "#4A7348"), t("button", "🎟️ กดรับคูปอง"))}
+      </div>
+    );
+  }
+
+  if (meta.key === "game") {
+    return (
+      <div className={bubble}>
+        <div className="px-4 py-3" style={{ background: c("headerColor", "#5A8F5A") }}>
+          <p className="text-xs font-extrabold" style={{ color: c("headerTextColor", "#FFFFFF") }}>
+            {t("header", "🎡 หมุนวงล้อลุ้นรางวัล")}
+          </p>
+        </div>
+        <div className="space-y-2 px-4 py-3 text-[11px] text-[#4E3E32]">
+          <p className={`${titleCls} font-extrabold`} style={{ color: c("accentColor", "#5C4033") }}>หมุนวงล้อ ลุ้นส่วนลด</p>
+          <p>สมาชิกเล่นฟรี 1 ครั้ง ได้รางวัลเข้ากระเป๋าคูปองทันที</p>
+          <div className="rounded-xl bg-[#FBF4E9] px-3 py-2">
+            <p className="text-[10px] text-[#A2907E]">{t("prizesLabel", "รางวัลที่ลุ้นได้")}</p>
+            <p className="font-extrabold text-[#5C4033]">ลด 30 บาท · ลด 50 บาท · ลด 100 บาท</p>
+          </div>
+          <p className="text-[10px] text-[#A2907E]">
+            {st.closing || "สมาชิกเล่นฟรี ได้รางวัลเข้ากระเป๋าคูปองทันที"} (เล่นได้ 1 ครั้ง) 🧡
+          </p>
+        </div>
+        {btn(c("buttonColor", "#4A7348"), t("button", "🎡 กดหมุนเลย"))}
       </div>
     );
   }
