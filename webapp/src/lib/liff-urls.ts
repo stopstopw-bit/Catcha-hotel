@@ -46,6 +46,11 @@ export function buildClaimCouponUrl(liffId: string, offerId: string) {
   return buildLiffUrl(liffId, { path: "claim-coupon", offer: offerId });
 }
 
+/** ลิงก์หน้าเกมลุ้นรางวัล (วงล้อ / ขูดบัตร) — ใช้ทำ QR หน้าร้าน และปุ่มในการ์ดชวนเล่น */
+export function buildGameUrl(liffId: string, gameId: string) {
+  return buildLiffUrl(liffId, { path: "game", g: gameId });
+}
+
 /** ลิงก์หน้าแนบเอกสารก่อนเข้าพัก (สมุดวัคซีน / บัตรประชาชน) — จองทั้งบ้านใส่ได้หลายนัด แนบแยกทีละตัวในหน้าเดียว */
 export function buildPetDocsUrl(liffId: string, bookingIds: string | string[], need: "vaccine" | "idcard") {
   const id = Array.isArray(bookingIds) ? bookingIds.join(",") : bookingIds;
