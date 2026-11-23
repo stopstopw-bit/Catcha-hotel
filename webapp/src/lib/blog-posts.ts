@@ -1529,6 +1529,7 @@ export const BLOG_POSTS: BlogPost[] = [
     datePublished: "2026-11-23",
     readMinutes: 4,
     emoji: "🛁",
+    cover: "/blog/year-end-cat-bath-bangna.jpg",
     blocks: [
       {
         type: "p",
