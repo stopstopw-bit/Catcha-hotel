@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { sendTelegram } from "./telegram";
+import { sendTelegram, sendTelegramPhotos } from "./telegram";
 
 /**
  * งานที่ลูกค้าไม่ต้องรอ (แจ้งเตือน Telegram/LINE, คำนวณระดับลูกค้า …) — ทำหลังส่งคำตอบกลับไปแล้ว
@@ -18,6 +18,15 @@ export function runAfterResponse(label: string, task: () => Promise<unknown>) {
  * อยู่ไฟล์นี้ ไม่ใช่ telegram.ts — telegram.ts ถูกดึงเข้าหน้า client ทางอ้อม (promos-store → customers-store)
  * ซึ่ง import after ไม่ได้
  */
-export function sendTelegramLater(text: string) {
-  runAfterResponse("telegram notify", () => sendTelegram(text));
+export function sendTelegramLater(text: string, photos?: TelegramPhotoGroup[]) {
+  runAfterResponse("telegram notify", async () => {
+    await sendTelegram(text);
+    // รูปเอกสารที่ลูกค้าแนบ ส่งตามหลังข้อความสรุป (ทีละกลุ่ม เรียงตามลำดับ)
+    for (const g of photos || []) {
+      if (g.urls.length) await sendTelegramPhotos(g.urls, g.caption);
+    }
+  });
 }
+
+/** รูปชุดหนึ่งที่ส่งตามข้อความสรุป เช่น สมุดวัคซีนของน้องหนึ่งตัว หรือบัตรประชาชน */
+export type TelegramPhotoGroup = { urls: string[]; caption?: string };

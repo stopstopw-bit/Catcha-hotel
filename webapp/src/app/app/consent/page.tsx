@@ -159,6 +159,8 @@ function ConsentContent() {
   const [vaccineUploading, setVaccineUploading] = useState("");
   const [fleaTickTreated, setFleaTickTreated] = useState(false);
   const [idCardUrl, setIdCardUrl] = useState("");
+  // แนบบัตรในหน้านี้รอบนี้ — บอกเซิร์ฟเวอร์ให้ส่งรูปบัตรตามข้อความสรุปใน Telegram
+  const [idCardNew, setIdCardNew] = useState(false);
   // เคยแนบบัตรไว้แล้วจากรอบก่อน → ไม่ถามซ้ำ (ขอครั้งเดียวพอ)
   const [idCardOnFile, setIdCardOnFile] = useState(false);
   const [idCardBusy, setIdCardBusy] = useState(false);
@@ -254,11 +256,13 @@ function ConsentContent() {
       const res = await customerFetch("/api/customers/id-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lineUserId: profile.lineUserId, image }),
+        // ไม่แจ้ง Telegram ตอนนี้ — รูปบัตรไปพร้อมข้อความสรุปตอนกดยอมรับ
+        body: JSON.stringify({ lineUserId: profile.lineUserId, image, notify: false }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) throw new Error(`upload ${res.status}`);
       setIdCardUrl(data.url);
+      setIdCardNew(true);
     } catch (e) {
       // ข้อความจาก watermarkIdCard (เช่น เปิดไฟล์ไม่ได้) บอกลูกค้าได้ตรงกว่า — ที่เหลือใช้ข้อความกลาง
       const msg = e instanceof Error && !e.message.startsWith("upload") ? e.message : "";
@@ -295,6 +299,7 @@ function ConsentContent() {
           vaccinePhotos: booking ? vaccineByCat[booking.id] || [] : [],
           vaccinePhotosByBooking: vaccineByCat,
           fleaTickTreated,
+          idCardNew,
         }),
       });
       const data = await res.json().catch(() => ({}));
