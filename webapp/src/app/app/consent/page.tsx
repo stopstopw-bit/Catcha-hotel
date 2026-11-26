@@ -18,6 +18,7 @@ import { posterFor } from "@/lib/en-posters";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
+import { FLEA_LEGAL_NOTE_EN, FLEA_LEGAL_NOTE_TH, FLEA_PROOF_MAX } from "@/lib/flea-proof";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
 import { isFeatureOn } from "@/lib/features";
@@ -165,6 +166,9 @@ function ConsentContent() {
   const [idCardOnFile, setIdCardOnFile] = useState(false);
   const [idCardBusy, setIdCardBusy] = useState(false);
   const [fleaError, setFleaError] = useState(false);
+  // รูปหลักฐานการหยดยา (ไม่บังคับ) — ส่งไปพร้อมตอนกดยอมรับข้อตกลง
+  const [fleaPhotos, setFleaPhotos] = useState<string[]>([]);
+  const [fleaConverting, setFleaConverting] = useState(false);
   /** อาบน้ำก่อนกลับของรอบเข้าพักนี้ — มีแล้วต้องอ่านข้อตกลงอาบน้ำด้วย ยอมรับครั้งเดียวในหน้านี้ */
   const [stayBath, setStayBath] = useState<{ date: string; time?: string } | null>(null);
 
@@ -299,6 +303,7 @@ function ConsentContent() {
           vaccinePhotos: booking ? vaccineByCat[booking.id] || [] : [],
           vaccinePhotosByBooking: vaccineByCat,
           fleaTickTreated,
+          fleaPhotos,
           idCardNew,
         }),
       });
@@ -312,6 +317,23 @@ function ConsentContent() {
       if (res.ok || data?.needSql) savedPopup(L("ยอมรับข้อตกลงสำเร็จ", "Terms accepted"), [L("ร้านได้รับข้อตกลงที่เซ็นแล้วค่ะ", "The shop has your signed agreement")]);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addFleaPhotos = async (files: FileList) => {
+    setFleaConverting(true);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files).slice(0, FLEA_PROOF_MAX - fleaPhotos.length)) {
+        try {
+          urls.push(await toJpegDataUrl(f));
+        } catch {
+          /* ข้ามรูปที่เปิดไม่ได้ */
+        }
+      }
+      setFleaPhotos((prev) => [...prev, ...urls].slice(0, FLEA_PROOF_MAX));
+    } finally {
+      setFleaConverting(false);
     }
   };
 
@@ -643,6 +665,63 @@ function ConsentContent() {
                 </span>
               </label>
               )}
+              {!isGroom && (
+                <div className="mt-2 rounded-catcha border border-catcha-line bg-card p-3 text-xs text-brown shadow-catcha-sm">
+                  <p className="font-bold">
+                    {L("แนบรูปหลักฐานการหยดยา", "Attach proof of treatment")}{" "}
+                    <span className="font-normal text-brown-faint">{L("(ไม่บังคับ)", "(optional)")}</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-brown-faint">
+                    {L(
+                      "เช่น รูปตอนหยด กล่อง/หลอดยา ใบเสร็จ หรือสมุดหมอ · ไม่แนบก็ได้ การติ๊กยืนยันด้านบนถือว่ายืนยันแล้ว",
+                      "e.g. a photo while applying, the product box, a receipt or the vet's record. Optional: ticking the box above already counts as your confirmation."
+                    )}
+                  </p>
+                  {fleaPhotos.length > 0 && (
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      {fleaPhotos.map((src, i) => (
+                        <div key={i} className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`${L("หลักฐาน", "Proof")} ${i + 1}`} className="aspect-square w-full rounded-lg object-cover" />
+                          <button
+                            type="button"
+                            aria-label={L("ลบรูปนี้", "Remove this photo")}
+                            onClick={() => setFleaPhotos((prev) => prev.filter((_, j) => j !== i))}
+                            className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white"
+                          >
+                            <Icon name="x" size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {fleaPhotos.length < FLEA_PROOF_MAX && (
+                    <label className="mt-2 flex min-h-[48px] cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files?.length) addFleaPhotos(e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Icon name={fleaPhotos.length ? "plus" : "image"} size={18} />
+                      <span className="font-bold text-brown-soft">
+                        {fleaConverting
+                          ? L("กำลังแนบรูป…", "Attaching…")
+                          : L(`แตะเพื่อถ่าย/เลือกรูป (สูงสุด ${FLEA_PROOF_MAX} รูป)`, `Tap to take/choose photos (up to ${FLEA_PROOF_MAX})`)}
+                      </span>
+                    </label>
+                  )}
+                </div>
+              )}
+              {!isGroom && fleaTickTreated && (
+                <p className="mt-2 rounded-catcha border border-[#4A7348]/30 bg-[#4A7348]/10 p-3 text-[11px] leading-relaxed text-brown">
+                  {en ? FLEA_LEGAL_NOTE_EN : FLEA_LEGAL_NOTE_TH}
+                </p>
+              )}
               {fleaError && !isGroom && (
                 <p className="mt-1 text-[11px] font-bold text-wait">
                   {L("กรุณาติ๊กยืนยันเรื่องหยดยาเห็บหมัดก่อนกดยอมรับข้อตกลง", "Please tick the flea and tick confirmation before accepting")}
@@ -692,7 +771,7 @@ function ConsentContent() {
               </label>
               <button
                 type="button"
-                disabled={!checked || saving || (!booking && !customerMode)}
+                disabled={!checked || saving || fleaConverting || (!booking && !customerMode)}
                 onClick={submit}
                 className={`mt-5 ${BTN_PRIMARY}`}
               >

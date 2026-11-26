@@ -234,6 +234,25 @@ export function CustomerIntakeCards({
           ))}
         </div>
       )}
+      {/* รูปหลักฐานหยดยาเห็บหมัดที่ลูกค้าแนบตอนกดยอมรับข้อตกลง (ล่าสุดก่อน) */}
+      {customer.cats.some((c) => fleaPhotosOf(c.stayInfo).length) && (
+        <div className="mt-3 space-y-1">
+          {customer.cats
+            .filter((c) => fleaPhotosOf(c.stayInfo).length)
+            .map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                <span className="font-bold text-brown-soft">🐛 {c.name}</span>
+                {[...fleaPhotosOf(c.stayInfo)].reverse().map((url, i) => (
+                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-bold text-ok underline">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="หลักฐานหยดยาเห็บหมัด" className="h-8 w-8 rounded border border-catcha-line object-cover" />
+                    {i === 0 && "หลักฐานหยดยาล่าสุด"}
+                  </a>
+                ))}
+              </div>
+            ))}
+        </div>
+      )}
       {customer.consentSignature && (
         <a
           href={customer.consentSignature}
@@ -247,4 +266,15 @@ export function CustomerIntakeCards({
       )}
     </div>
   );
+}
+
+/** รูปหลักฐานหยดยาเห็บหมัดที่เก็บไว้ที่ตัวน้อง (stayInfo.fleaPhotos) */
+function fleaPhotosOf(stayInfo?: string | null): string[] {
+  if (!stayInfo) return [];
+  try {
+    const v = (JSON.parse(stayInfo) as { fleaPhotos?: unknown }).fleaPhotos;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }

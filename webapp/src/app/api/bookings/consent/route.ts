@@ -12,6 +12,7 @@ import { MAX_VACCINE_PHOTOS, splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { formatBookingTelegram } from "@/lib/telegram";
 import { sendTelegramLater, type TelegramPhotoGroup } from "@/lib/after-response";
 import { copyBookingDocsToCustomer, findCustomerByLine } from "@/lib/customers-store";
+import { saveFleaProof } from "@/lib/flea-proof-server";
 
 /** ลูกค้ากด "ยอมรับข้อตกลง" ก่อนเข้าพัก */
 export async function POST(req: NextRequest) {
@@ -68,6 +69,8 @@ export async function POST(req: NextRequest) {
     let bathCount = 0;
     // รูปที่ลูกค้าแนบมารอบนี้ — ส่งตามข้อความสรุปใน Telegram
     const photos: TelegramPhotoGroup[] = [];
+    /** น้องในรอบเข้าพักนี้ — รูปหลักฐานหยดยาเก็บไว้ที่ตัวน้องเหล่านี้ */
+    const stayCats: string[] = [];
     if (b) {
       if (res.vaccineAdded.length) {
         photos.push({ urls: res.vaccineAdded, caption: `💉 สมุดวัคซีน ${b.catName}` });
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
           x.status !== "cancelled" &&
           bookingGroupKey(x) === key
       );
+      stayCats.push(b.catName, ...siblings.map((x) => x.catName));
       // ข้อตกลง + สมุดวัคซีนที่แนบมา ยกขึ้นตัวน้อง/ลูกค้าด้วย — หน้าข้อมูลลูกค้าจะได้ขึ้น "ได้รับแล้ว"
       await copyBookingDocsToCustomer(b, { newPhotos: res.vaccineAdded });
       for (const x of siblings) {
@@ -114,6 +118,14 @@ export async function POST(req: NextRequest) {
     await confirmHouseholdFrom(bookingId);
     if (b) {
       const groom = b.service === "groom";
+      // รูปหลักฐานหยดยาเห็บหมัด (ไม่บังคับ) — ต่อท้ายรูปอื่นใน Telegram + เก็บที่ตัวน้อง
+      let fleaCount = 0;
+      if (!groom && Array.isArray(body.fleaPhotos) && body.fleaPhotos.length) {
+        const me = await findCustomerByLine(lineUserId).catch(() => undefined);
+        const urls = await saveFleaProof(me, body.fleaPhotos, stayCats.length ? stayCats : [b.catName]);
+        fleaCount = urls.length;
+        if (urls.length) photos.push({ urls, caption: `🐛 หลักฐานหยดยาเห็บหมัด ${b.catName}` });
+      }
       if (idCardNew && lineUserId) {
         const me = await findCustomerByLine(lineUserId).catch(() => undefined);
         if (me?.idCardUrl) photos.push({ urls: [me.idCardUrl], caption: `🪪 บัตรประชาชน ${me.name}` });
@@ -129,7 +141,10 @@ export async function POST(req: NextRequest) {
           ...(bathCount ? { อาบน้ำก่อนกลับ: "✅ ยอมรับข้อตกลงอาบน้ำด้วยแล้ว" } : {}),
           ...(groom
             ? {}
-            : { หยดยาเห็บหมัด: fleaTickTreated ? "✅ ลูกค้ายืนยันว่าหยดมาแล้ว" : "❌ ยังไม่ได้หยด/ไม่ระบุ" }),
+            : {
+                หยดยาเห็บหมัด: fleaTickTreated ? "✅ ลูกค้ายืนยันว่าหยดมาแล้ว" : "❌ ยังไม่ได้หยด/ไม่ระบุ",
+                หลักฐานหยดยา: fleaCount ? `แนบรูป ${fleaCount} รูป 📸` : "ไม่ได้แนบรูป (ติ๊กยืนยันอย่างเดียว)",
+              }),
           ...(b.vaccinePhotoUrl ? { สมุดวัคซีน: `แนบรูปมาแล้ว ${splitVaccinePhotos(b.vaccinePhotoUrl).length} รูป 📸` } : {}),
           ...(careNote ? { "การดูแลเพิ่มเติม": careNote } : {}),
         }),
