@@ -10,8 +10,8 @@ import {
 import { bookingGroupKey, stayForGroom } from "@/lib/booking-group";
 import { MAX_VACCINE_PHOTOS, splitVaccinePhotos } from "@/lib/vaccine-photos";
 import { formatBookingTelegram } from "@/lib/telegram";
-import { sendTelegramLater } from "@/lib/after-response";
-import { copyBookingDocsToCustomer } from "@/lib/customers-store";
+import { sendTelegramLater, type TelegramPhotoGroup } from "@/lib/after-response";
+import { copyBookingDocsToCustomer, findCustomerByLine } from "@/lib/customers-store";
 
 /** ลูกค้ากด "ยอมรับข้อตกลง" ก่อนเข้าพัก */
 export async function POST(req: NextRequest) {
@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
     }
   }
   const fleaTickTreated = Boolean(body.fleaTickTreated);
+  // ลูกค้าเพิ่งแนบบัตรประชาชนในหน้านี้ → ส่งรูปบัตรตามข้อความสรุปใน Telegram
+  const idCardNew = Boolean(body.idCardNew);
   if (!bookingId) {
     return NextResponse.json({ error: "bookingId required" }, { status: 400 });
   }
@@ -64,7 +66,12 @@ export async function POST(req: NextRequest) {
     // → ประทับให้น้องทุกตัวในนัดเดียวกัน ไม่งั้นระบบเห็นว่าตัวอื่น "ยังไม่กด" แล้วขอซ้ำทุกรอบ
     // (สมุดวัคซีนเป็นของแต่ละตัว — ไม่คัดลอกข้ามตัว ใช้รูปที่แนบให้ตัวนั้นเอง)
     let bathCount = 0;
+    // รูปที่ลูกค้าแนบมารอบนี้ — ส่งตามข้อความสรุปใน Telegram
+    const photos: TelegramPhotoGroup[] = [];
     if (b) {
+      if (res.vaccineAdded.length) {
+        photos.push({ urls: res.vaccineAdded, caption: `💉 สมุดวัคซีน ${b.catName}` });
+      }
       const key = bookingGroupKey(b);
       const mine = await listBookingsByCustomerName(b.customerName);
       const siblings = mine.filter(
@@ -87,6 +94,9 @@ export async function POST(req: NextRequest) {
         );
         const fresh = r.ok ? await getBooking(x.id) : undefined;
         if (fresh && r.ok) await copyBookingDocsToCustomer(fresh, { newPhotos: r.vaccineAdded });
+        if (r.ok && r.vaccineAdded.length) {
+          photos.push({ urls: r.vaccineAdded, caption: `💉 สมุดวัคซีน ${x.catName}` });
+        }
       }
       // อาบน้ำก่อนกลับของรอบนี้: หน้าข้อตกลงเข้าพักแสดงข้อตกลงอาบน้ำด้วยแล้ว → ประทับนัดอาบน้ำไปพร้อมกัน
       if (b.service === "room") {
@@ -104,6 +114,10 @@ export async function POST(req: NextRequest) {
     await confirmHouseholdFrom(bookingId);
     if (b) {
       const groom = b.service === "groom";
+      if (idCardNew && lineUserId) {
+        const me = await findCustomerByLine(lineUserId).catch(() => undefined);
+        if (me?.idCardUrl) photos.push({ urls: [me.idCardUrl], caption: `🪪 บัตรประชาชน ${me.name}` });
+      }
       sendTelegramLater(
         formatBookingTelegram(groom ? "✅ ลูกค้ายอมรับข้อตกลงก่อนอาบน้ำแล้ว" : "✅ ลูกค้ายอมรับข้อตกลงก่อนเข้าพักแล้ว", {
           น้องแมว: b.catName,
@@ -118,7 +132,8 @@ export async function POST(req: NextRequest) {
             : { หยดยาเห็บหมัด: fleaTickTreated ? "✅ ลูกค้ายืนยันว่าหยดมาแล้ว" : "❌ ยังไม่ได้หยด/ไม่ระบุ" }),
           ...(b.vaccinePhotoUrl ? { สมุดวัคซีน: `แนบรูปมาแล้ว ${splitVaccinePhotos(b.vaccinePhotoUrl).length} รูป 📸` } : {}),
           ...(careNote ? { "การดูแลเพิ่มเติม": careNote } : {}),
-        })
+        }),
+        photos
       );
     }
   }
