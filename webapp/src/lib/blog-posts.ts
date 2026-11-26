@@ -1617,6 +1617,7 @@ export const BLOG_POSTS: BlogPost[] = [
     datePublished: "2026-11-26",
     readMinutes: 4,
     emoji: "📦",
+    cover: "/blog/cat-boarding-moving-house.jpg",
     blocks: [
       {
         type: "p",
