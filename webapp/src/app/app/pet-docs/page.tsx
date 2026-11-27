@@ -12,6 +12,7 @@ import { BTN_PRIMARY, PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS, splitVaccinePhotos } from "@/lib/vaccine-photos";
+import { VACCINE_LEGAL_NOTE_EN, VACCINE_LEGAL_NOTE_TH } from "@/lib/flea-proof";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
 import { formatThaiDateShort, roomWithWord } from "@/lib/format-thai-date";
@@ -282,6 +283,11 @@ function VaccineSection({ target }: { target: VaccineTarget }) {
           ))}
         </div>
       )}
+
+      {/* ข้อความรับรองทางกฎหมาย — ขึ้นก่อนแนบ เพราะเลือกรูปแล้วส่งให้ร้านทันที */}
+      <p className="mb-2 rounded-catcha-sm border border-[#4A7348]/30 bg-[#4A7348]/10 p-3 text-[11px] leading-relaxed text-brown">
+        {en ? VACCINE_LEGAL_NOTE_EN : VACCINE_LEGAL_NOTE_TH}
+      </p>
 
       {photos.length < MAX_VACCINE_PHOTOS && (
         <label className="flex min-h-[56px] cursor-pointer items-center gap-3 rounded-catcha-sm border border-dashed border-catcha-line bg-paper px-3 py-3">

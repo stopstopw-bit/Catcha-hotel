@@ -9,3 +9,10 @@ export const FLEA_LEGAL_NOTE_TH =
 
 export const FLEA_LEGAL_NOTE_EN =
   "⚖️ By ticking this box you certify that your pet really received the flea and tick treatment stated. The date and time, your LINE account, any photos attached and your signature are recorded as electronic data, which is binding and admissible as legal evidence under Thailand's Electronic Transactions Act B.E. 2544 (2001). If this later proves untrue (for example, fleas or ticks are found during the stay), you agree to cover the costs and damages set out in the shop's terms.";
+
+/** ข้อความรับรองทางกฎหมายของสมุดวัคซีน — หน้าแนบสมุดวัคซีน + ช่องแนบในหน้ากดยอมรับ (2026-11-27) */
+export const VACCINE_LEGAL_NOTE_TH =
+  "⚖️ การแนบรูปสมุดวัคซีนนี้ถือเป็นคำรับรองของผู้ปกครองว่าเป็นสมุดวัคซีนของน้องตัวนี้จริง และข้อมูลวัคซีนในรูปถูกต้อง ไม่ได้ปลอมแปลงหรือแก้ไข ระบบบันทึกวันเวลา บัญชี LINE และรูปที่แนบไว้เป็นข้อมูลอิเล็กทรอนิกส์ ซึ่งมีผลผูกพันและใช้เป็นพยานหลักฐานทางกฎหมายได้ตามพระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. 2544 หากภายหลังพบว่าไม่เป็นความจริง (เช่น น้องไม่ได้ฉีดวัคซีนตามที่แจ้ง แล้วเกิดการติดเชื้อระหว่างใช้บริการ) ผู้ปกครองยินยอมรับผิดชอบค่าใช้จ่ายและความเสียหายตามข้อตกลงของร้าน";
+
+export const VACCINE_LEGAL_NOTE_EN =
+  "⚖️ By attaching these vaccine book photos you certify that they are your cat's own vaccine book and that the vaccination details shown are true and have not been forged or altered. The date and time, your LINE account and the photos attached are recorded as electronic data, which is binding and admissible as legal evidence under Thailand's Electronic Transactions Act B.E. 2544 (2001). If this later proves untrue (for example, your cat was not vaccinated as stated and an infection occurs during the service), you agree to cover the costs and damages set out in the shop's terms.";

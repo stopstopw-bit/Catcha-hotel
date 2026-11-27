@@ -18,7 +18,7 @@ import { posterFor } from "@/lib/en-posters";
 import { SectionLabel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MAX_VACCINE_PHOTOS } from "@/lib/vaccine-photos";
-import { FLEA_LEGAL_NOTE_EN, FLEA_LEGAL_NOTE_TH, FLEA_PROOF_MAX } from "@/lib/flea-proof";
+import { FLEA_LEGAL_NOTE_EN, FLEA_LEGAL_NOTE_TH, FLEA_PROOF_MAX, VACCINE_LEGAL_NOTE_EN, VACCINE_LEGAL_NOTE_TH } from "@/lib/flea-proof";
 import { ID_CARD_PURPOSE, watermarkIdCard } from "@/lib/id-card-watermark";
 import { customerFetch } from "@/lib/customer-fetch";
 import { isFeatureOn } from "@/lib/features";
@@ -574,6 +574,9 @@ function ConsentContent() {
                       "Without the vaccine book, you acknowledge and accept all terms, including the risk that the shop has not checked your cat's vaccination history."
                     )}
                   </span>
+                </p>
+                <p className="mb-2 rounded-catcha-sm border border-[#4A7348]/30 bg-[#4A7348]/10 p-3 text-[11px] leading-relaxed text-brown">
+                  {en ? VACCINE_LEGAL_NOTE_EN : VACCINE_LEGAL_NOTE_TH}
                 </p>
                 {vaccineCats.map(
                   (cat) => {
