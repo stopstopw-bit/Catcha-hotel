@@ -1,5 +1,6 @@
 import { bookingMatchesCustomer, datesForBooking, isUpcomingBooking } from "./booking-customer-match";
 import { healWrite } from "./heal-write";
+import { stayInfoDone } from "./intake-rules";
 import type { Booking } from "./business";
 import {
   computeTier,
@@ -1362,7 +1363,7 @@ function pickCatByKey(cats: CustomerRecord["cats"], key: string) {
   const same = cats.filter((x) => catKey(x.name) === key);
   if (same.length <= 1) return same[0];
   const score = (x: (typeof same)[number]) =>
-    (x.groomHealthInfo ? 4 : 0) + (x.stayInfo ? 2 : 0) + (x.vaccinePhotos ? 1 : 0);
+    (x.groomHealthInfo ? 4 : 0) + (stayInfoDone(x.stayInfo) ? 2 : 0) + (x.vaccinePhotos ? 1 : 0);
   return [...same].sort((a, b) => score(b) - score(a))[0];
 }
 
@@ -1403,7 +1404,7 @@ export async function getIntakeStatus(lineUserId: string, catName?: string) {
   const key = catName ? catKey(catName) : "";
   const cat = c ? (key ? pickCatByKey(c.cats, key) : c.cats[0]) : undefined;
   return {
-    stayInfo: Boolean(cat?.stayInfo),
+    stayInfo: stayInfoDone(cat?.stayInfo),
     // ไม่มีที่ตัวน้อง → ลองคำตอบรุ่นเก่าที่เก็บไว้ที่นัด (getCatGroomInfo ย้ายมาให้)
     groomInfo: Boolean(cat?.groomHealthInfo) || Boolean(cat && (await getCatGroomInfo(lineUserId, cat.name))),
     vaccine: splitVaccinePhotos(cat?.vaccinePhotos).length > 0,

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLiff } from "@/components/LiffProvider";
 import { useConfig } from "@/components/ConfigProvider";
+import { isFeatureOn } from "@/lib/features";
 import { BREED_OPTIONS, OTHER_BREED } from "@/lib/cat-breeds";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { StaffNoteTagPicker } from "@/components/StaffNoteTagPicker";
@@ -355,6 +356,22 @@ export default function ProfilePage() {
         </>
       ) : (
         <>
+          {/* ลูกค้าอัปเดตยาเห็บหมัดเองได้ ไม่ต้องรอร้านส่งการ์ด (ร้านปิดการ์ดนี้ = ไม่โชว์) */}
+          {isFeatureOn(config, "fleaUpdate") && (
+            <Link
+              href="/app/flea"
+              className="mb-4 flex min-h-[56px] items-center gap-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-honey/25 text-lg">💧</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-extrabold text-catcha-chocolate">{L("อัปเดตยากำจัดเห็บหมัด", "Update flea & tick treatment")}</span>
+                <span className="block text-[11px] text-brown-soft">
+                  {L("ให้ยาน้องแล้ว แจ้งวันที่ + แนบรูปให้ร้านได้เลย", "Treated your cat? Send the date and a photo")}
+                </span>
+              </span>
+              <Icon name="chevron" size={16} className="text-brown-faint" />
+            </Link>
+          )}
           {/* ── ผู้ปกครอง ── */}
           <SectionLabel>{L("Owner · ผู้ปกครอง", "Owner")}</SectionLabel>
           <div className="space-y-3 rounded-catcha border border-catcha-line bg-card p-4 shadow-catcha-sm">

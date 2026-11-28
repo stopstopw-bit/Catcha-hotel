@@ -25,9 +25,8 @@ export async function saveFleaProof(
   const key = (n: string) => n.replace(/^น้อง/, "").replace(/\s+/g, "").toLowerCase();
   const wanted = (catNames || []).map(key);
   const cats = wanted.length ? customer.cats.filter((c) => wanted.includes(key(c.name))) : customer.cats;
-  // เก็บเฉพาะตัวที่มีข้อมูลก่อนเข้าพักอยู่แล้ว — สร้างใหม่จะทำให้ระบบนับว่ากรอกฟอร์มก่อนเข้าพักแล้ว
-  // (รูปยังส่งเข้า Telegram ครบทุกครั้ง)
-  for (const c of cats.filter((x) => x.stayInfo)) {
+  // ตัวที่ยังไม่มีข้อมูลก่อนเข้าพัก → สร้างพร้อม source "flea-update" (ยังไม่นับว่ากรอกฟอร์ม ดู stayInfoDone)
+  for (const c of cats) {
     let info: Record<string, unknown> = {};
     try {
       info = c.stayInfo ? (JSON.parse(c.stayInfo) as Record<string, unknown>) : {};
@@ -38,7 +37,7 @@ export async function saveFleaProof(
     await setCatStayInfo(
       customer.id,
       c.id,
-      JSON.stringify({ ...info, fleaPhotos: [...prev, ...urls].slice(-9), fleaUpdatedAt: new Date().toISOString() })
+      JSON.stringify({ ...info, ...(c.stayInfo ? {} : { source: "flea-update" }), fleaPhotos: [...prev, ...urls].slice(-9), fleaUpdatedAt: new Date().toISOString() })
     ).catch(() => undefined);
   }
   return urls;

@@ -132,7 +132,16 @@ async function postHandler(req: NextRequest) {
   let res: { ok: boolean; error?: string };
   if (t.kind === "stay") {
     // ฟอร์มก่อนเข้าพักเก็บที่ตัวน้องในบัญชีลูกค้า — ต้องมีน้องตัวนี้ในบัญชีจริง
-    res = t.me && t.cat ? await setCatStayInfo(t.me.id, t.cat.id, JSON.stringify(payload)) : { ok: false, error: "not_found" };
+    // เก็บข้อมูลยาเห็บหมัด (การ์ดอัปเดตยาเห็บหมัด / รูปหลักฐานจากหน้ากดยอมรับ) ไว้ต่อ ไม่ให้หายตอนกรอกฟอร์มนี้
+    const keepFlea = (() => {
+      try {
+        const prev = t.cat?.stayInfo ? (JSON.parse(t.cat.stayInfo) as Record<string, unknown>) : {};
+        return Object.fromEntries(Object.entries(prev).filter(([k]) => k.startsWith("flea") && !(k in payload)));
+      } catch {
+        return {};
+      }
+    })();
+    res = t.me && t.cat ? await setCatStayInfo(t.me.id, t.cat.id, JSON.stringify({ ...keepFlea, ...payload })) : { ok: false, error: "not_found" };
   } else {
     res = await setCatGroomInfo(session.lineUserId, t.catName, JSON.stringify(payload));
   }

@@ -7,7 +7,22 @@ import type { SiteConfig } from "./config-types";
 export type IntakeRules = {
   /** การ์ดของการเข้าพักที่ขอในนัดอาบน้ำด้วย (key ตาม GROOM_EXTRA_CARDS) */
   groomCards?: string[];
+  /** การ์ดอัปเดตยากำจัดเห็บหมัด ขอรูปหลักฐานไหม — ไม่ตั้ง = แนบได้ ไม่บังคับ (ดู flea-update.ts) */
+  fleaProof?: "off" | "optional" | "required";
 };
+
+/**
+ * น้องกรอกข้อมูลก่อนเข้าพักแล้วจริงไหม — stayInfo ที่สร้างจากการ์ดอัปเดตยาเห็บหมัดอย่างเดียว (source "flea-update")
+ * ยังไม่นับว่ากรอกฟอร์ม (ร้านยังขอฟอร์มเต็มได้)
+ */
+export function stayInfoDone(json?: string | null): boolean {
+  if (!json) return false;
+  try {
+    return (JSON.parse(json) as { source?: string }).source !== "flea-update";
+  } catch {
+    return true;
+  }
+}
 
 /** การ์ดของการเข้าพักที่ร้านเลือกให้ขอในนัดอาบน้ำได้ */
 export const GROOM_EXTRA_CARDS = [

@@ -32,6 +32,8 @@ const PUBLIC_API = [
   // ลิงก์ที่ร้านส่งจากหน้าข้อมูลลูกค้า (ยังไม่มีนัด) — route ตรวจคุกกี้เซสชันลูกค้าเอง
   "/api/customers/cat-vaccine",
   "/api/customers/consent",
+  // การ์ดอัปเดตยากำจัดเห็บหมัด (/app/flea) — route ตรวจคุกกี้เซสชันลูกค้าเอง
+  "/api/customers/flea",
   "/api/bookings/groom-info",
   "/api/bookings/time",
   "/api/bookings/transport",

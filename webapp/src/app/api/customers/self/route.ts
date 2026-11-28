@@ -10,6 +10,7 @@ import {
 } from "@/lib/customers-store";
 import { formatBookingTelegram } from "@/lib/telegram";
 import { sendTelegramLater } from "@/lib/after-response";
+import { stayInfoDone } from "@/lib/intake-rules";
 
 /** ลูกค้าดึงข้อมูลตัวเอง (สำหรับหน้าแก้ไขโปรไฟล์ใน LINE) — ครบทุกฟิลด์ที่กรอกตอนสมัคร */
 export async function GET(req: NextRequest) {
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
         // หน้าแนบสมุดวัคซีน/ฟอร์มประวัติใช้บอกลูกค้าว่าส่งอะไรไปแล้วบ้าง (ไม่ส่งตัวรูปออกไป)
         vaccineCount: x.vaccinePhotos ? x.vaccinePhotos.split("\n").filter(Boolean).length : 0,
         hasPetInfo: Boolean(x.groomHealthInfo),
-        hasStayInfo: Boolean(x.stayInfo),
+        hasStayInfo: stayInfoDone(x.stayInfo),
       })),
     },
   });
