@@ -12,6 +12,7 @@ import { bookingExtras, extrasForCat, relatedBookingIds } from "@/lib/booking-ex
 import { roomOn } from "@/lib/room-segments";
 import { hasTransport } from "@/lib/transport";
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
+import { stayInfoDone } from "./intake-rules";
 
 /**
  * "ลูกค้าวันนี้" บนหน้าแรกหลังร้าน — 1 การ์ด = 1 บ้าน 1 นัด
@@ -227,7 +228,7 @@ export async function buildTodayBrief(date: string): Promise<TodayBrief[]> {
       if (on("consent") && d.rows.some((r) => !r.consentAcceptedAt))
         todos.push({ text: "ยังไม่ยอมรับเงื่อนไขเข้าพัก — ให้เซ็นตอนมาส่ง", tone: "amber" });
       for (const { b, cat } of cats) {
-        if (on("stayInfo") && !cat?.stayInfo)
+        if (on("stayInfo") && !stayInfoDone(cat?.stayInfo))
           todos.push({ text: "ยังไม่กรอกข้อมูลก่อนเข้าพัก — ถามอาหาร/ยาตอนรับน้อง", tone: "amber", cat: tag(b.catName) });
         if (on("vaccine") && !b.vaccinePhotoUrl && splitVaccinePhotos(cat?.vaccinePhotos).length === 0)
           todos.push({ text: "ยังไม่มีรูปสมุดวัคซีน — ขอดูตอนมาส่ง", tone: "amber", cat: tag(b.catName) });

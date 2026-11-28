@@ -10,8 +10,11 @@ import { cardOn } from "@/lib/features";
 import { INTAKE_LABEL } from "@/lib/intake-cards";
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
 import type { CustomerRecord } from "@/lib/customers-store";
+import { stayInfoDone } from "@/lib/intake-rules";
+import { fleaQuestions, parseFleaInfo } from "@/lib/flea-update";
+import { formatThaiDateShort } from "@/lib/format-thai-date";
 
-type Part = "groomInfo" | "stayInfo" | "prestay" | "consent" | "vaccine" | "idcard";
+type Part = "groomInfo" | "stayInfo" | "prestay" | "consent" | "vaccine" | "idcard" | "fleaUpdate";
 
 /**
  * หน้าข้อมูลลูกค้า: ส่งการ์ดถามข้อมูลก่อนรับน้อง โดยยังไม่ต้องลงนัด
@@ -44,8 +47,19 @@ export function CustomerIntakeCards({
   const cats = customer.cats.filter((c) => catIds.includes(c.id));
 
   const infoDone = cats.length > 0 && cats.every((c) => c.groomHealthInfo);
-  const stayDone = cats.length > 0 && cats.every((c) => c.stayInfo);
+  const stayDone = cats.length > 0 && cats.every((c) => stayInfoDone(c.stayInfo));
   const vaccineDone = cats.length > 0 && cats.every((c) => splitVaccinePhotos(c.vaccinePhotos).length > 0);
+  // ยาเห็บหมัดล่าสุดของแต่ละตัว — ลูกค้าอัปเดตจากการ์ดนี้หรือจากหน้าแก้ไขข้อมูลของฉัน
+  const fleaMethods = fleaQuestions(config).methods;
+  const flea = cats.map((c) => ({ cat: c, info: parseFleaInfo(c.stayInfo) }));
+  const fleaStatus = flea
+    .filter((f) => f.info.method || f.info.last)
+    .map((f) => {
+      const m = fleaMethods.find((o) => o.key === f.info.method)?.label || "";
+      const upd = f.info.updatedAt ? ` (อัปเดต ${formatThaiDateShort(f.info.updatedAt.slice(0, 10))})` : "";
+      return `${cats.length > 1 ? `${f.cat.name}: ` : ""}${[m, f.info.last].filter(Boolean).join(" ")}${upd}`;
+    })
+    .join(" · ");
   const rows: { part: Part; label: string; icon: string; when: boolean; status?: string; done?: boolean }[] = [
     { part: "stayInfo", label: INTAKE_LABEL.stayInfo, icon: "edit", when: hotelOn && partOn("stayInfo"), done: stayDone, status: stayDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
     { part: "groomInfo", label: INTAKE_LABEL.groomInfo, icon: "bath", when: groomOn && partOn("groomInfo"), done: infoDone, status: infoDone ? "กรอกแล้ว" : "ยังไม่กรอก" },
@@ -76,6 +90,14 @@ export function CustomerIntakeCards({
         : "ยังไม่เคยกดยอมรับ",
     },
     { part: "prestay", label: INTAKE_LABEL.prestay, icon: "bed", when: hotelOn && partOn("prestay") },
+    {
+      part: "fleaUpdate",
+      label: "อัปเดตยากำจัดเห็บหมัด",
+      icon: "paw",
+      when: hotelOn && partOn("fleaUpdate"),
+      done: cats.length > 0 && flea.every((f) => f.info.method && f.info.last),
+      status: fleaStatus || "ยังไม่เคยแจ้ง",
+    },
   ];
 
   // สลับประเภทนัดแล้ว เรื่องที่ติ๊กไว้แต่ถูกซ่อน ไม่ส่งไปด้วย
@@ -234,7 +256,7 @@ export function CustomerIntakeCards({
           ))}
         </div>
       )}
-      {/* รูปหลักฐานหยดยาเห็บหมัดที่ลูกค้าแนบตอนกดยอมรับข้อตกลง (ล่าสุดก่อน) */}
+      {/* รูปหลักฐานยาเห็บหมัดที่ลูกค้าแนบ (การ์ดอัปเดตยาเห็บหมัด / หน้ากดยอมรับข้อตกลง) ล่าสุดก่อน */}
       {customer.cats.some((c) => fleaPhotosOf(c.stayInfo).length) && (
         <div className="mt-3 space-y-1">
           {customer.cats
@@ -245,8 +267,8 @@ export function CustomerIntakeCards({
                 {[...fleaPhotosOf(c.stayInfo)].reverse().map((url, i) => (
                   <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-bold text-ok underline">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="หลักฐานหยดยาเห็บหมัด" className="h-8 w-8 rounded border border-catcha-line object-cover" />
-                    {i === 0 && "หลักฐานหยดยาล่าสุด"}
+                    <img src={url} alt="หลักฐานยาเห็บหมัด" className="h-8 w-8 rounded border border-catcha-line object-cover" />
+                    {i === 0 && "หลักฐานยาเห็บหมัดล่าสุด"}
                   </a>
                 ))}
               </div>

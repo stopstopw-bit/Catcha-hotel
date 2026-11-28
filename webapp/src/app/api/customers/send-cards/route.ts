@@ -13,6 +13,7 @@ import {
   buildDocRequestFlex,
   mergeIntakeCards,
   STAY_INFO_HEADER,
+  politeCat,
   type IntakeEntry,
 } from "@/lib/line";
 import { buildGroomInfoBody, buildPrestayFlexData, buildStayInfoBody } from "@/lib/booking-reminders";
@@ -21,10 +22,13 @@ import {
   buildCatVaccineUrl,
   buildCustomerConsentUrl,
   buildIdCardUrl,
+  buildFleaUpdateUrl,
 } from "@/lib/liff-urls";
+import { fleaCardText } from "@/lib/flea-update";
+import { stayInfoDone } from "@/lib/intake-rules";
 
 /** การ์ดที่ส่งจากหน้าข้อมูลลูกค้าได้ (ยังไม่ต้องมีนัด) */
-const CUSTOMER_CARD_PARTS = ["groomInfo", "stayInfo", "vaccine", "idcard", "consent", "prestay"] as const;
+const CUSTOMER_CARD_PARTS = ["groomInfo", "stayInfo", "vaccine", "idcard", "consent", "prestay", "fleaUpdate"] as const;
 type Part = (typeof CUSTOMER_CARD_PARTS)[number];
 
 /**
@@ -58,7 +62,7 @@ async function handlePost(req: NextRequest) {
 
   const wanted: string[] = Array.isArray(body.catIds) ? body.catIds.map(String) : [];
   const cats = wanted.length ? c.cats.filter((x) => wanted.includes(x.id)) : c.cats;
-  const needCats = parts.some((p) => p === "groomInfo" || p === "stayInfo" || p === "vaccine");
+  const needCats = parts.some((p) => p === "groomInfo" || p === "stayInfo" || p === "vaccine" || p === "fleaUpdate");
   if (needCats && cats.length === 0) {
     return NextResponse.json({ error: "ลูกค้ายังไม่มีข้อมูลน้อง — เพิ่มน้องก่อน" }, { status: 400 });
   }
@@ -85,7 +89,7 @@ async function handlePost(req: NextRequest) {
     if (part === "groomInfo" || part === "stayInfo") {
       const stay = part === "stayInfo";
       // ตัวที่เคยกรอกฟอร์มนี้แล้ว → ไม่ขอซ้ำเด็ดขาด (ข้อมูลผูกกับตัวน้อง)
-      const ask = cats.filter((x) => !(stay ? x.stayInfo : x.groomHealthInfo));
+      const ask = cats.filter((x) => !(stay ? stayInfoDone(x.stayInfo) : x.groomHealthInfo));
       for (const x of cats) if (!ask.includes(x)) skipped.push(`${x.name}: เคยกรอกแล้ว ไม่ขอซ้ำ`);
       if (ask.length === 0) continue;
       const askNames = ask.map((x) => x.name).join(", ");
@@ -158,6 +162,21 @@ async function handlePost(req: NextRequest) {
           cfg.cards?.consent
         ),
       });
+    } else if (part === "fleaUpdate") {
+      // การ์ดเดี่ยว (ไม่รวมในการ์ดไล่ทีละหน้า) — ส่งซ้ำได้ทุกครั้งที่ร้านอยากได้ข้อมูลล่าสุด
+      const style = cfg.cards?.fleaUpdate;
+      const url = buildFleaUpdateUrl(liffId, cats.map((x) => x.id));
+      messages.push(
+        buildGroomInfoFlex(
+          {
+            catName: catNames,
+            body: fleaCardText(style, "body").replace(/\{(?:pet|cat)\}/g, cats.length > 1 ? `น้องๆ ${cats.length} ตัว` : politeCat(catNames)),
+            url,
+            label: fleaCardText(style, "button"),
+          },
+          { ...style, texts: { ...style?.texts, header: fleaCardText(style, "header") } }
+        )
+      );
     } else if (part === "prestay") {
       messages.push(
         buildPrestayFlex(
