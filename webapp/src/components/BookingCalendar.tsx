@@ -38,6 +38,7 @@ import { formatThaiDateShort } from "@/lib/format-thai-date";
 import { bangkokToday } from "@/lib/bangkok-date";
 import { roomColorMap } from "@/lib/room-colors";
 import { dayEntries, dayMoveLabel, dayMoves, firstMoveTime, type DayMove } from "@/lib/day-moves";
+import { bookingExtras, type BookingExtra, type ExtraInvoiceLike } from "@/lib/booking-extras";
 
 type CalendarDay = EditableBooking & {
   customerId?: string;
@@ -218,6 +219,38 @@ function CatTags({ group }: { group: CalendarDay[] }) {
           </span>
         ))
       )}
+    </div>
+  );
+}
+
+/**
+ * งานเพิ่มที่ร้านใส่ไว้ในบิล (ไถขน อาบน้ำ ฯลฯ) — เมื่อก่อนออกบิลแล้วการ์ดนัดไม่บอก
+ * พนักงานเลยไม่รู้ว่าน้องตัวนี้ต้องทำอะไรเพิ่ม · บ้านหลายตัวติดชื่อน้องที่บิลระบุไว้
+ */
+function ExtrasNote({
+  extras,
+  many,
+  skipGrooming,
+}: {
+  extras: BookingExtra[];
+  many: boolean;
+  skipGrooming?: boolean;
+}) {
+  const shown = extras.filter((x) => !(skipGrooming && x.grooming));
+  if (!shown.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span className="text-[11px] font-extrabold text-wait">งานเพิ่มในบิล:</span>
+      {shown.map((x, i) => (
+        <span
+          key={`${x.text}-${i}`}
+          className="inline-flex items-center gap-1 rounded-full bg-wait/15 px-2 py-0.5 text-[11px] font-bold text-wait"
+        >
+          <Icon name="plus" size={11} strokeWidth={2.4} />
+          {many && x.cats.length ? `${x.cats.join(", ")}: ` : ""}
+          {x.text}
+        </span>
+      ))}
     </div>
   );
 }
@@ -797,6 +830,8 @@ export function BookingCalendar() {
 
   /** นัดที่มีบิลผูกอยู่ — นัดที่ออกบิลแล้วถือว่าลูกค้ามาแล้ว ไม่ต้องรอยืนยัน */
   const [billedIds, setBilledIds] = useState<Set<string>>(new Set());
+  // บิลทั้งหมด (เฉพาะ bookingId + รายการ) — ไว้บอก "งานเพิ่มในบิล" (ไถขน อาบน้ำ ฯลฯ) บนการ์ด/ผังห้อง
+  const [billList, setBillList] = useState<ExtraInvoiceLike[]>([]);
 
   /** 📅 เลื่อนนัดทั้งบ้าน — เปิดหน้าต่างเลือกวัน/เวลาใหม่ แล้วเลื่อนทุกตัวในบ้านพร้อมกัน */
   const [moving, setMoving] = useState<{
@@ -980,6 +1015,7 @@ export function BookingCalendar() {
     setLoading(false);
     try {
       const inv = await fetch("/api/invoices").then((r) => r.json());
+      setBillList((inv.invoices || []) as ExtraInvoiceLike[]);
       setBilledIds(
         new Set(
           ((inv.invoices || []) as { bookingId?: string }[])
@@ -1953,6 +1989,14 @@ export function BookingCalendar() {
                               <p className="truncate text-[9px] text-brown-faint">
                                 ถึง {host.checkout || "-"}
                               </p>
+                              {(() => {
+                                const ex = bookingExtras(u.staying as CalendarDay[], liveBookings, billList);
+                                return ex.length > 0 ? (
+                                  <p className="truncate text-[9px] font-bold text-wait">
+                                    + {ex.map((x) => x.text).join(", ")}
+                                  </p>
+                                ) : null;
+                              })()}
                             </>
                           ) : u.partOf ? (
                             <p className="pt-1 text-center text-[9px] text-brown-faint">
@@ -2463,6 +2507,11 @@ export function BookingCalendar() {
                         </p>
                       ) : null;
                     })()}
+                    <ExtrasNote
+                      extras={bookingExtras(group, liveBookings, billList)}
+                      many={many}
+                      skipGrooming={b.service !== "room" || bathRows.length > 0}
+                    />
                     {moves.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {moves.map((x) => (

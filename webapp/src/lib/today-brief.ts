@@ -8,6 +8,7 @@ import { isFeatureOn } from "@/lib/features";
 import { GROOM_DRY_METHOD_LABELS, GROOM_HEALTH_LABELS, GROOM_TEMPERAMENT_LABELS, parseGroomInfo } from "@/lib/groom-info";
 import { groomProgramName, resolveGroomPrograms } from "@/lib/grooming-prices";
 import { listInvoicesForBookings } from "@/lib/invoices-store";
+import { bookingExtras, extrasForCat, relatedBookingIds } from "@/lib/booking-extras";
 import { roomOn } from "@/lib/room-segments";
 import { hasTransport } from "@/lib/transport";
 import { splitVaccinePhotos } from "@/lib/vaccine-photos";
@@ -177,8 +178,10 @@ export async function buildTodayBrief(date: string): Promise<TodayBrief[]> {
   }
 
   const drafted = Array.from(drafts.values());
-  const checkoutIds = drafted.filter((d) => d.kind === "checkout").flatMap((d) => d.rows.map((r) => r.id));
-  const invoices = checkoutIds.length ? await listInvoicesForBookings(checkoutIds).catch(() => []) : [];
+  // บิลของทุกการ์ด (รวมบ้านเดียวกัน + อาบน้ำก่อนกลับที่ออกบิลรวมค่าห้อง) — ใช้ทั้งยอดค้างตอนออก
+  // และ "งานเพิ่มในบิล" (ไถขน อาบน้ำ ฯลฯ) ที่พนักงานต้องรู้ว่าน้องตัวไหนต้องทำอะไรเพิ่ม
+  const relatedIds = relatedBookingIds(drafted.flatMap((d) => d.rows), bookings);
+  const invoices = relatedIds.size ? await listInvoicesForBookings(Array.from(relatedIds)).catch(() => []) : [];
 
   const out: TodayBrief[] = drafted.map((d) => {
     const first = d.rows[0];
@@ -263,6 +266,23 @@ export async function buildTodayBrief(date: string): Promise<TodayBrief[]> {
         if (on("groomInfo") && !cat?.groomHealthInfo)
           todos.push({ text: "ยังไม่กรอกประวัติก่อนอาบน้ำ — ถามนิสัย/สุขภาพก่อนจับน้อง", tone: "amber", cat: tag(b.catName) });
         for (const c of groomCare(cat)) care.push({ ...c, cat: tag(b.catName) });
+      }
+    }
+
+    // งานเพิ่มที่ใส่ไว้ในบิล — การ์ดอาบน้ำโชว์โปรแกรมอยู่แล้ว / วันออกที่มีนัดอาบก่อนกลับก็บอกแล้ว ไม่ต้องซ้ำ
+    {
+      const extras = bookingExtras(d.rows, bookings, invoices);
+      const skipGrooming = d.kind === "groom" || todos.some((t) => t.text.startsWith("อาบน้ำก่อนกลับ"));
+      const seen = new Set<string>();
+      for (const { b } of cats) {
+        for (const x of extrasForCat(extras, b.catName)) {
+          if (skipGrooming && x.grooming) continue;
+          const shared = !x.cats.length;
+          const key = shared ? `*|${x.text}` : `${b.catName}|${x.text}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          todos.push({ text: `งานเพิ่มในบิล: ${x.text}`, tone: "amber", cat: shared ? undefined : tag(b.catName) });
+        }
       }
     }
 
