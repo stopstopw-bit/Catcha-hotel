@@ -68,6 +68,19 @@ export async function buildDayScheduleMessage(
   const invoices = shown.length
     ? await listInvoicesForBookings(Array.from(relatedBookingIds(shown, live))).catch(() => [])
     : [];
+  // ร้านต้องไปรับ/ไปส่งน้อง — บอกในบรรทัดเลย ไม่ต้องรอดูข้อความรับ-ส่งแยก
+  const tripLine = (b: (typeof live)[number], kind: "in" | "out" | "groom") => {
+    const t = b.transport;
+    const parts =
+      kind === "in"
+        ? [t?.pickup ? "ร้านไปรับน้อง" : ""]
+        : kind === "out"
+          ? [t?.dropoff ? "ร้านไปส่งน้องกลับบ้าน" : ""]
+          : [t?.pickup ? "ร้านไปรับน้อง" : "", t?.dropoff ? "ส่งกลับหลังอาบ" : ""];
+    const text = parts.filter(Boolean).join(" + ");
+    const addr = (t?.address || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return text ? `\n   🚗 ${text}${addr ? ` · ${addr}` : ""}` : "";
+  };
   const extraLine = (b: (typeof live)[number], skipGrooming = false) => {
     const t = extrasText(extrasForCat(bookingExtras([b], live, invoices), b.catName), { skipGrooming });
     return t ? `\n   ➕ งานเพิ่ม: ${t}` : "";
@@ -108,7 +121,7 @@ export async function buildDayScheduleMessage(
           notes?.allergy && notes.allergy !== "ไม่มี" ? `🚫 แพ้: ${notes.allergy}` : "",
           b.notes ? `📝 ${b.notes}` : "",
         ].filter(Boolean);
-        return (flags.length ? `${base}\n   ⚠️ ${flags.join(" · ")}` : base) + extraLine(b, true);
+        return (flags.length ? `${base}\n   ⚠️ ${flags.join(" · ")}` : base) + tripLine(b, "groom") + extraLine(b, true);
       })
     );
     lines.push(`\n🛁 นัดอาบน้ำ (${groom.length}):\n` + groomLines.join("\n"));
@@ -119,7 +132,7 @@ export async function buildDayScheduleMessage(
         checkin
           .map(
             (b, i) =>
-              `${i + 1}. ${moveText("มาส่ง", b.arrivalTime)} — ${b.catName} · ${b.customerName} · ห้อง ${b.room || "-"}${extraLine(b)}`
+              `${i + 1}. ${moveText("มาส่ง", b.arrivalTime)} — ${b.catName} · ${b.customerName} · ห้อง ${b.room || "-"}${tripLine(b, "in")}${extraLine(b)}`
           )
           .join("\n")
     );
@@ -141,7 +154,7 @@ export async function buildDayScheduleMessage(
         checkout
           .map(
             (b, i) =>
-              `${i + 1}. ${moveText("มารับ", b.pickupTime)} — ${b.catName} · ${b.customerName} · ห้อง ${roomAt(b, date)}${extraLine(b)}`
+              `${i + 1}. ${moveText("มารับ", b.pickupTime)} — ${b.catName} · ${b.customerName} · ห้อง ${roomAt(b, date)}${tripLine(b, "out")}${extraLine(b)}`
           )
           .join("\n")
     );
